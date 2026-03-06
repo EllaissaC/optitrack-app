@@ -434,7 +434,11 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
-      const frame = await storage.updateFrame(req.params.id as string, parsed.data);
+      const updates = { ...parsed.data };
+      if (updates.status === "sold" && !updates.dateSold) {
+        updates.dateSold = new Date().toISOString().split("T")[0];
+      }
+      const frame = await storage.updateFrame(req.params.id as string, updates);
       if (!frame) return res.status(404).json({ message: "Frame not found" });
       res.json(frame);
     } catch {

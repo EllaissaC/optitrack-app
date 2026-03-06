@@ -1244,6 +1244,7 @@ export default function Inventory() {
                     </TableHead>
                     <TableHead className="text-right">Wholesale</TableHead>
                     <TableHead className="text-right">Retail</TableHead>
+                    <TableHead className="text-right">Profit</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>
                   </TableRow>
@@ -1293,6 +1294,11 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell className="text-right text-sm font-semibold py-3.5">
                           ${parseFloat(frame.retailPrice as string).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm py-3.5">
+                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                            ${(parseFloat(frame.retailPrice as string) - parseFloat(frame.cost as string)).toFixed(2)}
+                          </span>
                         </TableCell>
                         <TableCell className="py-3.5">
                           <div className="space-y-1">

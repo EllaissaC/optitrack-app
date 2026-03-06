@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight, AlertTriangle } from "lucide-react";
+import {
+  Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
+  AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,41 +18,92 @@ const STATUS_CONFIG = {
 };
 
 function StatCard({
-  title,
-  value,
-  icon: Icon,
-  iconColor,
-  bgColor,
-  description,
-  loading,
+  title, value, icon: Icon, iconColor, bgColor, description, loading, valueClass,
 }: {
   title: string;
-  value: number;
+  value: string | number;
   icon: React.ElementType;
   iconColor: string;
   bgColor: string;
   description?: string;
   loading?: boolean;
+  valueClass?: string;
 }) {
   return (
     <Card className="border-card-border">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between gap-4">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-muted-foreground font-medium mb-1">{title}</p>
+            <p className="text-xs text-muted-foreground font-medium mb-1 uppercase tracking-wide">{title}</p>
             {loading ? (
-              <Skeleton className="h-8 w-16 mb-1" />
+              <Skeleton className="h-7 w-24 mb-1" />
             ) : (
-              <p className="text-3xl font-bold text-foreground">{value}</p>
+              <p className={`text-2xl font-bold text-foreground leading-tight ${valueClass ?? ""}`}>{value}</p>
             )}
             {description && (
               <p className="text-xs text-muted-foreground mt-1">{description}</p>
             )}
           </div>
-          <div className={`p-3 rounded-lg ${bgColor} flex-shrink-0`}>
-            <Icon className={`w-5 h-5 ${iconColor}`} />
+          <div className={`p-2.5 rounded-lg ${bgColor} flex-shrink-0`}>
+            <Icon className={`w-4 h-4 ${iconColor}`} />
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopList({
+  title, icon: Icon, items, loading, valueLabel,
+}: {
+  title: string;
+  icon: React.ElementType;
+  items: { name: string; count: number; revenue: number }[];
+  loading: boolean;
+  valueLabel?: string;
+}) {
+  const maxCount = items[0]?.count ?? 1;
+  return (
+    <Card className="border-card-border">
+      <CardHeader className="pb-3 px-5 pt-5">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Icon className="w-4 h-4 text-muted-foreground" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-5 pb-5">
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No sales data yet</p>
+        ) : (
+          <div className="space-y-2.5">
+            {items.map((item, i) => (
+              <div key={item.name} className="space-y-1" data-testid={`row-top-${valueLabel?.toLowerCase() ?? "item"}-${i}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-muted-foreground w-4 flex-shrink-0">{i + 1}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-muted-foreground">{item.count} sold</span>
+                    <Badge variant="secondary" className="text-xs font-semibold">
+                      ${item.revenue.toFixed(0)}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden ml-6">
+                  <div
+                    className="h-full rounded-full bg-primary/60"
+                    style={{ width: `${(item.count / maxCount) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -59,6 +113,36 @@ function daysAtLab(dateSentToLab: string): number {
   const sent = new Date(dateSentToLab);
   const today = new Date();
   return Math.floor((today.getTime() - sent.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function isThisMonth(dateStr: string | null | undefined): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function topN(
+  frames: Frame[],
+  key: keyof Frame,
+  n = 5
+): { name: string; count: number; revenue: number }[] {
+  const map = new Map<string, { count: number; revenue: number }>();
+  for (const f of frames) {
+    const k = String(f[key] ?? "Unknown");
+    const existing = map.get(k) ?? { count: 0, revenue: 0 };
+    existing.count += 1;
+    existing.revenue += parseFloat(f.retailPrice as string);
+    map.set(k, existing);
+  }
+  return [...map.entries()]
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.count - a.count || b.revenue - a.revenue)
+    .slice(0, n);
 }
 
 export default function Dashboard() {
@@ -75,14 +159,27 @@ export default function Dashboard() {
 
   const onBoard = frames.filter((f) => f.status === "on_board").length;
   const atLab = frames.filter((f) => f.status === "at_lab").length;
-  const sold = frames.filter((f) => f.status === "sold").length;
   const total = frames.length;
 
-  const totalRetail = frames.reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
-  const totalCost = frames.reduce((acc, f) => acc + parseFloat(f.cost as string), 0);
-  const soldRevenue = frames
-    .filter((f) => f.status === "sold")
-    .reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
+  const soldFrames = frames.filter((f) => f.status === "sold");
+  const sold = soldFrames.length;
+
+  const totalRevenue = soldFrames.reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
+  const totalWholesaleCost = soldFrames.reduce((acc, f) => acc + parseFloat(f.cost as string), 0);
+  const totalProfit = totalRevenue - totalWholesaleCost;
+
+  const soldThisMonth = soldFrames.filter((f) => {
+    if (f.dateSold) return isThisMonth(f.dateSold);
+    const d = new Date(f.createdAt);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const revenueThisMonth = soldThisMonth.reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
+  const framesThisMonth = soldThisMonth.length;
+
+  const topBrands = topN(soldFrames, "brand");
+  const topManufacturers = topN(soldFrames, "manufacturer");
+  const topModels = topN(soldFrames, "model");
 
   const recentFrames = [...frames]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -92,6 +189,8 @@ export default function Dashboard() {
     (f) => f.status === "at_lab" && f.dateSentToLab && daysAtLab(f.dateSentToLab) >= reminderDays
   ).sort((a, b) => daysAtLab(b.dateSentToLab!) - daysAtLab(a.dateSentToLab!));
 
+  const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -99,41 +198,116 @@ export default function Dashboard() {
         <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Total Frames"
-          value={total}
-          icon={Archive}
-          iconColor="text-violet-600 dark:text-violet-400"
-          bgColor="bg-violet-100 dark:bg-violet-900/30"
-          loading={isLoading}
-        />
-        <StatCard
-          title="On Board"
-          value={onBoard}
-          icon={Package}
-          iconColor="text-emerald-600 dark:text-emerald-400"
-          bgColor="bg-emerald-100 dark:bg-emerald-900/30"
-          loading={isLoading}
-        />
-        <StatCard
-          title="At Lab"
-          value={atLab}
-          icon={FlaskConical}
-          iconColor="text-amber-600 dark:text-amber-400"
-          bgColor="bg-amber-100 dark:bg-amber-900/30"
-          loading={isLoading}
-        />
-        <StatCard
-          title="Sold"
-          value={sold}
-          icon={CheckCircle}
-          iconColor="text-blue-600 dark:text-blue-400"
-          bgColor="bg-blue-100 dark:bg-blue-900/30"
-          loading={isLoading}
-        />
+      {/* Row 1: Inventory status stats */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory Overview</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            title="Total Frames"
+            value={total}
+            icon={Archive}
+            iconColor="text-violet-600 dark:text-violet-400"
+            bgColor="bg-violet-100 dark:bg-violet-900/30"
+            loading={isLoading}
+          />
+          <StatCard
+            title="On Board"
+            value={onBoard}
+            icon={Package}
+            iconColor="text-emerald-600 dark:text-emerald-400"
+            bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+            loading={isLoading}
+          />
+          <StatCard
+            title="At Lab"
+            value={atLab}
+            icon={FlaskConical}
+            iconColor="text-amber-600 dark:text-amber-400"
+            bgColor="bg-amber-100 dark:bg-amber-900/30"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Total Sold"
+            value={sold}
+            icon={CheckCircle}
+            iconColor="text-blue-600 dark:text-blue-400"
+            bgColor="bg-blue-100 dark:bg-blue-900/30"
+            loading={isLoading}
+          />
+        </div>
       </div>
 
+      {/* Row 2: Sales financial stats */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Sales Performance (All Time)</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            title="Total Revenue"
+            value={`$${fmt(totalRevenue)}`}
+            icon={DollarSign}
+            iconColor="text-emerald-600 dark:text-emerald-400"
+            bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+            loading={isLoading}
+            description="Retail price of sold frames"
+          />
+          <StatCard
+            title="Total Wholesale Cost"
+            value={`$${fmt(totalWholesaleCost)}`}
+            icon={ShoppingCart}
+            iconColor="text-slate-600 dark:text-slate-400"
+            bgColor="bg-slate-100 dark:bg-slate-800/50"
+            loading={isLoading}
+            description="Cost of sold frames"
+          />
+          <StatCard
+            title="Total Profit"
+            value={`$${fmt(totalProfit)}`}
+            icon={TrendingUp}
+            iconColor={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
+            bgColor={totalProfit >= 0 ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"}
+            loading={isLoading}
+            description="Revenue minus wholesale cost"
+            valueClass={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
+          />
+          <StatCard
+            title="Profit Margin"
+            value={totalRevenue > 0 ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}%` : "—"}
+            icon={BarChart2}
+            iconColor="text-violet-600 dark:text-violet-400"
+            bgColor="bg-violet-100 dark:bg-violet-900/30"
+            loading={isLoading}
+            description="Profit as % of revenue"
+          />
+        </div>
+      </div>
+
+      {/* Row 3: This month */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+          {currentMonth}
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard
+            title="Revenue This Month"
+            value={`$${fmt(revenueThisMonth)}`}
+            icon={DollarSign}
+            iconColor="text-emerald-600 dark:text-emerald-400"
+            bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Frames Sold This Month"
+            value={framesThisMonth}
+            icon={CheckCircle}
+            iconColor="text-blue-600 dark:text-blue-400"
+            bgColor="bg-blue-100 dark:bg-blue-900/30"
+            loading={isLoading}
+          />
+        </div>
+      </div>
+
+      {/* Lab follow-up alert */}
       {!isLoading && overdueLabFrames.length > 0 && (
         <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
           <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3 px-6 pt-5">
@@ -150,8 +324,8 @@ export default function Dashboard() {
             </div>
             <div className="ml-auto">
               <Button variant="ghost" size="sm" asChild className="text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200">
-                <Link href="/inventory" data-testid="link-lab-followup-inventory">
-                  View in Inventory <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                <Link href="/lab-orders" data-testid="link-lab-followup-inventory">
+                  View Lab Orders <ArrowRight className="w-3.5 h-3.5 ml-1" />
                 </Link>
               </Button>
             </div>
@@ -209,6 +383,38 @@ export default function Dashboard() {
         </Card>
       )}
 
+      {/* Analytics: Top 5 each */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <Trophy className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+          Top Sellers (by units sold)
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <TopList
+            title="Top Brands"
+            icon={Trophy}
+            items={topBrands}
+            loading={isLoading}
+            valueLabel="brand"
+          />
+          <TopList
+            title="Top Manufacturers"
+            icon={BarChart2}
+            items={topManufacturers}
+            loading={isLoading}
+            valueLabel="manufacturer"
+          />
+          <TopList
+            title="Top Frame Models"
+            icon={Package}
+            items={topModels}
+            loading={isLoading}
+            valueLabel="model"
+          />
+        </div>
+      </div>
+
+      {/* Recent frames + status breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="border-card-border lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2 px-6 pt-5">
@@ -235,6 +441,9 @@ export default function Dashboard() {
               <div className="space-y-2">
                 {recentFrames.map((frame) => {
                   const config = STATUS_CONFIG[frame.status as keyof typeof STATUS_CONFIG];
+                  const retail = parseFloat(frame.retailPrice as string);
+                  const cost = parseFloat(frame.cost as string);
+                  const profit = retail - cost;
                   return (
                     <div
                       key={frame.id}
@@ -250,9 +459,10 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="text-sm font-semibold text-foreground">
-                          ${parseFloat(frame.retailPrice as string).toFixed(2)}
-                        </span>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-foreground">${retail.toFixed(2)}</p>
+                          <p className="text-xs text-emerald-600 dark:text-emerald-400">+${profit.toFixed(2)}</p>
+                        </div>
                         <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${config.color}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
                           {config.label}
@@ -270,34 +480,34 @@ export default function Dashboard() {
           <CardHeader className="space-y-0 pb-2 px-6 pt-5">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
-              Financial Summary
+              Sales Summary
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-6 pb-5 space-y-4">
+          <CardContent className="px-6 pb-5 space-y-3">
             {isLoading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
+                {[1, 2, 3, 4].map((i) => (
                   <Skeleton key={i} className="h-10 w-full" />
                 ))}
               </div>
             ) : (
               <>
                 <div className="p-3 rounded-md bg-muted/40 space-y-0.5">
-                  <p className="text-xs text-muted-foreground">Total Wholesale Cost</p>
+                  <p className="text-xs text-muted-foreground">Revenue (sold frames)</p>
+                  <p className="text-lg font-bold text-foreground" data-testid="text-total-revenue">
+                    ${fmt(totalRevenue)}
+                  </p>
+                </div>
+                <div className="p-3 rounded-md bg-muted/40 space-y-0.5">
+                  <p className="text-xs text-muted-foreground">Wholesale Cost (sold)</p>
                   <p className="text-lg font-bold text-foreground" data-testid="text-total-cost">
-                    ${totalCost.toFixed(2)}
+                    ${fmt(totalWholesaleCost)}
                   </p>
                 </div>
-                <div className="p-3 rounded-md bg-muted/40 space-y-0.5">
-                  <p className="text-xs text-muted-foreground">Total Retail Value</p>
-                  <p className="text-lg font-bold text-foreground" data-testid="text-total-retail">
-                    ${totalRetail.toFixed(2)}
-                  </p>
-                </div>
-                <div className="p-3 rounded-md bg-muted/40 space-y-0.5">
-                  <p className="text-xs text-muted-foreground">Revenue from Sales</p>
-                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-revenue">
-                    ${soldRevenue.toFixed(2)}
+                <div className="p-3 rounded-md bg-emerald-50 dark:bg-emerald-950/20 space-y-0.5">
+                  <p className="text-xs text-muted-foreground">Net Profit</p>
+                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-total-profit">
+                    ${fmt(totalProfit)}
                   </p>
                 </div>
                 {total > 0 && (
@@ -315,7 +525,7 @@ export default function Dashboard() {
                             style={{ width: `${(count / total) * 100}%` }}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground w-16 text-right">
+                        <span className="text-xs text-muted-foreground w-20 text-right">
                           {label} ({count})
                         </span>
                       </div>
