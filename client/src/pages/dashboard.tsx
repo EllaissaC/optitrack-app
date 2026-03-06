@@ -190,7 +190,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <div className="p-3 rounded-md bg-muted/40 space-y-0.5">
-                  <p className="text-xs text-muted-foreground">Total Inventory Cost</p>
+                  <p className="text-xs text-muted-foreground">Total Wholesale Cost</p>
                   <p className="text-lg font-bold text-foreground" data-testid="text-total-cost">
                     ${totalCost.toFixed(2)}
                   </p>

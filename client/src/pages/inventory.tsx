@@ -97,6 +97,11 @@ const formSchema = insertFrameSchema.extend({
   cost: z.coerce
     .string()
     .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
+  multiplier: z.coerce
+    .string()
+    .refine((v) => v === "" || v === null || (!isNaN(parseFloat(v)) && parseFloat(v) > 0), "Must be a positive number")
+    .optional()
+    .nullable(),
   retailPrice: z.coerce
     .string()
     .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
@@ -371,7 +376,7 @@ function FrameFoundCard({
               </p>
             </div>
             <div>
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Cost</span>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">Wholesale</span>
               <p className="font-medium text-foreground">
                 ${parseFloat(frame.cost as string).toFixed(2)}
               </p>
@@ -478,6 +483,7 @@ function FrameFormDialog({
       retailPrice: "",
       status: "on_board",
       barcode: "",
+      multiplier: "",
       labOrderNumber: "",
       labName: "",
       labAccountNumber: "",
@@ -488,6 +494,16 @@ function FrameFormDialog({
 
   const watchedManufacturer = form.watch("manufacturer");
   const watchedStatus = form.watch("status");
+  const watchedCost = form.watch("cost");
+  const watchedMultiplier = form.watch("multiplier");
+
+  useEffect(() => {
+    const cost = parseFloat(watchedCost as string);
+    const multiplier = parseFloat(watchedMultiplier as string);
+    if (!isNaN(cost) && !isNaN(multiplier) && multiplier > 0) {
+      form.setValue("retailPrice", (cost * multiplier).toFixed(2), { shouldValidate: false });
+    }
+  }, [watchedCost, watchedMultiplier]);
 
   useEffect(() => {
     if (watchedStatus === "at_lab" && !form.getValues("dateSentToLab")) {
@@ -520,6 +536,7 @@ function FrameFormDialog({
               retailPrice: String(editFrame.retailPrice),
               status: editFrame.status as "on_board" | "at_lab" | "sold",
               barcode: editFrame.barcode ?? "",
+              multiplier: editFrame.multiplier ? String(editFrame.multiplier) : "",
               labOrderNumber: editFrame.labOrderNumber ?? "",
               labName: editFrame.labName ?? "",
               labAccountNumber: editFrame.labAccountNumber ?? "",
@@ -535,6 +552,7 @@ function FrameFormDialog({
               bridge: 18,
               templeLength: 145,
               cost: "",
+              multiplier: "",
               retailPrice: "",
               status: "on_board",
               barcode: prefillBarcode ?? "",
@@ -633,6 +651,7 @@ function FrameFormDialog({
     const payload = {
       ...values,
       barcode: values.barcode || null,
+      multiplier: values.multiplier || null,
       labOrderNumber: values.labOrderNumber || null,
       labName: values.labName || null,
       labAccountNumber: values.labAccountNumber || null,
@@ -852,16 +871,37 @@ function FrameFormDialog({
                 />
               </div>
 
-              {/* Pricing + Status */}
+              {/* Pricing */}
               <div className="grid grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
                   name="cost"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cost ($)</FormLabel>
+                      <FormLabel>Wholesale Cost ($)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" min={0} placeholder="0.00" data-testid="input-cost" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="multiplier"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Multiplier</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min={0}
+                          placeholder="e.g. 3"
+                          data-testid="input-multiplier"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -880,29 +920,31 @@ function FrameFormDialog({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-status">
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="on_board">On Board</SelectItem>
-                          <SelectItem value="at_lab">At Lab</SelectItem>
-                          <SelectItem value="sold">Sold</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
+
+              {/* Status */}
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-status" className="w-48">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="on_board">On Board</SelectItem>
+                        <SelectItem value="at_lab">At Lab</SelectItem>
+                        <SelectItem value="sold">Sold</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               {/* Lab fields — shown only when status = at_lab */}
               {isAtLab && (
@@ -1266,30 +1308,20 @@ export default function Inventory() {
               value={scanValue}
               onChange={(e) => setScanValue(e.target.value)}
               onKeyDown={handleScanKeyDown}
-              placeholder="Focus here and scan with USB barcode scanner, or type and press Enter..."
-              className="pr-24 font-mono"
+              placeholder="Focus here and scan with USB barcode scanner..."
+              className="font-mono"
               autoComplete="off"
               data-testid="input-barcode-scan"
             />
             {scanValue && (
               <button
                 onClick={() => { setScanValue(""); scanInputRef.current?.focus(); }}
-                className="absolute right-[4.5rem] top-1/2 -translate-y-1/2 text-muted-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 data-testid="button-clear-scan"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-            <Button
-              size="sm"
-              variant="secondary"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-3"
-              onClick={() => handleScan(scanValue)}
-              disabled={!scanValue.trim()}
-              data-testid="button-scan-submit"
-            >
-              Scan
-            </Button>
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 min-w-[90px]">
@@ -1393,7 +1425,7 @@ export default function Inventory() {
                         <Barcode className="w-3.5 h-3.5" /> Barcode
                       </span>
                     </TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-right">Wholesale</TableHead>
                     <TableHead className="text-right">Retail</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>

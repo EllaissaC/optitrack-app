@@ -13,6 +13,7 @@ export const frames = pgTable("frames", {
   bridge: integer("bridge").notNull(),
   templeLength: integer("temple_length").notNull(),
   cost: numeric("cost", { precision: 10, scale: 2 }).notNull(),
+  multiplier: numeric("multiplier", { precision: 10, scale: 4 }),
   retailPrice: numeric("retail_price", { precision: 10, scale: 2 }).notNull(),
   status: text("status", { enum: ["on_board", "at_lab", "sold"] }).notNull().default("on_board"),
   barcode: text("barcode"),
