@@ -34,7 +34,7 @@ export function useLogin() {
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
-      navigate("/dashboard");
+      navigate("/home");
     },
   });
 }
