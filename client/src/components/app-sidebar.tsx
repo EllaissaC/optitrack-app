@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Lab Orders", url: "/lab-orders", icon: FlaskConical },
 ];

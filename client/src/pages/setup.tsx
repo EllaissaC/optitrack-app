@@ -37,7 +37,7 @@ export default function Setup() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      navigate("/");
+      navigate("/dashboard");
     },
   });
 

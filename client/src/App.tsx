@@ -63,10 +63,11 @@ function AppShell() {
           </header>
           <main className="flex-1 overflow-y-auto">
             <Switch>
-              <Route path="/" component={Dashboard} />
+              <Route path="/dashboard" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />
               <Route path="/settings" component={Settings} />
+              <Route path="/"><Redirect to="/dashboard" /></Route>
               <Route component={NotFound} />
             </Switch>
           </main>
