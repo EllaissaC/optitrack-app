@@ -3,8 +3,23 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
+export const clinics = pgTable("clinics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicName: text("clinic_name").notNull(),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClinicSchema = createInsertSchema(clinics).omit({ id: true, createdAt: true });
+export type InsertClinic = z.infer<typeof insertClinicSchema>;
+export type Clinic = typeof clinics.$inferSelect;
+
 export const frames = pgTable("frames", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
   manufacturer: text("manufacturer").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),
@@ -36,26 +51,12 @@ export const insertFrameSchema = createInsertSchema(frames).omit({
 export type InsertFrame = z.infer<typeof insertFrameSchema>;
 export type Frame = typeof frames.$inferSelect;
 
-export const clinics = pgTable("clinics", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicName: text("clinic_name").notNull(),
-  address: text("address"),
-  city: text("city"),
-  state: text("state"),
-  zip: text("zip"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const insertClinicSchema = createInsertSchema(clinics).omit({ id: true, createdAt: true });
-export type InsertClinic = z.infer<typeof insertClinicSchema>;
-export type Clinic = typeof clinics.$inferSelect;
-
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").unique(),
   password: text("password").notNull(),
-  role: text("role", { enum: ["admin", "staff"] }).notNull().default("staff"),
+  role: text("role", { enum: ["admin", "optician", "staff"] }).notNull().default("staff"),
   clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "set null" }),
   inviteToken: text("invite_token"),
   inviteExpiry: timestamp("invite_expiry"),
@@ -80,10 +81,13 @@ export type Setting = typeof settings.$inferSelect;
 
 export const labs = pgTable("labs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: text("name").notNull().unique(),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   account: text("account").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  unique().on(table.clinicId, table.name),
+]);
 
 export const insertLabSchema = createInsertSchema(labs).omit({ id: true, createdAt: true });
 export type InsertLab = z.infer<typeof insertLabSchema>;
@@ -114,6 +118,7 @@ export type Brand = typeof brands.$inferSelect;
 
 export const weeklyMetrics = pgTable("weekly_metrics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
   weekStarting: text("week_starting").notNull(),
   totalComprehensiveExams: integer("total_comprehensive_exams").notNull(),
   followUps: integer("follow_ups").notNull(),

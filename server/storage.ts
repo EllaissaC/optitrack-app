@@ -12,7 +12,7 @@ import {
 } from "@shared/schema";
 
 export interface IStorage {
-  getFrames(): Promise<Frame[]>;
+  getFrames(clinicId?: string | null): Promise<Frame[]>;
   getFrame(id: string): Promise<Frame | undefined>;
   createFrame(frame: InsertFrame): Promise<Frame>;
   updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined>;
@@ -29,7 +29,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByInviteToken(token: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
-  createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User>;
+  createUser(data: { username: string; email: string; password: string; role: "admin" | "optician" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User>;
   updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "clinicId" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   countUsers(): Promise<number>;
@@ -39,13 +39,13 @@ export interface IStorage {
   setSetting(key: string, value: string): Promise<void>;
   setSettings(entries: { key: string; value: string }[]): Promise<void>;
 
-  getLabs(): Promise<Lab[]>;
+  getLabs(clinicId?: string | null): Promise<Lab[]>;
   getLab(id: string): Promise<Lab | undefined>;
-  getLabByName(name: string): Promise<Lab | undefined>;
+  getLabByName(name: string, clinicId?: string | null): Promise<Lab | undefined>;
   createLab(data: InsertLab): Promise<Lab>;
   updateLab(id: string, data: Partial<InsertLab>): Promise<Lab | undefined>;
   deleteLab(id: string): Promise<boolean>;
-  labsExist(): Promise<boolean>;
+  labsExist(clinicId?: string | null): Promise<boolean>;
 
   getManufacturers(): Promise<Manufacturer[]>;
   getManufacturer(id: string): Promise<Manufacturer | undefined>;
@@ -60,13 +60,16 @@ export interface IStorage {
   updateBrand(id: string, data: Partial<InsertBrand>): Promise<Brand | undefined>;
   deleteBrand(id: string): Promise<boolean>;
 
-  getWeeklyMetrics(): Promise<WeeklyMetric[]>;
+  getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]>;
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
 }
 
 export class DbStorage implements IStorage {
-  async getFrames(): Promise<Frame[]> {
+  async getFrames(clinicId?: string | null): Promise<Frame[]> {
+    if (clinicId) {
+      return db.select().from(frames).where(eq(frames.clinicId, clinicId)).orderBy(frames.createdAt);
+    }
     return db.select().from(frames).orderBy(frames.createdAt);
   }
 
@@ -138,7 +141,7 @@ export class DbStorage implements IStorage {
     return db.select().from(users).orderBy(users.createdAt);
   }
 
-  async createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User> {
+  async createUser(data: { username: string; email: string; password: string; role: "admin" | "optician" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User> {
     const [user] = await db.insert(users).values({
       username: data.username,
       email: data.email,
@@ -185,7 +188,10 @@ export class DbStorage implements IStorage {
     }
   }
 
-  async getLabs(): Promise<Lab[]> {
+  async getLabs(clinicId?: string | null): Promise<Lab[]> {
+    if (clinicId) {
+      return db.select().from(labs).where(eq(labs.clinicId, clinicId)).orderBy(labs.name);
+    }
     return db.select().from(labs).orderBy(labs.name);
   }
 
@@ -194,7 +200,11 @@ export class DbStorage implements IStorage {
     return lab;
   }
 
-  async getLabByName(name: string): Promise<Lab | undefined> {
+  async getLabByName(name: string, clinicId?: string | null): Promise<Lab | undefined> {
+    if (clinicId) {
+      const [lab] = await db.select().from(labs).where(and(eq(labs.name, name), eq(labs.clinicId, clinicId)));
+      return lab;
+    }
     const [lab] = await db.select().from(labs).where(eq(labs.name, name));
     return lab;
   }
@@ -214,7 +224,11 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  async labsExist(): Promise<boolean> {
+  async labsExist(clinicId?: string | null): Promise<boolean> {
+    if (clinicId) {
+      const result = await db.select().from(labs).where(eq(labs.clinicId, clinicId));
+      return result.length > 0;
+    }
     const result = await db.select().from(labs);
     return result.length > 0;
   }
@@ -275,7 +289,10 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  async getWeeklyMetrics(): Promise<WeeklyMetric[]> {
+  async getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]> {
+    if (clinicId) {
+      return db.select().from(weeklyMetrics).where(eq(weeklyMetrics.clinicId, clinicId)).orderBy(desc(weeklyMetrics.weekStarting));
+    }
     return db.select().from(weeklyMetrics).orderBy(desc(weeklyMetrics.weekStarting));
   }
 

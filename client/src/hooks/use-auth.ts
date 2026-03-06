@@ -15,7 +15,7 @@ export interface AuthUser {
   id: string;
   username: string;
   email: string | null;
-  role: "admin" | "staff";
+  role: "admin" | "optician" | "staff";
   isActive: boolean;
   clinicId: string | null;
   clinic: AuthClinic | null;

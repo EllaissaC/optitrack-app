@@ -661,7 +661,7 @@ interface TeamUser {
   id: string;
   username: string;
   email: string;
-  role: "admin" | "staff";
+  role: "admin" | "optician" | "staff";
   isActive: boolean;
   createdAt: string;
   hasInvitePending: boolean;
@@ -672,7 +672,7 @@ function TeamTab() {
   const { user: currentUser } = useAuth();
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "staff">("staff");
+  const [inviteRole, setInviteRole] = useState<"admin" | "optician" | "staff">("staff");
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -822,12 +822,13 @@ function TeamTab() {
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "staff")}>
+                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "optician" | "staff")}>
                   <SelectTrigger data-testid="select-invite-role">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="optician">Optician</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>

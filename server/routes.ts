@@ -202,7 +202,7 @@ export async function registerRoutes(
     try {
       const { email, role } = req.body;
       if (!email || !role) return res.status(400).json({ message: "Email and role are required" });
-      if (!["admin", "staff"].includes(role)) return res.status(400).json({ message: "Invalid role" });
+      if (!["admin", "optician", "staff"].includes(role)) return res.status(400).json({ message: "Invalid role" });
 
       const existing = await storage.getUserByEmail(email);
       if (existing) return res.status(409).json({ message: "A user with this email already exists" });
@@ -212,11 +212,13 @@ export async function registerRoutes(
       const tempPassword = crypto.randomBytes(16).toString("hex");
       const hashed = await bcrypt.hash(tempPassword, 12);
 
+      const invitingAdmin = req.user as User;
       const user = await storage.createUser({
         username: email,
         email,
         password: hashed,
-        role: role as "admin" | "staff",
+        role: role as "admin" | "optician" | "staff",
+        clinicId: invitingAdmin.clinicId ?? null,
         isActive: false,
       });
 
@@ -358,8 +360,9 @@ export async function registerRoutes(
 
   // ─── Labs ──────────────────────────────────────────────────────────────────
 
-  app.get("/api/labs", requireAuth, async (_req, res) => {
-    const allLabs = await storage.getLabs();
+  app.get("/api/labs", requireAuth, async (req, res) => {
+    const user = req.user as User;
+    const allLabs = await storage.getLabs(user.clinicId);
     res.json(allLabs);
   });
 
@@ -367,7 +370,8 @@ export async function registerRoutes(
     try {
       const { name, account } = req.body;
       if (!name) return res.status(400).json({ message: "Lab name is required" });
-      const lab = await storage.createLab({ name, account: account || "" });
+      const user = req.user as User;
+      const lab = await storage.createLab({ name, account: account || "", clinicId: user.clinicId ?? null });
       res.status(201).json(lab);
     } catch {
       res.status(500).json({ message: "Failed to create lab" });
@@ -473,7 +477,7 @@ export async function registerRoutes(
 
   // ─── Frame Reminder Check ──────────────────────────────────────────────────
 
-  app.post("/api/reminders/check", requireAdmin, async (_req, res) => {
+  app.post("/api/reminders/check", requireAdmin, async (req, res) => {
     try {
       const reminderEmail = await storage.getSetting("reminderEmail");
       const emailFrom = await storage.getSetting("emailFrom") || reminderEmail;
@@ -484,7 +488,8 @@ export async function registerRoutes(
         return res.json({ sent: 0, skipped: 0, reason: "No reminder email configured in Settings" });
       }
 
-      const allFrames = await storage.getFrames();
+      const adminUser = req.user as User;
+      const allFrames = await storage.getFrames(adminUser.clinicId);
       const today = new Date();
       let sent = 0;
       let skipped = 0;
@@ -525,9 +530,10 @@ export async function registerRoutes(
 
   // ─── Frames ────────────────────────────────────────────────────────────────
 
-  app.get("/api/frames", requireAuth, async (_req, res) => {
+  app.get("/api/frames", requireAuth, async (req, res) => {
     try {
-      const allFrames = await storage.getFrames();
+      const user = req.user as User;
+      const allFrames = await storage.getFrames(user.clinicId);
       res.json(allFrames);
     } catch {
       res.status(500).json({ message: "Failed to fetch frames" });
@@ -546,7 +552,8 @@ export async function registerRoutes(
 
   app.post("/api/frames", requireAuth, async (req, res) => {
     try {
-      const parsed = insertFrameSchema.safeParse(req.body);
+      const user = req.user as User;
+      const parsed = insertFrameSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
@@ -585,9 +592,10 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/weekly-metrics", requireAuth, async (_req, res) => {
+  app.get("/api/weekly-metrics", requireAuth, async (req, res) => {
     try {
-      const metrics = await storage.getWeeklyMetrics();
+      const user = req.user as User;
+      const metrics = await storage.getWeeklyMetrics(user.clinicId);
       res.json(metrics);
     } catch {
       res.status(500).json({ message: "Failed to fetch weekly metrics" });
@@ -596,7 +604,8 @@ export async function registerRoutes(
 
   app.post("/api/weekly-metrics", requireAuth, async (req, res) => {
     try {
-      const parsed = insertWeeklyMetricSchema.safeParse(req.body);
+      const user = req.user as User;
+      const parsed = insertWeeklyMetricSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
       }
