@@ -26,6 +26,7 @@ import {
   Trash2,
   DollarSign,
   BadgeCheck,
+  UserCheck,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame, type LabOrder } from "@shared/schema";
@@ -84,6 +85,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const { toast } = useToast();
   const [step, setStep] = useState<"select" | "details">("select");
   const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
+  const [isPOF, setIsPOF] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [barcodeValue, setBarcodeValue] = useState("");
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
@@ -123,6 +125,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
     if (!open) {
       setStep("select");
       setSelectedFrame(null);
+      setIsPOF(false);
       setSearchQuery("");
       setBarcodeValue("");
       setBarcodeError(null);
@@ -136,6 +139,20 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       });
     }
   }, [open]);
+
+  function selectPOF() {
+    setIsPOF(true);
+    setSelectedFrame(null);
+    form.reset({
+      visionPlan: "",
+      labName: "",
+      labOrderNumber: "",
+      labAccountNumber: "",
+      trackingNumber: "",
+      dateSentToLab: new Date().toISOString().split("T")[0],
+    });
+    setStep("details");
+  }
 
   useEffect(() => {
     if (open && step === "select") {
@@ -172,27 +189,47 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
   const mutation = useMutation({
     mutationFn: async (values: AddLabOrderValues) => {
-      await apiRequest("POST", "/api/lab-orders", {
-        frameId: selectedFrame!.id,
-        frameBrand: selectedFrame!.brand,
-        frameModel: selectedFrame!.model,
-        frameColor: selectedFrame!.color,
-        frameManufacturer: selectedFrame!.manufacturer,
-        visionPlan: values.visionPlan || null,
-        labName: values.labName || null,
-        labOrderNumber: values.labOrderNumber || null,
-        labAccountNumber: values.labAccountNumber || null,
-        trackingNumber: values.trackingNumber || null,
-        dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
-        status: "pending",
-      });
+      const body = isPOF
+        ? {
+            frameId: null,
+            frameBrand: "Patient Own Frame",
+            frameModel: "POF",
+            frameColor: "—",
+            frameManufacturer: "—",
+            patientOwnFrame: true,
+            visionPlan: values.visionPlan || null,
+            labName: values.labName || null,
+            labOrderNumber: values.labOrderNumber || null,
+            labAccountNumber: values.labAccountNumber || null,
+            trackingNumber: values.trackingNumber || null,
+            dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+            status: "pending",
+          }
+        : {
+            frameId: selectedFrame!.id,
+            frameBrand: selectedFrame!.brand,
+            frameModel: selectedFrame!.model,
+            frameColor: selectedFrame!.color,
+            frameManufacturer: selectedFrame!.manufacturer,
+            patientOwnFrame: false,
+            visionPlan: values.visionPlan || null,
+            labName: values.labName || null,
+            labOrderNumber: values.labOrderNumber || null,
+            labAccountNumber: values.labAccountNumber || null,
+            trackingNumber: values.trackingNumber || null,
+            dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+            status: "pending",
+          };
+      await apiRequest("POST", "/api/lab-orders", body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       toast({
         title: "Lab order created",
-        description: `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab`,
+        description: isPOF
+          ? "Patient own frame order added"
+          : `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab`,
       });
       onClose();
     },
@@ -207,7 +244,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             {step === "details" && (
               <button
                 type="button"
-                onClick={() => { setStep("select"); setBarcodeValue(""); setBarcodeError(null); }}
+                onClick={() => { setStep("select"); setIsPOF(false); setBarcodeValue(""); setBarcodeError(null); }}
                 className="mr-1 text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="button-back-to-select"
               >
@@ -219,7 +256,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
           </DialogTitle>
           {step === "select" && (
             <DialogDescription>
-              Search inventory or scan a barcode to select a frame to send to the lab.
+              Search inventory or scan a barcode to select a frame, or choose Patient Own Frame (POF) for lens-only orders.
             </DialogDescription>
           )}
           {step === "details" && selectedFrame && (
@@ -227,6 +264,11 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               Enter the lab order details for{" "}
               <span className="font-medium text-foreground">{selectedFrame.brand} — {selectedFrame.model}</span>
               {selectedFrame.color ? `, ${selectedFrame.color}` : ""}
+            </DialogDescription>
+          )}
+          {step === "details" && isPOF && (
+            <DialogDescription>
+              Enter the lab order details for this patient own frame (lens-only) order.
             </DialogDescription>
           )}
         </DialogHeader>
@@ -313,19 +355,52 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               {inventoryFrames.length} frame{inventoryFrames.length !== 1 ? "s" : ""} in inventory
               {filteredFrames.length !== inventoryFrames.length && ` · ${filteredFrames.length} matching`}
             </p>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-md border border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/60 dark:hover:bg-amber-900/30 transition-colors text-left"
+              onClick={selectPOF}
+              data-testid="button-patient-own-frame"
+            >
+              <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Patient Own Frame (POF)</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Patient brings their own frame — lenses only. No inventory affected.</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-auto" />
+            </button>
           </div>
         )}
 
-        {step === "details" && selectedFrame && (
+        {step === "details" && (selectedFrame || isPOF) && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
-                <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{selectedFrame.brand} — {selectedFrame.model}</p>
-                  <p className="text-xs text-muted-foreground truncate">{selectedFrame.color} · {selectedFrame.manufacturer}</p>
+              {isPOF ? (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                  <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">Patient Own Frame</p>
+                    <p className="text-xs text-muted-foreground">Lenses only — no inventory change</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                  <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{selectedFrame!.brand} — {selectedFrame!.model}</p>
+                    <p className="text-xs text-muted-foreground truncate">{selectedFrame!.color} · {selectedFrame!.manufacturer}</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <FormField control={form.control} name="visionPlan" render={({ field }) => (
@@ -785,7 +860,12 @@ function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; ope
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame sale recorded", description: "Inventory updated and analytics have been refreshed." });
+      toast({
+        title: order?.patientOwnFrame ? "Payment recorded" : "Frame sale recorded",
+        description: order?.patientOwnFrame
+          ? "Lab order marked as paid."
+          : "Sales analytics have been updated.",
+      });
       onClose();
     },
     onError: (err: unknown) => {
@@ -807,17 +887,24 @@ function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; ope
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-amber-600" />
-            Record Frame Sale
+            {order?.patientOwnFrame ? "Record Payment" : "Record Frame Sale"}
           </DialogTitle>
           <div className="text-sm text-muted-foreground mt-1 space-y-1">
             {order && (
-              <>
-                <p>
-                  Confirm that the patient has paid for the frame:{" "}
-                  <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel} ({order.frameColor})</span>.
-                </p>
-                <p className="text-xs">This will decrease inventory quantity by 1 and update sales analytics.</p>
-              </>
+              order.patientOwnFrame ? (
+                <>
+                  <p>Confirm that the patient has paid for this lab order.</p>
+                  <p className="text-xs">This is a Patient Own Frame (POF) order — no inventory or frame analytics will be updated.</p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Confirm that the patient has paid for:{" "}
+                    <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel} ({order.frameColor})</span>.
+                  </p>
+                  <p className="text-xs">Sales analytics (top frames, manufacturers, revenue) will be updated.</p>
+                </>
+              )
             )}
           </div>
         </DialogHeader>
@@ -831,7 +918,7 @@ function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; ope
             className="bg-amber-600 hover:bg-amber-700 text-white"
             data-testid="button-confirm-frame-sold"
           >
-            {mutation.isPending ? "Recording..." : "Confirm Sale"}
+            {mutation.isPending ? "Recording..." : order?.patientOwnFrame ? "Confirm Payment" : "Confirm Sale"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1096,9 +1183,20 @@ export default function LabOrders() {
                 return (
                   <TableRow key={order.id} className={isReceived ? "opacity-60" : undefined} data-testid={`row-order-${order.id}`}>
                     <TableCell>
-                      <p className="text-sm font-semibold text-foreground" data-testid={`text-brand-${order.id}`}>{order.frameBrand}</p>
-                      <p className="text-sm text-muted-foreground" data-testid={`text-model-${order.id}`}>{order.frameModel}</p>
-                      <p className="text-xs text-muted-foreground">{order.frameColor}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-foreground" data-testid={`text-brand-${order.id}`}>{order.frameBrand}</p>
+                        {order.patientOwnFrame && (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-[10px] px-1.5 py-0" data-testid={`badge-pof-${order.id}`}>
+                            POF
+                          </Badge>
+                        )}
+                      </div>
+                      {!order.patientOwnFrame && (
+                        <>
+                          <p className="text-sm text-muted-foreground" data-testid={`text-model-${order.id}`}>{order.frameModel}</p>
+                          <p className="text-xs text-muted-foreground">{order.frameColor}</p>
+                        </>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
@@ -1201,7 +1299,7 @@ export default function LabOrders() {
                             <TooltipContent>Mark order as received from lab</TooltipContent>
                           </Tooltip>
                         )}
-                        {order.frameId && !order.frameSold && (
+                        {(order.frameId || order.patientOwnFrame) && !order.frameSold && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -1212,10 +1310,14 @@ export default function LabOrders() {
                                 data-testid={`button-frame-sold-${order.id}`}
                               >
                                 <DollarSign className="w-3.5 h-3.5 mr-1" />
-                                Frame Sold
+                                {order.patientOwnFrame ? "Mark Paid" : "Frame Sold"}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Record frame sale & update inventory</TooltipContent>
+                            <TooltipContent>
+                              {order.patientOwnFrame
+                                ? "Record payment for this lab order (no inventory change)"
+                                : "Record frame sale & update analytics"}
+                            </TooltipContent>
                           </Tooltip>
                         )}
                         {order.frameSold && (
