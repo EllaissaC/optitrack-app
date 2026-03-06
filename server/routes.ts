@@ -655,16 +655,28 @@ export async function registerRoutes(
     }
   });
 
+  const updateLabOrderSchema = z.object({
+    status: z.enum(["pending", "received"]).optional(),
+    visionPlan: z.string().nullable().optional(),
+    labName: z.string().nullable().optional(),
+    labOrderNumber: z.string().nullable().optional(),
+    labAccountNumber: z.string().nullable().optional(),
+    trackingNumber: z.string().nullable().optional(),
+    dateSentToLab: z.string().nullable().optional(),
+    dateReceivedFromLab: z.string().nullable().optional(),
+  });
+
   app.patch("/api/lab-orders/:id", requireAuth, async (req, res) => {
     try {
-      const parsed = insertLabOrderSchema.partial().safeParse(req.body);
+      const parsed = updateLabOrderSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
       }
       const order = await storage.updateLabOrder(req.params.id as string, parsed.data);
       if (!order) return res.status(404).json({ message: "Lab order not found" });
       res.json(order);
-    } catch {
+    } catch (err) {
+      console.error("[lab-orders PATCH] Error:", err);
       res.status(500).json({ message: "Failed to update lab order" });
     }
   });
