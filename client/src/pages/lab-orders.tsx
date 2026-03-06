@@ -14,9 +14,11 @@ import {
   Building2,
   PackageCheck,
   AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame } from "@shared/schema";
+import { VISION_PLAN_OPTIONS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -103,6 +105,7 @@ const editOrderSchema = z.object({
   trackingNumber: z.string().optional().nullable(),
   dateSentToLab: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
+  visionPlan: z.string().optional().nullable(),
 });
 
 type EditOrderValues = z.infer<typeof editOrderSchema>;
@@ -126,6 +129,7 @@ function EditLabOrderDialog({
       trackingNumber: frame.trackingNumber ?? "",
       dateSentToLab: frame.dateSentToLab ?? "",
       labName: frame.labName ?? "",
+      visionPlan: frame.visionPlan ?? "",
     },
   });
 
@@ -138,6 +142,7 @@ function EditLabOrderDialog({
         trackingNumber: values.trackingNumber || null,
         dateSentToLab: values.dateSentToLab || null,
         labName: values.labName || null,
+        visionPlan: values.visionPlan || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
@@ -164,6 +169,32 @@ function EditLabOrderDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="visionPlan"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
+                  </FormLabel>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-edit-vision-plan">
+                        <SelectValue placeholder="Select vision plan..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {VISION_PLAN_OPTIONS.map((plan) => (
+                        <SelectItem key={plan} value={plan}>
+                          {plan}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="labName"
@@ -289,21 +320,18 @@ function MarkReceivedDialog({
   onClose: () => void;
 }) {
   const { toast } = useToast();
-  const [newStatus, setNewStatus] = useState<"on_board" | "sold">("on_board");
+
+  const today = new Date().toISOString().split("T")[0];
 
   const mutation = useMutation({
     mutationFn: () =>
       apiRequest("PATCH", `/api/frames/${frame!.id}`, {
-        status: newStatus,
-        labName: null,
-        labOrderNumber: null,
-        labAccountNumber: null,
-        trackingNumber: null,
-        dateSentToLab: null,
+        status: "on_board",
+        dateReceivedFromLab: today,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: `Frame marked as ${newStatus === "on_board" ? "On Board" : "Sold"}` });
+      toast({ title: "Frame marked as received and moved back to inventory" });
       onClose();
     },
     onError: () => {
@@ -322,23 +350,12 @@ function MarkReceivedDialog({
           <AlertDialogDescription>
             {frame && (
               <>
-                Mark <span className="font-semibold text-foreground">{frame.brand} {frame.model}</span> as received from the lab.
-                Choose the new status for this frame:
+                Confirm that <span className="font-semibold text-foreground">{frame.brand} {frame.model}</span> has been received from the lab.
+                The frame will be moved back to inventory (On Board) and today&apos;s date will be recorded as the received date.
               </>
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="px-1 py-2">
-          <Select value={newStatus} onValueChange={(v) => setNewStatus(v as "on_board" | "sold")}>
-            <SelectTrigger data-testid="select-receive-status">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="on_board">On Board (back in inventory)</SelectItem>
-              <SelectItem value="sold">Sold</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
           <AlertDialogAction
@@ -356,7 +373,6 @@ function MarkReceivedDialog({
 }
 
 export default function LabOrders() {
-  const { toast } = useToast();
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [receiveFrame, setReceiveFrame] = useState<Frame | null>(null);
 
@@ -369,11 +385,6 @@ export default function LabOrders() {
   const urgentCount = labFrames.filter((f) => {
     const d = calcDaysAtLab(f.dateSentToLab);
     return d !== null && d >= 14;
-  }).length;
-
-  const warningCount = labFrames.filter((f) => {
-    const d = calcDaysAtLab(f.dateSentToLab);
-    return d !== null && d >= 8 && d <= 13;
   }).length;
 
   return (
@@ -425,9 +436,11 @@ export default function LabOrders() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
-              <TableHead className="font-semibold">Brand / Model</TableHead>
-              <TableHead className="font-semibold">Lab</TableHead>
-              <TableHead className="font-semibold">Order #</TableHead>
+              <TableHead className="font-semibold">Brand</TableHead>
+              <TableHead className="font-semibold">Model</TableHead>
+              <TableHead className="font-semibold">Lab Name</TableHead>
+              <TableHead className="font-semibold">Lab Order #</TableHead>
+              <TableHead className="font-semibold">Vision Plan</TableHead>
               <TableHead className="font-semibold">Tracking</TableHead>
               <TableHead className="font-semibold">Date Sent</TableHead>
               <TableHead className="font-semibold text-center">Days at Lab</TableHead>
@@ -438,14 +451,14 @@ export default function LabOrders() {
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : labFrames.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                   <FlaskConical className="w-10 h-10 mx-auto mb-3 opacity-25" />
                   <p className="font-medium">No frames at the lab</p>
                   <p className="text-xs mt-1">Frames sent to the lab will appear here</p>
@@ -468,10 +481,10 @@ export default function LabOrders() {
                       data-testid={`row-lab-order-${frame.id}`}
                     >
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-foreground" data-testid={`text-brand-${frame.id}`}>{frame.brand}</p>
-                          <p className="text-xs text-muted-foreground" data-testid={`text-model-${frame.id}`}>{frame.model}</p>
-                        </div>
+                        <p className="font-medium text-foreground" data-testid={`text-brand-${frame.id}`}>{frame.brand}</p>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm text-muted-foreground" data-testid={`text-model-${frame.id}`}>{frame.model}</p>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
@@ -490,6 +503,15 @@ export default function LabOrders() {
                         {frame.labOrderNumber ? (
                           <span className="font-mono text-sm" data-testid={`text-order-num-${frame.id}`}>
                             {frame.labOrderNumber}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {frame.visionPlan ? (
+                          <span className="text-sm" data-testid={`text-vision-plan-${frame.id}`}>
+                            {frame.visionPlan}
                           </span>
                         ) : (
                           <span className="text-muted-foreground text-xs">—</span>
@@ -550,16 +572,17 @@ export default function LabOrders() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30 border-green-200 dark:border-green-800"
                                 onClick={() => setReceiveFrame(frame)}
                                 data-testid={`button-receive-${frame.id}`}
                               >
-                                <CheckCircle2 className="w-4 h-4" />
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                                Mark Received
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Mark as received</TooltipContent>
+                            <TooltipContent>Mark frame as received from lab</TooltipContent>
                           </Tooltip>
                         </div>
                       </TableCell>

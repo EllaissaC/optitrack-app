@@ -374,6 +374,7 @@ export async function registerRoutes(
             brand: frame.brand,
             model: frame.model,
             labName: frame.labName || "Unknown Lab",
+            visionPlan: frame.visionPlan || "",
             labOrderNumber: frame.labOrderNumber || "",
             dateSentToLab: frame.dateSentToLab,
             daysAtLab,

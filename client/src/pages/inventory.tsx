@@ -75,6 +75,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import { VISION_PLAN_OPTIONS } from "@/lib/constants";
+
 const formSchema = insertFrameSchema.extend({
   eyeSize: z.coerce.number().min(1, "Required").max(99),
   bridge: z.coerce.number().min(1, "Required").max(99),
@@ -96,6 +98,15 @@ const formSchema = insertFrameSchema.extend({
   labAccountNumber: z.string().optional().nullable(),
   trackingNumber: z.string().optional().nullable(),
   dateSentToLab: z.string().optional().nullable(),
+  visionPlan: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.status === "at_lab" && !data.visionPlan) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Vision Plan is required",
+      path: ["visionPlan"],
+    });
+  }
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -344,6 +355,7 @@ function FrameFormDialog({
       labAccountNumber: "",
       trackingNumber: "",
       dateSentToLab: "",
+      visionPlan: "",
     },
   });
 
@@ -395,6 +407,7 @@ function FrameFormDialog({
               labAccountNumber: editFrame.labAccountNumber ?? "",
               trackingNumber: editFrame.trackingNumber ?? "",
               dateSentToLab: editFrame.dateSentToLab ?? "",
+              visionPlan: editFrame.visionPlan ?? "",
             }
           : {
               manufacturer: "",
@@ -414,6 +427,7 @@ function FrameFormDialog({
               labAccountNumber: "",
               trackingNumber: "",
               dateSentToLab: "",
+              visionPlan: "",
             }
       );
     }
@@ -471,6 +485,7 @@ function FrameFormDialog({
       labAccountNumber: values.labAccountNumber || null,
       trackingNumber: values.trackingNumber || null,
       dateSentToLab: values.dateSentToLab || null,
+      visionPlan: values.visionPlan || null,
     };
     if (isEdit) {
       updateMutation.mutate(payload);
@@ -752,6 +767,37 @@ function FrameFormDialog({
                     <FlaskConical className="w-4 h-4" />
                     <p className="text-sm font-semibold">Lab Details</p>
                   </div>
+
+                  {/* Vision Plan — required */}
+                  <FormField
+                    control={form.control}
+                    name="visionPlan"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1">
+                          Vision Plan <span className="text-destructive ml-0.5">*</span>
+                        </FormLabel>
+                        <Select
+                          value={field.value ?? ""}
+                          onValueChange={field.onChange}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vision-plan">
+                              <SelectValue placeholder="Select vision plan..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {VISION_PLAN_OPTIONS.map((plan) => (
+                              <SelectItem key={plan} value={plan}>
+                                {plan}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {/* Row 1: Lab Name + Account Number display */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

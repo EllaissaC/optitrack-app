@@ -22,6 +22,8 @@ export const frames = pgTable("frames", {
   labAccountNumber: text("lab_account_number"),
   trackingNumber: text("tracking_number"),
   dateSentToLab: text("date_sent_to_lab"),
+  visionPlan: text("vision_plan"),
+  dateReceivedFromLab: text("date_received_from_lab"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

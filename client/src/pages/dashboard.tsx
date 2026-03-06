@@ -163,8 +163,8 @@ export default function Dashboard() {
                   <tr className="bg-amber-100/60 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800">
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300">Brand / Model</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden sm:table-cell">Lab</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden md:table-cell">Vision Plan</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden md:table-cell">Lab Order #</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden md:table-cell">Date Sent</th>
                     <th className="text-right px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300">Days at Lab</th>
                   </tr>
                 </thead>
@@ -185,10 +185,10 @@ export default function Dashboard() {
                           {frame.labName || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                          {frame.labOrderNumber || <span className="text-muted-foreground/50">—</span>}
+                          {frame.visionPlan || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                          {frame.dateSentToLab}
+                          {frame.labOrderNumber || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Badge

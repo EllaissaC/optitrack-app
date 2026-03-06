@@ -6,7 +6,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 ## Features
 - **Dashboard**: Stats overview (total frames, on board, at lab, sold), recent frames list, financial summary, "Frames Needing Lab Follow-Up" amber alert card (14+ days)
 - **Inventory**: Full CRUD table with search and status filtering; barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation
-- **Lab Orders**: Dedicated page showing only frames with `at_lab` status. Table displays brand, model, lab name, order number, tracking number, date sent, and days at lab with color indicators (0-7 green, 8-13 yellow, 14+ red). Users can edit lab order details or mark frames as received (changes status to On Board or Sold).
+- **Lab Orders**: Dedicated page showing only frames with `at_lab` status. Separate columns for Brand, Model, Lab Name, Lab Order #, Vision Plan, Tracking, Date Sent, and Days at Lab with color indicators (0-7 green, 8-13 yellow, 14+ red). "Mark Received" button changes status to On Board and records `dateReceivedFromLab`. Edit dialog lets staff update all lab order fields including Vision Plan.
 - **Authentication**: Passport-local auth with bcryptjs, session management, admin/staff roles, invite-by-email with 7-day expiry tokens, first-run admin setup flow
 - **Settings (Admin Only)**: 4 tabs — General (email reminders, default multiplier), Labs CRUD, Manufacturers & Brands CRUD, Team management (invite, toggle, delete)
 - **Email Reminders**: SendGrid integration for frames 14+ days at lab; `/api/reminders/check` endpoint
@@ -70,6 +70,14 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `on_board` - Frame is in stock
 - `at_lab` - Frame is being processed at a lab
 - `sold` - Frame has been sold
+
+## Frame Lab Fields
+- `visionPlan` - Required when status=at_lab; options: VSP, Blue Cross Blue Shield, EyeMed, Aetna, Tricare, VA, Spectera, Private Pay, Meritain
+- `dateReceivedFromLab` - Date the frame was received back from lab (set when Mark Received is clicked)
+- `dateSentToLab` - Date the frame was sent to lab
+
+## Shared Constants
+- `client/src/lib/constants.ts` - VISION_PLAN_OPTIONS array (used in inventory and lab-orders pages)
 
 ## Environment Variables
 - `DATABASE_URL` - PostgreSQL connection string
