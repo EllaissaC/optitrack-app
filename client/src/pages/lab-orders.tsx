@@ -59,16 +59,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -643,13 +633,21 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
 
 function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
+  const orderIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (order) orderIdRef.current = order.id;
+  }, [order]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      apiRequest("PATCH", `/api/lab-orders/${order!.id}`, {
+    mutationFn: () => {
+      const id = orderIdRef.current;
+      if (!id) throw new Error("No order selected");
+      return apiRequest("PATCH", `/api/lab-orders/${id}`, {
         status: "received",
         dateReceivedFromLab: new Date().toISOString().split("T")[0],
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       toast({ title: "Order marked as received", description: "The frame remains in your inventory." });
@@ -658,15 +656,22 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
     onError: () => toast({ title: "Failed to update order", variant: "destructive" }),
   });
 
+  function handleConfirm() {
+    const id = order?.id ?? orderIdRef.current;
+    if (!id) return;
+    orderIdRef.current = id;
+    mutation.mutate();
+  }
+
   return (
-    <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
+    <Dialog open={open} onOpenChange={(v) => !v && !mutation.isPending && onClose()}>
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
             <PackageCheck className="w-5 h-5 text-green-600" />
             Mark as Received
-          </AlertDialogTitle>
-          <AlertDialogDescription>
+          </DialogTitle>
+          <div className="text-sm text-muted-foreground mt-1">
             {order && (
               <>
                 Confirm that the order for{" "}
@@ -674,21 +679,23 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
                 has been received from the lab. Today&apos;s date will be recorded. The frame stays in your inventory.
               </>
             )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => mutation.mutate()}
+          </div>
+        </DialogHeader>
+        <DialogFooter className="gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirm}
             disabled={mutation.isPending}
             className="bg-green-600 hover:bg-green-700 text-white"
             data-testid="button-confirm-received"
           >
             {mutation.isPending ? "Updating..." : "Mark Received"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -697,8 +704,18 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
 function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
 
+  const orderIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (order) orderIdRef.current = order.id;
+  }, [order]);
+
   const mutation = useMutation({
-    mutationFn: () => apiRequest("DELETE", `/api/lab-orders/${order!.id}`),
+    mutationFn: () => {
+      const id = orderIdRef.current;
+      if (!id) throw new Error("No order selected");
+      return apiRequest("DELETE", `/api/lab-orders/${id}`);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       toast({ title: "Lab order deleted" });
@@ -707,12 +724,19 @@ function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null
     onError: () => toast({ title: "Failed to delete lab order", variant: "destructive" }),
   });
 
+  function handleDelete() {
+    const id = order?.id ?? orderIdRef.current;
+    if (!id) return;
+    orderIdRef.current = id;
+    mutation.mutate();
+  }
+
   return (
-    <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete Lab Order?</AlertDialogTitle>
-          <AlertDialogDescription>
+    <Dialog open={open} onOpenChange={(v) => !v && !mutation.isPending && onClose()}>
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Delete Lab Order?</DialogTitle>
+          <div className="text-sm text-muted-foreground mt-1">
             {order && (
               <>
                 This will permanently delete the lab order for{" "}
@@ -720,21 +744,23 @@ function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null
                 The frame will remain in inventory and the sold count will not change.
               </>
             )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => mutation.mutate()}
+          </div>
+        </DialogHeader>
+        <DialogFooter className="gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDelete}
             disabled={mutation.isPending}
-            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            variant="destructive"
             data-testid="button-confirm-delete-order"
           >
             {mutation.isPending ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
