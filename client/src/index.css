@@ -9,7 +9,7 @@
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
-  --background: 60deg 100% 88.43%;
+  --background: 0deg 0% 100%;
   --foreground: 0 0% 10.2%;
   --border: 0 0% 90.98%;
   --card: 0 0% 98.82%;
@@ -26,11 +26,11 @@
   --popover: 45 25% 97%;
   --popover-foreground: 0 0% 100%;
   --popover-border: 214 32% 89%;
-  --primary: 342 85.11% 52.55%;
+  --primary: 49.51deg 81.75% 50.59%;
   --primary-foreground: 0 0% 100%;
   --secondary: 0 0% 76.86%;
   --secondary-foreground: 0 0% 10.2%;
-  --muted: 60deg 100% 88.43%;
+  --muted: 46.91deg 67.9% 84.12%;
   --muted-foreground: 0 0% 12.94%;
   --accent: 0 0% 100%;
   --accent-foreground: 0 0% 10.2%;

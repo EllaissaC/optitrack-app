@@ -15,6 +15,8 @@ import {
   Barcode,
   ScanLine,
   AlertCircle,
+  RotateCcw,
+  ChevronRight,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { insertFrameSchema, type Frame } from "@shared/schema";
@@ -24,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
   DialogContent,
@@ -124,6 +127,169 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+function FrameFoundCard({
+  frame,
+  onDismiss,
+  onEdit,
+}: {
+  frame: Frame;
+  onDismiss: () => void;
+  onEdit: () => void;
+}) {
+  const { toast } = useToast();
+
+  const statusMutation = useMutation({
+    mutationFn: (status: string) =>
+      apiRequest("PATCH", `/api/frames/${frame.id}`, { status }),
+    onSuccess: (_data, status) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      const labels: Record<string, string> = {
+        at_lab: "Sent to lab",
+        sold: "Marked as sold",
+        on_board: "Returned to board",
+      };
+      toast({
+        title: labels[status] ?? "Status updated",
+        description: `${frame.brand} ${frame.model} has been updated.`,
+      });
+      onDismiss();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const quickActions = [
+    {
+      key: "at_lab",
+      label: "Send to Lab",
+      icon: FlaskConical,
+      className:
+        "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
+      show: frame.status !== "at_lab",
+    },
+    {
+      key: "sold",
+      label: "Mark Sold",
+      icon: CheckCircle,
+      className:
+        "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400",
+      show: frame.status !== "sold",
+    },
+    {
+      key: "on_board",
+      label: "Return to Board",
+      icon: RotateCcw,
+      className:
+        "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400",
+      show: frame.status !== "on_board",
+    },
+  ].filter((a) => a.show);
+
+  return (
+    <div
+      className="rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 overflow-hidden"
+      data-testid="frame-found-card"
+    >
+      {/* Header strip */}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-100 dark:bg-emerald-900/40 border-b border-emerald-200 dark:border-emerald-800">
+        <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-sm font-semibold">Frame found in inventory</span>
+          {frame.barcode && (
+            <span className="font-mono text-xs bg-emerald-200 dark:bg-emerald-800 px-1.5 py-0.5 rounded text-emerald-800 dark:text-emerald-300">
+              {frame.barcode}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-emerald-600 dark:text-emerald-500 flex-shrink-0"
+          data-testid="button-dismiss-found-card"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 flex flex-wrap items-start gap-4">
+        {/* Frame details */}
+        <div className="flex-1 min-w-0 space-y-3">
+          <div>
+            <p className="text-lg font-bold text-foreground leading-tight">
+              {frame.brand} {frame.model}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {frame.manufacturer} · {frame.color}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+            <div>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">Size</span>
+              <p className="font-mono font-medium text-foreground">
+                {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">Cost</span>
+              <p className="font-medium text-foreground">
+                ${parseFloat(frame.cost as string).toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">Retail</span>
+              <p className="font-semibold text-foreground">
+                ${parseFloat(frame.retailPrice as string).toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">Status</span>
+              <div className="mt-0.5">
+                <StatusPill status={frame.status} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+          {quickActions.map((action) => (
+            <Button
+              key={action.key}
+              variant="outline"
+              size="sm"
+              className={`gap-1.5 ${action.className}`}
+              disabled={statusMutation.isPending}
+              onClick={() => statusMutation.mutate(action.key)}
+              data-testid={`button-quick-action-${action.key}`}
+            >
+              <action.icon className="w-3.5 h-3.5" />
+              {action.label}
+            </Button>
+          ))}
+          <Separator orientation="vertical" className="h-6 mx-1 hidden sm:block" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={onEdit}
+            data-testid="button-found-edit"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FrameFormDialog({
   open,
   onClose,
@@ -140,33 +306,19 @@ function FrameFormDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: editFrame
-      ? {
-          manufacturer: editFrame.manufacturer,
-          brand: editFrame.brand,
-          model: editFrame.model,
-          color: editFrame.color,
-          eyeSize: editFrame.eyeSize,
-          bridge: editFrame.bridge,
-          templeLength: editFrame.templeLength,
-          cost: String(editFrame.cost),
-          retailPrice: String(editFrame.retailPrice),
-          status: editFrame.status as "on_board" | "at_lab" | "sold",
-          barcode: editFrame.barcode ?? "",
-        }
-      : {
-          manufacturer: "",
-          brand: "",
-          model: "",
-          color: "",
-          eyeSize: 52,
-          bridge: 18,
-          templeLength: 145,
-          cost: "",
-          retailPrice: "",
-          status: "on_board",
-          barcode: prefillBarcode ?? "",
-        },
+    defaultValues: {
+      manufacturer: "",
+      brand: "",
+      model: "",
+      color: "",
+      eyeSize: 52,
+      bridge: 18,
+      templeLength: 145,
+      cost: "",
+      retailPrice: "",
+      status: "on_board",
+      barcode: "",
+    },
   });
 
   useEffect(() => {
@@ -250,12 +402,13 @@ function FrameFormDialog({
               <span className="font-mono font-semibold text-foreground">
                 {prefillBarcode}
               </span>
-              . Fill in the details below to register it.
+              . Fill in the details below to add it to inventory.
             </DialogDescription>
           )}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            {/* Barcode */}
             <FormField
               control={form.control}
               name="barcode"
@@ -286,11 +439,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Manufacturer</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g. Luxottica"
-                        data-testid="input-manufacturer"
-                        {...field}
-                      />
+                      <Input placeholder="e.g. Luxottica" data-testid="input-manufacturer" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -303,11 +452,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Brand</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g. Ray-Ban"
-                        data-testid="input-brand"
-                        {...field}
-                      />
+                      <Input placeholder="e.g. Ray-Ban" data-testid="input-brand" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -323,11 +468,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Model</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g. RB5154"
-                        data-testid="input-model"
-                        {...field}
-                      />
+                      <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -340,11 +481,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Color</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="e.g. Matte Black"
-                        data-testid="input-color"
-                        {...field}
-                      />
+                      <Input placeholder="e.g. Matte Black" data-testid="input-color" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -360,13 +497,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Eye Size (mm)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        data-testid="input-eye-size"
-                        {...field}
-                      />
+                      <Input type="number" min={1} max={99} data-testid="input-eye-size" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -379,13 +510,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Bridge (mm)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={99}
-                        data-testid="input-bridge"
-                        {...field}
-                      />
+                      <Input type="number" min={1} max={99} data-testid="input-bridge" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -398,13 +523,7 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Temple (mm)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={999}
-                        data-testid="input-temple"
-                        {...field}
-                      />
+                      <Input type="number" min={1} max={999} data-testid="input-temple" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -459,10 +578,7 @@ function FrameFormDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-status">
                           <SelectValue placeholder="Select status" />
@@ -489,16 +605,8 @@ function FrameFormDialog({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={isPending}
-                data-testid="button-save-frame"
-              >
-                {isPending
-                  ? "Saving..."
-                  : isEdit
-                  ? "Update Frame"
-                  : "Add Frame"}
+              <Button type="submit" disabled={isPending} data-testid="button-save-frame">
+                {isPending ? "Saving..." : isEdit ? "Update Frame" : "Add Frame"}
               </Button>
             </DialogFooter>
           </form>
@@ -516,8 +624,9 @@ export default function Inventory() {
   const [prefillBarcode, setPrefillBarcode] = useState<string>("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [foundFrame, setFoundFrame] = useState<Frame | null>(null);
   const [scanValue, setScanValue] = useState("");
-  const [scanStatus, setScanStatus] = useState<"idle" | "found" | "not_found">("idle");
+  const [scanState, setScanState] = useState<"idle" | "found" | "not_found">("idle");
   const scanInputRef = useRef<HTMLInputElement>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -531,24 +640,16 @@ export default function Inventory() {
     mutationFn: (id: string) => apiRequest("DELETE", `/api/frames/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({
-        title: "Frame deleted",
-        description: "The frame has been removed from inventory.",
-      });
+      toast({ title: "Frame deleted", description: "The frame has been removed from inventory." });
       setDeleteId(null);
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete frame.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to delete frame.", variant: "destructive" });
     },
   });
 
   const filtered = frames.filter((frame) => {
-    const matchesStatus =
-      statusFilter === "all" || frame.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
@@ -560,9 +661,67 @@ export default function Inventory() {
     return matchesStatus && matchesSearch;
   });
 
-  function openAdd(barcode?: string) {
+  function highlightFrame(id: string) {
+    setHighlightedId(id);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightedId(null), 4000);
+  }
+
+  useEffect(() => {
+    if (highlightedId && highlightedRowRef.current) {
+      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId]);
+
+  const handleScan = useCallback(
+    (value: string) => {
+      const barcode = value.trim();
+      if (!barcode) return;
+
+      const match = frames.find((f) => f.barcode && f.barcode.trim() === barcode);
+
+      if (match) {
+        setScanState("found");
+        setFoundFrame(match);
+        highlightFrame(match.id);
+        setScanValue("");
+      } else {
+        setScanState("not_found");
+        setFoundFrame(null);
+        setScanValue("");
+        setPrefillBarcode(barcode);
+        setEditFrame(null);
+        setDialogOpen(true);
+      }
+    },
+    [frames]
+  );
+
+  function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleScan(scanValue);
+    }
+  }
+
+  function dismissFoundCard() {
+    setFoundFrame(null);
+    setScanState("idle");
+    scanInputRef.current?.focus();
+  }
+
+  function openEditFromFound() {
+    if (!foundFrame) return;
+    setFoundFrame(null);
+    setScanState("idle");
+    setEditFrame(foundFrame);
+    setPrefillBarcode("");
+    setDialogOpen(true);
+  }
+
+  function openAdd() {
     setEditFrame(null);
-    setPrefillBarcode(barcode ?? "");
+    setPrefillBarcode("");
     setDialogOpen(true);
   }
 
@@ -579,52 +738,9 @@ export default function Inventory() {
     scanInputRef.current?.focus();
   }
 
-  function highlightFrame(id: string) {
-    setHighlightedId(id);
-    if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setHighlightedId(null), 3000);
-  }
-
-  useEffect(() => {
-    if (highlightedId && highlightedRowRef.current) {
-      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [highlightedId]);
-
-  const handleScan = useCallback(
-    (value: string) => {
-      const barcode = value.trim();
-      if (!barcode) return;
-
-      const match = frames.find(
-        (f) => f.barcode && f.barcode.trim() === barcode
-      );
-
-      if (match) {
-        setScanStatus("found");
-        highlightFrame(match.id);
-        openEdit(match);
-        setScanValue("");
-        setTimeout(() => setScanStatus("idle"), 2500);
-      } else {
-        setScanStatus("not_found");
-        setScanValue("");
-        openAdd(barcode);
-        setTimeout(() => setScanStatus("idle"), 2500);
-      }
-    },
-    [frames]
-  );
-
-  function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleScan(scanValue);
-    }
-  }
-
   return (
     <div className="p-6 space-y-5">
+      {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Inventory</h1>
@@ -632,34 +748,35 @@ export default function Inventory() {
             {frames.length} frame{frames.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button onClick={() => openAdd()} data-testid="button-add-frame">
+        <Button onClick={openAdd} data-testid="button-add-frame">
           <Plus className="w-4 h-4 mr-2" />
           Add Frame
         </Button>
       </div>
 
-      {/* Barcode Scanner Input */}
+      {/* Barcode scanner input */}
       <div
-        className={`flex items-center gap-3 p-4 rounded-lg border transition-colors ${
-          scanStatus === "found"
-            ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20"
-            : scanStatus === "not_found"
-            ? "border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+        className={`flex items-center gap-3 p-4 rounded-lg border transition-colors duration-200 ${
+          scanState === "found"
+            ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20"
+            : scanState === "not_found"
+            ? "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20"
             : "border-border bg-muted/30"
         }`}
         data-testid="barcode-scanner-panel"
       >
         <div
-          className={`p-2.5 rounded-md flex-shrink-0 ${
-            scanStatus === "found"
+          className={`p-2.5 rounded-md flex-shrink-0 transition-colors duration-200 ${
+            scanState === "found"
               ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
-              : scanStatus === "not_found"
+              : scanState === "not_found"
               ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
               : "bg-background text-muted-foreground"
           }`}
         >
           <ScanLine className="w-5 h-5" />
         </div>
+
         <div className="flex-1 min-w-0">
           <label
             htmlFor="scan-input"
@@ -685,7 +802,7 @@ export default function Inventory() {
                   setScanValue("");
                   scanInputRef.current?.focus();
                 }}
-                className="absolute right-10 top-1/2 -translate-y-1/2 text-muted-foreground"
+                className="absolute right-[4.5rem] top-1/2 -translate-y-1/2 text-muted-foreground"
                 data-testid="button-clear-scan"
               >
                 <X className="w-3.5 h-3.5" />
@@ -694,7 +811,7 @@ export default function Inventory() {
             <Button
               size="sm"
               variant="secondary"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2"
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-3"
               onClick={() => handleScan(scanValue)}
               disabled={!scanValue.trim()}
               data-testid="button-scan-submit"
@@ -703,24 +820,32 @@ export default function Inventory() {
             </Button>
           </div>
         </div>
-        <div className="flex-shrink-0 min-w-0 hidden sm:block">
-          {scanStatus === "found" && (
+
+        <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 min-w-[90px]">
+          {scanState === "found" ? (
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Frame found
             </p>
-          )}
-          {scanStatus === "not_found" && (
+          ) : scanState === "not_found" ? (
             <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-              <AlertCircle className="w-3.5 h-3.5" /> Not in inventory
+              <AlertCircle className="w-3.5 h-3.5" /> Not found
             </p>
-          )}
-          {scanStatus === "idle" && (
+          ) : (
             <p className="text-xs text-muted-foreground">Ready to scan</p>
           )}
         </div>
       </div>
 
-      {/* Search + Filter Row */}
+      {/* Frame found card — shown inline when a barcode matches */}
+      {foundFrame && (
+        <FrameFoundCard
+          frame={foundFrame}
+          onDismiss={dismissFoundCard}
+          onEdit={openEditFromFound}
+        />
+      )}
+
+      {/* Search + filter row */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-56">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -767,7 +892,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Frames Table */}
+      {/* Frames table */}
       <Card className="border-card-border">
         <CardContent className="p-0">
           {isLoading ? (
@@ -788,7 +913,7 @@ export default function Inventory() {
               {!search && statusFilter === "all" && (
                 <Button
                   className="mt-4"
-                  onClick={() => openAdd()}
+                  onClick={openAdd}
                   data-testid="button-add-first-frame"
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -824,7 +949,7 @@ export default function Inventory() {
                         key={frame.id}
                         ref={isHighlighted ? highlightedRowRef : null}
                         data-testid={`row-frame-${frame.id}`}
-                        className={`border-b border-card-border/60 last:border-0 transition-colors duration-300 ${
+                        className={`border-b border-card-border/60 last:border-0 transition-colors duration-500 ${
                           isHighlighted
                             ? "bg-primary/10 dark:bg-primary/15"
                             : ""
@@ -911,22 +1036,16 @@ export default function Inventory() {
         prefillBarcode={prefillBarcode}
       />
 
-      <AlertDialog
-        open={!!deleteId}
-        onOpenChange={(v) => !v && setDeleteId(null)}
-      >
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Frame</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this frame from your inventory. This
-              action cannot be undone.
+              This will permanently remove this frame from your inventory. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">
-              Cancel
-            </AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               className="bg-destructive text-destructive-foreground"
