@@ -1,4 +1,6 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route } from "wouter";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,13 +21,34 @@ import { getQueryFn } from "@/lib/queryClient";
 
 function AppShell() {
   const { user, isLoading } = useAuth();
+  const [location, navigate] = useLocation();
   const { data: setupStatus, isLoading: setupLoading } = useQuery<{ setupRequired: boolean }>({
     queryKey: ["/api/auth/setup-required"],
     queryFn: getQueryFn({ on401: "returnNull" }),
     staleTime: 60 * 1000,
   });
 
-  if (isLoading || setupLoading) {
+  const ready = !isLoading && !setupLoading;
+
+  useEffect(() => {
+    if (!ready) return;
+
+    if (setupStatus?.setupRequired) {
+      if (location !== "/setup") navigate("/setup");
+      return;
+    }
+
+    if (!user) {
+      if (location !== "/login" && location !== "/invite") navigate("/login");
+      return;
+    }
+
+    if (location === "/" || location === "/login" || location === "/setup") {
+      navigate("/dashboard");
+    }
+  }, [ready, setupStatus, user, location, navigate]);
+
+  if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-sm text-muted-foreground">Loading...</div>
@@ -37,7 +60,6 @@ function AppShell() {
     return (
       <Switch>
         <Route path="/setup" component={Setup} />
-        <Route><Redirect to="/setup" /></Route>
       </Switch>
     );
   }
@@ -47,7 +69,6 @@ function AppShell() {
       <Switch>
         <Route path="/login" component={Login} />
         <Route path="/invite" component={Invite} />
-        <Route><Redirect to="/login" /></Route>
       </Switch>
     );
   }
@@ -63,11 +84,11 @@ function AppShell() {
           </header>
           <main className="flex-1 overflow-y-auto">
             <Switch>
+              <Route path="/" component={Dashboard} />
               <Route path="/dashboard" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />
               <Route path="/settings" component={Settings} />
-              <Route path="/"><Redirect to="/dashboard" /></Route>
               <Route component={NotFound} />
             </Switch>
           </main>
