@@ -68,6 +68,62 @@ export async function registerRoutes(
     });
   });
 
+  app.patch("/api/auth/account", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { currentPassword, newEmail, newPassword, confirmNewPassword } = req.body;
+
+      if (!currentPassword) {
+        return res.status(400).json({ message: "Current password is required" });
+      }
+
+      const fullUser = await storage.getUser(user.id);
+      if (!fullUser) return res.status(404).json({ message: "User not found" });
+
+      const valid = await bcrypt.compare(currentPassword, fullUser.password);
+      if (!valid) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
+
+      if (!newEmail && !newPassword) {
+        return res.status(400).json({ message: "No changes provided" });
+      }
+
+      if (newPassword && newPassword !== confirmNewPassword) {
+        return res.status(400).json({ message: "New passwords do not match" });
+      }
+
+      const updates: Partial<Pick<User, "email" | "password">> = {};
+
+      if (newEmail && newEmail !== fullUser.email) {
+        const existing = await storage.getUserByEmail(newEmail);
+        if (existing) {
+          return res.status(409).json({ message: "That email address is already in use" });
+        }
+        updates.email = newEmail;
+      }
+
+      if (newPassword) {
+        updates.password = await bcrypt.hash(newPassword, 12);
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "No changes to save" });
+      }
+
+      const updated = await storage.updateUser(user.id, updates);
+      if (!updated) return res.status(500).json({ message: "Failed to update account" });
+
+      await new Promise<void>((resolve, reject) => {
+        req.login(updated, (err) => (err ? reject(err) : resolve()));
+      });
+
+      res.json({ id: updated.id, username: updated.username, email: updated.email, role: updated.role });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "Failed to update account" });
+    }
+  });
+
   app.get("/api/auth/invite/:token", async (req, res) => {
     const user = await storage.getUserByInviteToken(req.params.token);
     if (!user) return res.status(404).json({ message: "Invalid or expired invite" });

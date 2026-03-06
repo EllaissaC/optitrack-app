@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
   Settings as SettingsIcon, Mail, FlaskConical, Users, Tag, ChevronRight,
-  Plus, Pencil, Trash2, Copy, Check, AlertCircle, Send, Package,
+  Plus, Pencil, Trash2, Copy, Check, AlertCircle, Send, Package, KeyRound,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -779,6 +779,148 @@ function TeamTab() {
   );
 }
 
+// ─── Account Settings ─────────────────────────────────────────────────────────
+
+const accountSchema = z.object({
+  newEmail: z.string().email("Enter a valid email address").or(z.literal("")),
+  newPassword: z.string().min(8, "Password must be at least 8 characters").or(z.literal("")),
+  confirmNewPassword: z.string(),
+  currentPassword: z.string().min(1, "Current password is required"),
+}).refine(
+  (d) => !d.newPassword || d.newPassword === d.confirmNewPassword,
+  { message: "Passwords do not match", path: ["confirmNewPassword"] }
+).refine(
+  (d) => !!d.newEmail || !!d.newPassword,
+  { message: "Enter a new email or new password to save changes", path: ["newEmail"] }
+);
+
+type AccountValues = z.infer<typeof accountSchema>;
+
+function AccountTab() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const form = useForm<AccountValues>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: { newEmail: "", newPassword: "", confirmNewPassword: "", currentPassword: "" },
+  });
+
+  const save = useMutation({
+    mutationFn: async (data: AccountValues) => {
+      const res = await apiRequest("PATCH", "/api/auth/account", {
+        currentPassword: data.currentPassword,
+        ...(data.newEmail ? { newEmail: data.newEmail } : {}),
+        ...(data.newPassword ? { newPassword: data.newPassword, confirmNewPassword: data.confirmNewPassword } : {}),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      form.reset();
+      toast({ title: "Account updated", description: "Your changes have been saved." });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Failed to update account",
+        description: e.message?.replace(/^\d+:\s*/, "") || "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  return (
+    <Card className="border-border max-w-lg">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-muted-foreground" /> Account Settings
+        </CardTitle>
+        <CardDescription>Update your email address or password. Your current password is required to save any changes.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-4">
+
+            {/* Current email (read-only) */}
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-foreground">Current Email</p>
+              <div className="flex items-center h-9 px-3 rounded-md border border-border bg-muted/40 text-sm text-muted-foreground" data-testid="text-current-email">
+                {user?.email || "—"}
+              </div>
+            </div>
+
+            <Separator />
+
+            <FormField
+              control={form.control}
+              name="newEmail"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New Email</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="email" placeholder="new@example.com" data-testid="input-new-email" />
+                  </FormControl>
+                  <FormDescription>Leave blank to keep your current email.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="newPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New Password</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="password" placeholder="••••••••" autoComplete="new-password" data-testid="input-new-password" />
+                  </FormControl>
+                  <FormDescription>Leave blank to keep your current password.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="confirmNewPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm New Password</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="password" placeholder="••••••••" autoComplete="new-password" data-testid="input-confirm-password" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Separator />
+
+            <FormField
+              control={form.control}
+              name="currentPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Current Password <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input {...field} type="password" placeholder="••••••••" autoComplete="current-password" data-testid="input-current-password" />
+                  </FormControl>
+                  <FormDescription>Required to confirm your identity before saving.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" disabled={save.isPending} data-testid="button-save-account">
+              {save.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -823,6 +965,9 @@ export default function Settings() {
           <TabsTrigger value="team" data-testid="tab-team">
             <Users className="w-4 h-4 mr-1.5" /> Team
           </TabsTrigger>
+          <TabsTrigger value="account" data-testid="tab-account">
+            <KeyRound className="w-4 h-4 mr-1.5" /> Account
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -836,6 +981,9 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="team">
           <TeamTab />
+        </TabsContent>
+        <TabsContent value="account">
+          <AccountTab />
         </TabsContent>
       </Tabs>
     </div>
