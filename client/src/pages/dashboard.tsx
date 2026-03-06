@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight } from "lucide-react";
+import { Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Frame } from "@shared/schema";
+import { getQueryFn } from "@/lib/queryClient";
 
 const STATUS_CONFIG = {
   on_board: { label: "On Board", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", dot: "bg-emerald-500" },
@@ -54,10 +55,23 @@ function StatCard({
   );
 }
 
+function daysAtLab(dateSentToLab: string): number {
+  const sent = new Date(dateSentToLab);
+  const today = new Date();
+  return Math.floor((today.getTime() - sent.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 export default function Dashboard() {
   const { data: frames = [], isLoading } = useQuery<Frame[]>({
     queryKey: ["/api/frames"],
   });
+
+  const { data: settingsMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
+
+  const reminderDays = parseInt(settingsMap.labReminderDays || "14");
 
   const onBoard = frames.filter((f) => f.status === "on_board").length;
   const atLab = frames.filter((f) => f.status === "at_lab").length;
@@ -73,6 +87,10 @@ export default function Dashboard() {
   const recentFrames = [...frames]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
+
+  const overdueLabFrames = frames.filter(
+    (f) => f.status === "at_lab" && f.dateSentToLab && daysAtLab(f.dateSentToLab) >= reminderDays
+  ).sort((a, b) => daysAtLab(b.dateSentToLab!) - daysAtLab(a.dateSentToLab!));
 
   return (
     <div className="p-6 space-y-6">
@@ -115,6 +133,81 @@ export default function Dashboard() {
           loading={isLoading}
         />
       </div>
+
+      {!isLoading && overdueLabFrames.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3 px-6 pt-5">
+            <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex-shrink-0">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold text-amber-900 dark:text-amber-200">
+                Frames Needing Lab Follow-Up
+              </CardTitle>
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                {overdueLabFrames.length} frame{overdueLabFrames.length !== 1 ? "s" : ""} at lab for {reminderDays}+ days
+              </p>
+            </div>
+            <div className="ml-auto">
+              <Button variant="ghost" size="sm" asChild className="text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200">
+                <Link href="/inventory" data-testid="link-lab-followup-inventory">
+                  View in Inventory <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="px-6 pb-5">
+            <div className="rounded-md overflow-hidden border border-amber-200 dark:border-amber-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-amber-100/60 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300">Brand / Model</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden sm:table-cell">Lab</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden md:table-cell">Lab Order #</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300 hidden md:table-cell">Date Sent</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-amber-800 dark:text-amber-300">Days at Lab</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overdueLabFrames.map((frame) => {
+                    const days = daysAtLab(frame.dateSentToLab!);
+                    return (
+                      <tr
+                        key={frame.id}
+                        className="border-b border-amber-100 dark:border-amber-900/50 last:border-0 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                        data-testid={`row-overdue-frame-${frame.id}`}
+                      >
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-foreground">{frame.brand}</p>
+                          <p className="text-xs text-muted-foreground">{frame.model}</p>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                          {frame.labName || <span className="text-muted-foreground/50">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                          {frame.labOrderNumber || <span className="text-muted-foreground/50">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                          {frame.dateSentToLab}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Badge
+                            variant="outline"
+                            className="border-amber-400 text-amber-700 dark:text-amber-400 dark:border-amber-600 font-semibold"
+                            data-testid={`text-days-at-lab-${frame.id}`}
+                          >
+                            {days} days
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="border-card-border lg:col-span-2">

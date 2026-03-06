@@ -21,25 +21,12 @@ import {
   Truck,
   Building2,
 } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
-import { insertFrameSchema, type Frame } from "@shared/schema";
+import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
+import { insertFrameSchema, type Frame, type Manufacturer, type Brand, type Lab } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
-import {
-  DEFAULT_MANUFACTURERS,
-  MANUFACTURER_BRANDS,
-  DEFAULT_LABS,
-  loadCustomManufacturers,
-  saveCustomManufacturers,
-  loadCustomBrands,
-  saveCustomBrands,
-  loadCustomLabs,
-  saveCustomLabs,
-  type Lab,
-} from "@/lib/manufacturers";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -87,8 +74,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const ADD_NEW_SENTINEL = "__add_new__";
 
 const formSchema = insertFrameSchema.extend({
   eyeSize: z.coerce.number().min(1, "Required").max(99),
@@ -147,135 +132,6 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-function AddNewDialog({
-  open,
-  onClose,
-  title,
-  label,
-  placeholder,
-  onAdd,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  label: string;
-  placeholder: string;
-  onAdd: (value: string) => void;
-}) {
-  const [value, setValue] = useState("");
-
-  useEffect(() => {
-    if (open) setValue("");
-  }, [open]);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    onAdd(trimmed);
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="add-new-input">{label}</Label>
-            <Input
-              id="add-new-input"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
-              autoFocus
-              data-testid="input-add-new"
-            />
-          </div>
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!value.trim()} data-testid="button-confirm-add-new">
-              Add
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AddLabDialog({
-  open,
-  onClose,
-  onAdd,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onAdd: (lab: Lab) => void;
-}) {
-  const [name, setName] = useState("");
-  const [account, setAccount] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setAccount("");
-    }
-  }, [open]);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName) return;
-    onAdd({ name: trimmedName, account: account.trim() });
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Add Lab</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="add-lab-name">Lab Name</Label>
-            <Input
-              id="add-lab-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Regional Optical Lab"
-              autoFocus
-              data-testid="input-add-lab-name"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="add-lab-account">Account Number</Label>
-            <Input
-              id="add-lab-account"
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-              placeholder="e.g. A12345"
-              data-testid="input-add-lab-account"
-            />
-          </div>
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!name.trim()} data-testid="button-confirm-add-lab">
-              Add Lab
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function FrameFoundCard({
   frame,
@@ -454,20 +310,19 @@ function FrameFormDialog({
   const { toast } = useToast();
   const isEdit = !!editFrame;
 
-  const [customManufacturers, setCustomManufacturers] = useState<string[]>(
-    () => loadCustomManufacturers()
-  );
-  const [customBrands, setCustomBrands] = useState<Record<string, string[]>>(
-    () => loadCustomBrands()
-  );
-  const [customLabs, setCustomLabs] = useState<Lab[]>(() => loadCustomLabs());
+  const { data: manufacturersData = [] } = useQuery<Manufacturer[]>({
+    queryKey: ["/api/manufacturers"],
+  });
+  const { data: labsData = [] } = useQuery<Lab[]>({
+    queryKey: ["/api/labs"],
+  });
+  const { data: settingsData = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+  });
 
-  const [addMfgOpen, setAddMfgOpen] = useState(false);
-  const [addBrandOpen, setAddBrandOpen] = useState(false);
-  const [addLabOpen, setAddLabOpen] = useState(false);
-
-  const allManufacturers = [...DEFAULT_MANUFACTURERS, ...customManufacturers];
-  const allLabs = [...DEFAULT_LABS, ...customLabs];
+  const allManufacturers = manufacturersData.map((m) => m.name);
+  const allLabs = labsData;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -511,14 +366,12 @@ function FrameFormDialog({
     }
   }, [watchedStatus]);
 
-  const brandsForMfg = useCallback(
-    (mfg: string) => {
-      const defaults = MANUFACTURER_BRANDS[mfg] ?? [];
-      const customs = customBrands[mfg] ?? [];
-      return [...defaults, ...customs];
-    },
-    [customBrands]
-  );
+  const selectedMfgObj = manufacturersData.find((m) => m.name === watchedManufacturer);
+  const { data: brandsData = [] } = useQuery<Brand[]>({
+    queryKey: ["/api/manufacturers", selectedMfgObj?.id, "brands"],
+    enabled: !!selectedMfgObj?.id,
+  });
+  const availableBrandNames = brandsData.map((b) => b.name);
 
   useEffect(() => {
     if (open) {
@@ -552,7 +405,7 @@ function FrameFormDialog({
               bridge: 18,
               templeLength: 145,
               cost: "",
-              multiplier: "",
+              multiplier: settingsData.defaultMultiplier || "",
               retailPrice: "",
               status: "on_board",
               barcode: prefillBarcode ?? "",
@@ -567,57 +420,18 @@ function FrameFormDialog({
   }, [open, editFrame, prefillBarcode]);
 
   function handleManufacturerChange(value: string, fieldOnChange: (v: string) => void) {
-    if (value === ADD_NEW_SENTINEL) {
-      setAddMfgOpen(true);
-      return;
-    }
     fieldOnChange(value);
     form.setValue("brand", "");
   }
 
   function handleBrandChange(value: string, fieldOnChange: (v: string) => void) {
-    if (value === ADD_NEW_SENTINEL) {
-      setAddBrandOpen(true);
-      return;
-    }
     fieldOnChange(value);
   }
 
   function handleLabChange(value: string, fieldOnChange: (v: string) => void) {
-    if (value === ADD_NEW_SENTINEL) {
-      setAddLabOpen(true);
-      return;
-    }
     fieldOnChange(value);
     const lab = allLabs.find((l) => l.name === value);
     form.setValue("labAccountNumber", lab?.account ?? "");
-  }
-
-  function addManufacturer(name: string) {
-    const updated = [...customManufacturers, name];
-    setCustomManufacturers(updated);
-    saveCustomManufacturers(updated);
-    form.setValue("manufacturer", name);
-    form.setValue("brand", "");
-  }
-
-  function addBrand(name: string) {
-    const mfg = form.getValues("manufacturer");
-    const updated = {
-      ...customBrands,
-      [mfg]: [...(customBrands[mfg] ?? []), name],
-    };
-    setCustomBrands(updated);
-    saveCustomBrands(updated);
-    form.setValue("brand", name);
-  }
-
-  function addLab(lab: Lab) {
-    const updated = [...customLabs, lab];
-    setCustomLabs(updated);
-    saveCustomLabs(updated);
-    form.setValue("labName", lab.name);
-    form.setValue("labAccountNumber", lab.account);
   }
 
   const createMutation = useMutation({
@@ -665,7 +479,6 @@ function FrameFormDialog({
     }
   }
 
-  const availableBrands = brandsForMfg(watchedManufacturer);
   const isAtLab = watchedStatus === "at_lab";
 
   return (
@@ -732,13 +545,6 @@ function FrameFormDialog({
                               </SelectItem>
                             ))}
                           </SelectGroup>
-                          <SelectSeparator />
-                          <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
-                            <span className="flex items-center gap-1.5">
-                              <Plus className="w-3.5 h-3.5" />
-                              Add Manufacturer
-                            </span>
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -769,26 +575,19 @@ function FrameFormDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {availableBrands.length > 0 && (
+                          {availableBrandNames.length > 0 ? (
                             <SelectGroup>
                               <SelectLabel>{watchedManufacturer} Brands</SelectLabel>
-                              {availableBrands.map((b) => (
+                              {availableBrandNames.map((b) => (
                                 <SelectItem key={b} value={b}>
                                   {b}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
-                          )}
-                          {watchedManufacturer && (
-                            <>
-                              {availableBrands.length > 0 && <SelectSeparator />}
-                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
-                                <span className="flex items-center gap-1.5">
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Add Brand
-                                </span>
-                              </SelectItem>
-                            </>
+                          ) : (
+                            <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                              No brands for this manufacturer.<br />Add brands in Settings.
+                            </div>
                           )}
                         </SelectContent>
                       </Select>
@@ -989,13 +788,6 @@ function FrameFormDialog({
                                   </SelectItem>
                                 ))}
                               </SelectGroup>
-                              <SelectSeparator />
-                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
-                                <span className="flex items-center gap-1.5">
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Add Lab
-                                </span>
-                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -1115,27 +907,6 @@ function FrameFormDialog({
         </DialogContent>
       </Dialog>
 
-      <AddNewDialog
-        open={addMfgOpen}
-        onClose={() => setAddMfgOpen(false)}
-        title="Add Manufacturer"
-        label="Manufacturer Name"
-        placeholder="e.g. Rodenstock"
-        onAdd={addManufacturer}
-      />
-      <AddNewDialog
-        open={addBrandOpen}
-        onClose={() => setAddBrandOpen(false)}
-        title={`Add Brand for ${watchedManufacturer}`}
-        label="Brand Name"
-        placeholder="e.g. New Brand"
-        onAdd={addBrand}
-      />
-      <AddLabDialog
-        open={addLabOpen}
-        onClose={() => setAddLabOpen(false)}
-        onAdd={addLab}
-      />
     </>
   );
 }
