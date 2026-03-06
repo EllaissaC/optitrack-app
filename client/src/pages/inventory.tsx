@@ -21,6 +21,10 @@ import {
   Truck,
   Building2,
   PlusCircle,
+  FileUp,
+  Loader2,
+  Trash,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
@@ -1247,12 +1251,391 @@ function FrameFormDialog({
   );
 }
 
+interface ExtractedFrame {
+  brand: string;
+  model: string;
+  color: string;
+  eyeSize: number;
+  bridge: number;
+  templeLength: number;
+  cost: string;
+  quantity: number;
+}
+
+function InvoiceImportDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [rows, setRows] = useState<ExtractedFrame[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{ added: number; skipped: number } | null>(null);
+
+  function resetState() {
+    setSelectedFile(null);
+    setRows([]);
+    setParsing(false);
+    setImporting(false);
+    setImportSummary(null);
+  }
+
+  function handleFileChange(file: File) {
+    setSelectedFile(file);
+    setRows([]);
+    setImportSummary(null);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileChange(file);
+  }
+
+  function updateRow(idx: number, field: keyof ExtractedFrame, value: string | number) {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  }
+
+  function removeRow(idx: number) {
+    setRows((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function handleParse() {
+    if (!selectedFile) return;
+    setParsing(true);
+    setRows([]);
+    setImportSummary(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const res = await fetch("/api/invoice/parse", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to parse invoice" }));
+        throw new Error(err.message || "Failed to parse invoice");
+      }
+      const data = await res.json();
+      if (!data.frames || data.frames.length === 0) {
+        toast({ title: "No frames found", description: "No optical frame products could be identified in this file.", variant: "destructive" });
+        return;
+      }
+      setRows(data.frames);
+    } catch (err) {
+      toast({
+        title: "Parse failed",
+        description: err instanceof Error ? err.message : "Could not parse invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  async function handleImport() {
+    if (rows.length === 0) return;
+    setImporting(true);
+    let added = 0;
+    let skipped = 0;
+
+    for (const row of rows) {
+      try {
+        const costNum = parseFloat(row.cost) || 0;
+        const retailNum = Math.round(costNum * 2.5 * 100) / 100;
+
+        const payload = {
+          brand: row.brand,
+          model: row.model,
+          color: row.color,
+          eyeSize: Number(row.eyeSize) || 52,
+          bridge: Number(row.bridge) || 18,
+          templeLength: Number(row.templeLength) || 145,
+          cost: String(costNum.toFixed(2)),
+          retailPrice: String(retailNum.toFixed(2)),
+          quantity: Number(row.quantity) || 1,
+          status: "on_board",
+        };
+
+        const res = await fetch("/api/frames", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.status === 409) {
+          skipped++;
+        } else if (res.ok) {
+          added++;
+        } else {
+          skipped++;
+        }
+      } catch {
+        skipped++;
+      }
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+    setImporting(false);
+    setImportSummary({ added, skipped });
+    toast({
+      title: "Import complete",
+      description: `${added} frame${added !== 1 ? "s" : ""} added${skipped > 0 ? `, ${skipped} skipped (already exist)` : ""}.`,
+    });
+  }
+
+  function handleClose() {
+    resetState();
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileUp className="w-5 h-5" />
+            Import Frames from Invoice
+          </DialogTitle>
+          <DialogDescription>
+            Upload an invoice (PDF or image) and AI will extract frame data for you to review before importing.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+          {rows.length === 0 ? (
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              data-testid="invoice-drop-zone"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
+                data-testid="input-invoice-file"
+              />
+              <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <p className="font-medium text-foreground mb-1">Drop your invoice here</p>
+              <p className="text-sm text-muted-foreground">PDF, JPEG, PNG, or WebP · Max 20 MB</p>
+              {selectedFile && (
+                <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md text-sm font-medium">
+                  <FileText className="w-4 h-4" />
+                  {selectedFile.name}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {rows.length} frame{rows.length !== 1 ? "s" : ""} extracted — review and edit before importing.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setRows([]); setImportSummary(null); }}
+                  data-testid="button-clear-rows"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                  Clear
+                </Button>
+              </div>
+              <div className="rounded-md border overflow-auto max-h-[360px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Model</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead className="w-16">Eye</TableHead>
+                      <TableHead className="w-16">Bridge</TableHead>
+                      <TableHead className="w-20">Temple</TableHead>
+                      <TableHead className="w-24">Cost ($)</TableHead>
+                      <TableHead className="w-16">Qty</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, idx) => (
+                      <TableRow key={idx} data-testid={`row-invoice-frame-${idx}`}>
+                        <TableCell>
+                          <input
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            value={row.brand}
+                            onChange={(e) => updateRow(idx, "brand", e.target.value)}
+                            data-testid={`input-invoice-brand-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            value={row.model}
+                            onChange={(e) => updateRow(idx, "model", e.target.value)}
+                            data-testid={`input-invoice-model-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            value={row.color}
+                            onChange={(e) => updateRow(idx, "color", e.target.value)}
+                            data-testid={`input-invoice-color-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            type="number"
+                            value={row.eyeSize}
+                            onChange={(e) => updateRow(idx, "eyeSize", Number(e.target.value))}
+                            data-testid={`input-invoice-eyesize-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            type="number"
+                            value={row.bridge}
+                            onChange={(e) => updateRow(idx, "bridge", Number(e.target.value))}
+                            data-testid={`input-invoice-bridge-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-20 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            type="number"
+                            value={row.templeLength}
+                            onChange={(e) => updateRow(idx, "templeLength", Number(e.target.value))}
+                            data-testid={`input-invoice-temple-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-24 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            value={row.cost}
+                            onChange={(e) => updateRow(idx, "cost", e.target.value)}
+                            data-testid={`input-invoice-cost-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <input
+                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            type="number"
+                            min={1}
+                            value={row.quantity}
+                            onChange={(e) => updateRow(idx, "quantity", Number(e.target.value))}
+                            data-testid={`input-invoice-qty-${idx}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeRow(idx)}
+                            data-testid={`button-remove-row-${idx}`}
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {importSummary && (
+                <div className="rounded-md bg-muted/50 border px-4 py-3 text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  <span>
+                    Import complete: <strong>{importSummary.added}</strong> frame{importSummary.added !== 1 ? "s" : ""} added
+                    {importSummary.skipped > 0 && <>, <strong>{importSummary.skipped}</strong> skipped (already exist)</>}.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="flex-shrink-0 pt-2 gap-2 border-t">
+          {rows.length === 0 ? (
+            <>
+              <Button variant="outline" onClick={handleClose} data-testid="button-cancel-import">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleParse}
+                disabled={!selectedFile || parsing}
+                data-testid="button-parse-invoice"
+              >
+                {parsing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="w-4 h-4 mr-2" />
+                    Extract Frames
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleClose} data-testid="button-close-import">
+                {importSummary ? "Close" : "Cancel"}
+              </Button>
+              {!importSummary && (
+                <Button
+                  onClick={handleImport}
+                  disabled={importing || rows.length === 0}
+                  data-testid="button-confirm-import"
+                >
+                  {importing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Import {rows.length} Frame{rows.length !== 1 ? "s" : ""}
+                    </>
+                  )}
+                </Button>
+              )}
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Inventory() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [prefillBarcode, setPrefillBarcode] = useState<string>("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [foundFrame, setFoundFrame] = useState<Frame | null>(null);
@@ -1376,10 +1759,16 @@ export default function Inventory() {
             {frames.length} frame{frames.length !== 1 ? "s" : ""} total
           </p>
         </div>
-        <Button onClick={openAdd} data-testid="button-add-frame">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Frame
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="button-import-invoice">
+            <FileUp className="w-4 h-4 mr-2" />
+            Import Invoice
+          </Button>
+          <Button onClick={openAdd} data-testid="button-add-frame">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Frame
+          </Button>
+        </div>
       </div>
 
       {/* Barcode scanner */}
@@ -1643,6 +2032,11 @@ export default function Inventory() {
         onClose={closeDialog}
         editFrame={editFrame}
         prefillBarcode={prefillBarcode}
+      />
+
+      <InvoiceImportDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>

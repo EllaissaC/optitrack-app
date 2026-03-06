@@ -3,10 +3,12 @@ import { createServer, type Server } from "http";
 import passport from "passport";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import multer from "multer";
 import { storage } from "./storage";
 import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema, insertLabOrderSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
+import { parseInvoiceFromImage, parseInvoiceFromPdf } from "./invoiceParser";
 import { z } from "zod";
 import type { User, Clinic } from "@shared/schema";
 
@@ -735,6 +737,40 @@ export async function registerRoutes(
       res.json({ message: "Deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete lab order" });
+    }
+  });
+
+  const invoiceUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
+      if (allowed.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error("Only PDF and image files (JPEG, PNG, WebP) are supported."));
+      }
+    },
+  });
+
+  app.post("/api/invoice/parse", requireAuth, invoiceUpload.single("file"), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+      let frames;
+      if (file.mimetype === "application/pdf") {
+        frames = await parseInvoiceFromPdf(file.buffer);
+      } else {
+        const base64 = file.buffer.toString("base64");
+        frames = await parseInvoiceFromImage(base64, file.mimetype);
+      }
+
+      res.json({ frames });
+    } catch (err) {
+      console.error("[invoice/parse] Error:", err);
+      const msg = err instanceof Error ? err.message : "Failed to parse invoice";
+      res.status(500).json({ message: msg });
     }
   });
 
