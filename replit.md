@@ -6,7 +6,8 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 ## Features
 - **Dashboard**: Stats overview (total frames, on board, at lab, sold), recent frames list, financial summary
 - **Inventory**: Full CRUD table with search and status filtering
-- **Frame fields**: manufacturer, brand, model, color, eye size, bridge, temple length, cost, retail price, status
+- **Barcode Scanning**: USB scanner-compatible scan input at top of inventory page; looks up frames by barcode on Enter, highlights matching row and opens edit dialog, or opens add dialog pre-filled with barcode if not found
+- **Frame fields**: manufacturer, brand, model, color, eye size, bridge, temple length, cost, retail price, status, barcode (optional)
 
 ## Architecture
 - **Frontend**: React + TypeScript + Vite, TanStack Query, shadcn/ui, wouter routing
