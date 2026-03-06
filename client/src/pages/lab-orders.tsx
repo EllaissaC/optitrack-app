@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,6 +18,11 @@ import {
   Search,
   X,
   SlidersHorizontal,
+  Plus,
+  ScanLine,
+  ArrowLeft,
+  ChevronRight,
+  Glasses,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame } from "@shared/schema";
@@ -68,6 +73,386 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// ─── Add Lab Order Dialog ──────────────────────────────────────────────────────
+
+const addLabOrderSchema = z.object({
+  visionPlan: z.string().optional().nullable(),
+  labName: z.string().optional().nullable(),
+  labOrderNumber: z.string().optional().nullable(),
+  labAccountNumber: z.string().optional().nullable(),
+  trackingNumber: z.string().optional().nullable(),
+  dateSentToLab: z.string().optional().nullable(),
+});
+
+type AddLabOrderValues = z.infer<typeof addLabOrderSchema>;
+
+function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const [step, setStep] = useState<"select" | "details">("select");
+  const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [barcodeValue, setBarcodeValue] = useState("");
+  const [barcodeError, setBarcodeError] = useState<string | null>(null);
+  const barcodeRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const { data: framesData = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
+  const { data: labsData = [] } = useQuery<{ id: string; name: string; account: string }[]>({ queryKey: ["/api/labs"] });
+
+  const onBoardFrames = framesData.filter((f) => f.status === "on_board");
+
+  const filteredFrames = useMemo(() => {
+    if (!searchQuery.trim()) return onBoardFrames;
+    const q = searchQuery.trim().toLowerCase();
+    return onBoardFrames.filter(
+      (f) =>
+        f.brand.toLowerCase().includes(q) ||
+        f.model.toLowerCase().includes(q) ||
+        f.manufacturer.toLowerCase().includes(q) ||
+        f.color.toLowerCase().includes(q) ||
+        (f.barcode ?? "").toLowerCase().includes(q)
+    );
+  }, [onBoardFrames, searchQuery]);
+
+  const form = useForm<AddLabOrderValues>({
+    resolver: zodResolver(addLabOrderSchema),
+    defaultValues: {
+      visionPlan: "",
+      labName: "",
+      labOrderNumber: "",
+      labAccountNumber: "",
+      trackingNumber: "",
+      dateSentToLab: new Date().toISOString().split("T")[0],
+    },
+  });
+
+  useEffect(() => {
+    if (!open) {
+      setStep("select");
+      setSelectedFrame(null);
+      setSearchQuery("");
+      setBarcodeValue("");
+      setBarcodeError(null);
+      form.reset({
+        visionPlan: "",
+        labName: "",
+        labOrderNumber: "",
+        labAccountNumber: "",
+        trackingNumber: "",
+        dateSentToLab: new Date().toISOString().split("T")[0],
+      });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && step === "select") {
+      setTimeout(() => barcodeRef.current?.focus(), 100);
+    }
+  }, [open, step]);
+
+  function handleBarcodeSubmit() {
+    const barcode = barcodeValue.trim();
+    if (!barcode) return;
+    const match = onBoardFrames.find((f) => f.barcode && f.barcode.trim() === barcode);
+    if (match) {
+      setBarcodeError(null);
+      selectFrame(match);
+    } else {
+      setBarcodeError(`No in-stock frame found for barcode "${barcode}"`);
+      setBarcodeValue("");
+    }
+  }
+
+  function selectFrame(frame: Frame) {
+    setSelectedFrame(frame);
+    const matchingLab = labsData.find((l) => l.name === frame.labName);
+    form.reset({
+      visionPlan: frame.visionPlan ?? "",
+      labName: frame.labName ?? "",
+      labOrderNumber: "",
+      labAccountNumber: matchingLab?.account ?? frame.labAccountNumber ?? "",
+      trackingNumber: "",
+      dateSentToLab: new Date().toISOString().split("T")[0],
+    });
+    setStep("details");
+  }
+
+  const mutation = useMutation({
+    mutationFn: async (values: AddLabOrderValues) => {
+      await apiRequest("PATCH", `/api/frames/${selectedFrame!.id}`, {
+        status: "at_lab",
+        labName: values.labName || null,
+        labOrderNumber: values.labOrderNumber || null,
+        labAccountNumber: values.labAccountNumber || null,
+        trackingNumber: values.trackingNumber || null,
+        visionPlan: values.visionPlan || null,
+        dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Lab order created", description: `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab` });
+      onClose();
+    },
+    onError: () => toast({ title: "Failed to create lab order", variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {step === "details" && (
+              <button
+                type="button"
+                onClick={() => { setStep("select"); setBarcodeValue(""); setBarcodeError(null); }}
+                className="mr-1 text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="button-back-to-select"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <FlaskConical className="w-4 h-4 text-primary" />
+            {step === "select" ? "Add Lab Order — Select Frame" : "Add Lab Order — Details"}
+          </DialogTitle>
+          {step === "select" && (
+            <DialogDescription className="text-sm text-muted-foreground">
+              Search your inventory or scan a barcode to select a frame to send to the lab.
+            </DialogDescription>
+          )}
+          {step === "details" && selectedFrame && (
+            <DialogDescription className="text-sm text-muted-foreground">
+              Enter the lab order details for{" "}
+              <span className="font-medium text-foreground">{selectedFrame.brand} — {selectedFrame.model}</span>
+              {selectedFrame.color ? `, ${selectedFrame.color}` : ""}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        {step === "select" && (
+          <div className="space-y-4">
+            {/* Barcode scan */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <ScanLine className="w-3.5 h-3.5 text-muted-foreground" /> Scan Barcode
+              </label>
+              <div className="flex gap-2">
+                <input
+                  ref={barcodeRef}
+                  type="text"
+                  className="flex-1 h-9 px-3 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="Scan or type barcode, then press Enter…"
+                  value={barcodeValue}
+                  onChange={(e) => { setBarcodeValue(e.target.value); setBarcodeError(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleBarcodeSubmit()}
+                  data-testid="input-barcode-scan"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleBarcodeSubmit} data-testid="button-scan-lookup">
+                  Find
+                </Button>
+              </div>
+              {barcodeError && (
+                <p className="text-xs text-destructive" data-testid="text-barcode-error">{barcodeError}</p>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">or search inventory</span>
+              </div>
+            </div>
+
+            {/* Text search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Search by brand, model, or color…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                data-testid="input-frame-search"
+              />
+            </div>
+
+            {/* Frame list */}
+            <div className="border border-border rounded-md overflow-hidden max-h-56 overflow-y-auto" data-testid="list-available-frames">
+              {onBoardFrames.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Glasses className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm font-medium">No frames in stock</p>
+                  <p className="text-xs mt-0.5">Add frames to inventory first</p>
+                </div>
+              ) : filteredFrames.length === 0 ? (
+                <div className="py-6 text-center text-muted-foreground text-sm">No frames match your search</div>
+              ) : (
+                filteredFrames.map((frame) => (
+                  <button
+                    key={frame.id}
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0 text-left"
+                    onClick={() => selectFrame(frame)}
+                    data-testid={`button-select-frame-${frame.id}`}
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {frame.brand} — {frame.model}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {frame.color} · {frame.manufacturer}
+                        {frame.barcode ? ` · #${frame.barcode}` : ""}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  </button>
+                ))
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              {onBoardFrames.length} frame{onBoardFrames.length !== 1 ? "s" : ""} in stock
+              {filteredFrames.length !== onBoardFrames.length && ` · ${filteredFrames.length} matching`}
+            </p>
+          </div>
+        )}
+
+        {step === "details" && selectedFrame && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
+              {/* Selected frame summary */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{selectedFrame.brand} — {selectedFrame.model}</p>
+                  <p className="text-xs text-muted-foreground truncate">{selectedFrame.color} · {selectedFrame.manufacturer}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="visionPlan" render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
+                    </FormLabel>
+                    <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-vision-plan">
+                          <SelectValue placeholder="Select vision plan…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">None / Out of Pocket</SelectItem>
+                        {VISION_PLAN_OPTIONS.map((plan) => (
+                          <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="labName" render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab
+                    </FormLabel>
+                    {labsData.length > 0 ? (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={(v) => {
+                          field.onChange(v);
+                          const lab = labsData.find((l) => l.name === v);
+                          if (lab?.account) form.setValue("labAccountNumber", lab.account);
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-lab-name">
+                            <SelectValue placeholder="Select lab…" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {labsData.map((lab) => (
+                            <SelectItem key={lab.id} value={lab.name}>{lab.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <FormControl>
+                        <Input placeholder="e.g. HOYA Lab" data-testid="input-lab-name" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="ORD-12345" data-testid="input-lab-order-number" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="A12345" data-testid="input-lab-account-number" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="1Z999AA1…" data-testid="input-tracking-number" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="date" data-testid="input-date-sent" {...field} value={field.value ?? ""} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+
+              <DialogFooter className="gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                <Button type="submit" disabled={mutation.isPending} data-testid="button-send-to-lab">
+                  <FlaskConical className="w-4 h-4 mr-1.5" />
+                  {mutation.isPending ? "Sending…" : "Send to Lab"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function calcDaysAtLab(dateSentToLab: string | null | undefined): number | null {
   if (!dateSentToLab) return null;
@@ -384,6 +769,7 @@ export default function LabOrders() {
   const [filterLab, setFilterLab] = useState("all");
   const [filterVisionPlan, setFilterVisionPlan] = useState("all");
   const [filterDays, setFilterDays] = useState<DaysFilter>("all");
+  const [showAddLabOrder, setShowAddLabOrder] = useState(false);
 
   const { data: framesData, isLoading } = useQuery<Frame[]>({
     queryKey: ["/api/frames"],
@@ -469,6 +855,9 @@ export default function LabOrders() {
             <FlaskConical className="w-4 h-4" />
             {isLoading ? "..." : `${labFrames.length} at lab`}
           </div>
+          <Button onClick={() => setShowAddLabOrder(true)} data-testid="button-add-lab-order">
+            <Plus className="w-4 h-4 mr-1.5" /> Add Lab Order
+          </Button>
         </div>
       </div>
 
@@ -737,6 +1126,11 @@ export default function LabOrders() {
           </TableBody>
         </Table>
       </div>
+
+      <AddLabOrderDialog
+        open={showAddLabOrder}
+        onClose={() => setShowAddLabOrder(false)}
+      />
 
       {editFrame && (
         <EditLabOrderDialog
