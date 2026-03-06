@@ -1,4 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   frames, type Frame, type InsertFrame,
@@ -9,6 +9,7 @@ import {
   manufacturers, type Manufacturer, type InsertManufacturer,
   brands, type Brand, type InsertBrand,
   weeklyMetrics, type WeeklyMetric, type InsertWeeklyMetric,
+  labOrders, type LabOrder, type InsertLabOrder,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -63,6 +64,13 @@ export interface IStorage {
   getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]>;
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
+
+  getLabOrders(clinicId?: string | null): Promise<LabOrder[]>;
+  getLabOrder(id: string): Promise<LabOrder | undefined>;
+  createLabOrder(data: InsertLabOrder): Promise<LabOrder>;
+  updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined>;
+  deleteLabOrder(id: string): Promise<boolean>;
+  incrementFrameSoldCount(frameId: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -304,6 +312,39 @@ export class DbStorage implements IStorage {
   async deleteWeeklyMetric(id: string): Promise<boolean> {
     const result = await db.delete(weeklyMetrics).where(eq(weeklyMetrics.id, id)).returning();
     return result.length > 0;
+  }
+
+  async getLabOrders(clinicId?: string | null): Promise<LabOrder[]> {
+    if (clinicId) {
+      return db.select().from(labOrders).where(eq(labOrders.clinicId, clinicId)).orderBy(desc(labOrders.createdAt));
+    }
+    return db.select().from(labOrders).orderBy(desc(labOrders.createdAt));
+  }
+
+  async getLabOrder(id: string): Promise<LabOrder | undefined> {
+    const [order] = await db.select().from(labOrders).where(eq(labOrders.id, id));
+    return order;
+  }
+
+  async createLabOrder(data: InsertLabOrder): Promise<LabOrder> {
+    const [created] = await db.insert(labOrders).values(data).returning();
+    return created;
+  }
+
+  async updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined> {
+    const [updated] = await db.update(labOrders).set(data).where(eq(labOrders.id, id)).returning();
+    return updated;
+  }
+
+  async deleteLabOrder(id: string): Promise<boolean> {
+    const result = await db.delete(labOrders).where(eq(labOrders.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async incrementFrameSoldCount(frameId: string): Promise<void> {
+    await db.update(frames)
+      .set({ soldCount: sql`${frames.soldCount} + 1` })
+      .where(eq(frames.id, frameId));
   }
 }
 

@@ -23,9 +23,10 @@ import {
   ArrowLeft,
   ChevronRight,
   Glasses,
+  Trash2,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { type Frame } from "@shared/schema";
+import { type Frame, type LabOrder } from "@shared/schema";
 import { VISION_PLAN_OPTIONS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
 
@@ -95,17 +96,16 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [barcodeValue, setBarcodeValue] = useState("");
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const { data: framesData = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
   const { data: labsData = [] } = useQuery<{ id: string; name: string; account: string }[]>({ queryKey: ["/api/labs"] });
 
-  const onBoardFrames = framesData.filter((f) => f.status === "on_board");
+  const inventoryFrames = framesData.filter((f) => f.status !== "sold");
 
   const filteredFrames = useMemo(() => {
-    if (!searchQuery.trim()) return onBoardFrames;
+    if (!searchQuery.trim()) return inventoryFrames;
     const q = searchQuery.trim().toLowerCase();
-    return onBoardFrames.filter(
+    return inventoryFrames.filter(
       (f) =>
         f.brand.toLowerCase().includes(q) ||
         f.model.toLowerCase().includes(q) ||
@@ -113,7 +113,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         f.color.toLowerCase().includes(q) ||
         (f.barcode ?? "").toLowerCase().includes(q)
     );
-  }, [onBoardFrames, searchQuery]);
+  }, [inventoryFrames, searchQuery]);
 
   const form = useForm<AddLabOrderValues>({
     resolver: zodResolver(addLabOrderSchema),
@@ -154,12 +154,12 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
   function handleBarcodeSubmit() {
     const barcode = barcodeValue.trim();
     if (!barcode) return;
-    const match = onBoardFrames.find((f) => f.barcode && f.barcode.trim() === barcode);
+    const match = inventoryFrames.find((f) => f.barcode && f.barcode.trim() === barcode);
     if (match) {
       setBarcodeError(null);
       selectFrame(match);
     } else {
-      setBarcodeError(`No in-stock frame found for barcode "${barcode}"`);
+      setBarcodeError(`No frame found for barcode "${barcode}"`);
       setBarcodeValue("");
     }
   }
@@ -180,19 +180,28 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
   const mutation = useMutation({
     mutationFn: async (values: AddLabOrderValues) => {
-      await apiRequest("PATCH", `/api/frames/${selectedFrame!.id}`, {
-        status: "at_lab",
+      await apiRequest("POST", "/api/lab-orders", {
+        frameId: selectedFrame!.id,
+        frameBrand: selectedFrame!.brand,
+        frameModel: selectedFrame!.model,
+        frameColor: selectedFrame!.color,
+        frameManufacturer: selectedFrame!.manufacturer,
+        visionPlan: values.visionPlan || null,
         labName: values.labName || null,
         labOrderNumber: values.labOrderNumber || null,
         labAccountNumber: values.labAccountNumber || null,
         trackingNumber: values.trackingNumber || null,
-        visionPlan: values.visionPlan || null,
         dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+        status: "pending",
       });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Lab order created", description: `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab` });
+      toast({
+        title: "Lab order created",
+        description: `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab`,
+      });
       onClose();
     },
     onError: () => toast({ title: "Failed to create lab order", variant: "destructive" }),
@@ -217,12 +226,12 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             {step === "select" ? "Add Lab Order — Select Frame" : "Add Lab Order — Details"}
           </DialogTitle>
           {step === "select" && (
-            <DialogDescription className="text-sm text-muted-foreground">
-              Search your inventory or scan a barcode to select a frame to send to the lab.
+            <DialogDescription>
+              Search inventory or scan a barcode to select a frame to send to the lab.
             </DialogDescription>
           )}
           {step === "details" && selectedFrame && (
-            <DialogDescription className="text-sm text-muted-foreground">
+            <DialogDescription>
               Enter the lab order details for{" "}
               <span className="font-medium text-foreground">{selectedFrame.brand} — {selectedFrame.model}</span>
               {selectedFrame.color ? `, ${selectedFrame.color}` : ""}
@@ -232,7 +241,6 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
         {step === "select" && (
           <div className="space-y-4">
-            {/* Barcode scan */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium flex items-center gap-1.5">
                 <ScanLine className="w-3.5 h-3.5 text-muted-foreground" /> Scan Barcode
@@ -266,11 +274,9 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
             </div>
 
-            {/* Text search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
-                ref={searchRef}
                 type="text"
                 className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="Search by brand, model, or color…"
@@ -280,12 +286,11 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               />
             </div>
 
-            {/* Frame list */}
             <div className="border border-border rounded-md overflow-hidden max-h-56 overflow-y-auto" data-testid="list-available-frames">
-              {onBoardFrames.length === 0 ? (
+              {inventoryFrames.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
                   <Glasses className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm font-medium">No frames in stock</p>
+                  <p className="text-sm font-medium">No frames in inventory</p>
                   <p className="text-xs mt-0.5">Add frames to inventory first</p>
                 </div>
               ) : filteredFrames.length === 0 ? (
@@ -300,9 +305,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
                     data-testid={`button-select-frame-${frame.id}`}
                   >
                     <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {frame.brand} — {frame.model}
-                      </p>
+                      <p className="text-sm font-medium text-foreground">{frame.brand} — {frame.model}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {frame.color} · {frame.manufacturer}
                         {frame.barcode ? ` · #${frame.barcode}` : ""}
@@ -315,8 +318,8 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             </div>
 
             <p className="text-xs text-muted-foreground">
-              {onBoardFrames.length} frame{onBoardFrames.length !== 1 ? "s" : ""} in stock
-              {filteredFrames.length !== onBoardFrames.length && ` · ${filteredFrames.length} matching`}
+              {inventoryFrames.length} frame{inventoryFrames.length !== 1 ? "s" : ""} in inventory
+              {filteredFrames.length !== inventoryFrames.length && ` · ${filteredFrames.length} matching`}
             </p>
           </div>
         )}
@@ -324,7 +327,6 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         {step === "details" && selectedFrame && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-              {/* Selected frame summary */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
                 <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
                 <div className="min-w-0">
@@ -454,6 +456,8 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function calcDaysAtLab(dateSentToLab: string | null | undefined): number | null {
   if (!dateSentToLab) return null;
   const sent = new Date(dateSentToLab);
@@ -487,6 +491,8 @@ function DaysAtLabBadge({ days }: { days: number | null }) {
   );
 }
 
+// ─── Edit Lab Order Dialog ─────────────────────────────────────────────────────
+
 const editOrderSchema = z.object({
   labOrderNumber: z.string().optional().nullable(),
   labAccountNumber: z.string().optional().nullable(),
@@ -498,33 +504,24 @@ const editOrderSchema = z.object({
 
 type EditOrderValues = z.infer<typeof editOrderSchema>;
 
-function EditLabOrderDialog({
-  frame,
-  open,
-  onClose,
-}: {
-  frame: Frame;
-  open: boolean;
-  onClose: () => void;
-}) {
+function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
 
   const form = useForm<EditOrderValues>({
     resolver: zodResolver(editOrderSchema),
     defaultValues: {
-      labOrderNumber: frame.labOrderNumber ?? "",
-      labAccountNumber: frame.labAccountNumber ?? "",
-      trackingNumber: frame.trackingNumber ?? "",
-      dateSentToLab: frame.dateSentToLab ?? "",
-      labName: frame.labName ?? "",
-      visionPlan: frame.visionPlan ?? "",
+      labOrderNumber: order.labOrderNumber ?? "",
+      labAccountNumber: order.labAccountNumber ?? "",
+      trackingNumber: order.trackingNumber ?? "",
+      dateSentToLab: order.dateSentToLab ?? "",
+      labName: order.labName ?? "",
+      visionPlan: order.visionPlan ?? "",
     },
   });
 
   const mutation = useMutation({
     mutationFn: (values: EditOrderValues) =>
-      apiRequest("PATCH", `/api/frames/${frame.id}`, {
-        ...values,
+      apiRequest("PATCH", `/api/lab-orders/${order.id}`, {
         labOrderNumber: values.labOrderNumber || null,
         labAccountNumber: values.labAccountNumber || null,
         trackingNumber: values.trackingNumber || null,
@@ -533,160 +530,104 @@ function EditLabOrderDialog({
         visionPlan: values.visionPlan || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       toast({ title: "Lab order updated" });
       onClose();
     },
-    onError: () => {
-      toast({ title: "Failed to update lab order", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Failed to update lab order", variant: "destructive" }),
   });
-
-  function onSubmit(values: EditOrderValues) {
-    mutation.mutate(values);
-  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Edit Lab Order</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            {frame.brand} — {frame.model}
-          </DialogDescription>
+          <DialogDescription>{order.frameBrand} — {order.frameModel}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="visionPlan"
-              render={({ field }) => (
+          <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
+            <FormField control={form.control} name="visionPlan" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
+                </FormLabel>
+                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger data-testid="select-edit-vision-plan">
+                      <SelectValue placeholder="Select vision plan..." />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="none">None / Out of Pocket</SelectItem>
+                    {VISION_PLAN_OPTIONS.map((plan) => (
+                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="labName" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab Name
+                </FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g. HOYA Lab" data-testid="input-edit-lab-name" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
-                  </FormLabel>
-                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-edit-vision-plan">
-                        <SelectValue placeholder="Select vision plan..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {VISION_PLAN_OPTIONS.map((plan) => (
-                        <SelectItem key={plan} value={plan}>
-                          {plan}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="labName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab Name
+                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g. HOYA Lab"
-                      data-testid="input-edit-lab-name"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
+                    <Input placeholder="ORD-12345" data-testid="input-edit-lab-order-number" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="labOrderNumber"
-              render={({ field }) => (
+              )} />
+              <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order Number
+                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g. ORD-12345"
-                      data-testid="input-edit-lab-order-number"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
+                    <Input placeholder="A12345" data-testid="input-edit-lab-account-number" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="labAccountNumber"
-              render={({ field }) => (
+              )} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="trackingNumber" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account Number
+                    <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g. A12345"
-                      data-testid="input-edit-lab-account-number"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
+                    <Input placeholder="1Z999AA1..." data-testid="input-edit-tracking-number" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="trackingNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking Number
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g. 1Z999AA1..."
-                      data-testid="input-edit-tracking-number"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dateSentToLab"
-              render={({ field }) => (
+              )} />
+              <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type="date"
-                      data-testid="input-edit-date-sent"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
+                    <Input type="date" data-testid="input-edit-date-sent" {...field} value={field.value ?? ""} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
+              )} />
+            </div>
             <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={mutation.isPending} data-testid="button-save-lab-order">
                 {mutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
@@ -698,33 +639,23 @@ function EditLabOrderDialog({
   );
 }
 
-function MarkReceivedDialog({
-  frame,
-  open,
-  onClose,
-}: {
-  frame: Frame | null;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const { toast } = useToast();
+// ─── Mark Received Dialog ─────────────────────────────────────────────────────
 
-  const today = new Date().toISOString().split("T")[0];
+function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
 
   const mutation = useMutation({
     mutationFn: () =>
-      apiRequest("PATCH", `/api/frames/${frame!.id}`, {
-        status: "on_board",
-        dateReceivedFromLab: today,
+      apiRequest("PATCH", `/api/lab-orders/${order!.id}`, {
+        status: "received",
+        dateReceivedFromLab: new Date().toISOString().split("T")[0],
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame marked as received and moved back to inventory" });
+      queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+      toast({ title: "Order marked as received", description: "The frame remains in your inventory." });
       onClose();
     },
-    onError: () => {
-      toast({ title: "Failed to update frame status", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Failed to update order", variant: "destructive" }),
   });
 
   return (
@@ -736,10 +667,11 @@ function MarkReceivedDialog({
             Mark as Received
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {frame && (
+            {order && (
               <>
-                Confirm that <span className="font-semibold text-foreground">{frame.brand} {frame.model}</span> has been received from the lab.
-                The frame will be moved back to inventory (On Board) and today&apos;s date will be recorded as the received date.
+                Confirm that the order for{" "}
+                <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel}</span>{" "}
+                has been received from the lab. Today&apos;s date will be recorded. The frame stays in your inventory.
               </>
             )}
           </AlertDialogDescription>
@@ -760,84 +692,123 @@ function MarkReceivedDialog({
   );
 }
 
+// ─── Delete Lab Order Dialog ───────────────────────────────────────────────────
+
+function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+
+  const mutation = useMutation({
+    mutationFn: () => apiRequest("DELETE", `/api/lab-orders/${order!.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+      toast({ title: "Lab order deleted" });
+      onClose();
+    },
+    onError: () => toast({ title: "Failed to delete lab order", variant: "destructive" }),
+  });
+
+  return (
+    <AlertDialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Lab Order?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {order && (
+              <>
+                This will permanently delete the lab order for{" "}
+                <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel}</span>.
+                The frame will remain in inventory and the sold count will not change.
+              </>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            data-testid="button-confirm-delete-order"
+          >
+            {mutation.isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
 type DaysFilter = "all" | "0-7" | "8-13" | "14+";
+type StatusFilter = "all" | "pending" | "received";
 
 export default function LabOrders() {
-  const [editFrame, setEditFrame] = useState<Frame | null>(null);
-  const [receiveFrame, setReceiveFrame] = useState<Frame | null>(null);
+  const [editOrder, setEditOrder] = useState<LabOrder | null>(null);
+  const [receiveOrder, setReceiveOrder] = useState<LabOrder | null>(null);
+  const [deleteOrder, setDeleteOrder] = useState<LabOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterLab, setFilterLab] = useState("all");
   const [filterVisionPlan, setFilterVisionPlan] = useState("all");
   const [filterDays, setFilterDays] = useState<DaysFilter>("all");
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>("pending");
+  const [showFilters, setShowFilters] = useState(false);
   const [showAddLabOrder, setShowAddLabOrder] = useState(false);
 
-  const { data: framesData, isLoading } = useQuery<Frame[]>({
-    queryKey: ["/api/frames"],
+  const { data: ordersData, isLoading } = useQuery<LabOrder[]>({
+    queryKey: ["/api/lab-orders"],
   });
 
   const { data: labsData = [] } = useQuery<{ id: string; name: string; account: string }[]>({
     queryKey: ["/api/labs"],
   });
 
-  const labFrames = (framesData ?? []).filter((f) => f.status === "at_lab");
+  const orders = ordersData ?? [];
 
-  const urgentCount = labFrames.filter((f) => {
-    const d = calcDaysAtLab(f.dateSentToLab);
-    return d !== null && d >= 14;
+  const filteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      if (filterStatus !== "all" && order.status !== filterStatus) return false;
+      if (filterLab !== "all" && order.labName !== filterLab) return false;
+      if (filterVisionPlan !== "all" && order.visionPlan !== filterVisionPlan) return false;
+      if (filterDays !== "all") {
+        const days = calcDaysAtLab(order.dateSentToLab);
+        if (filterDays === "0-7" && (days === null || days > 7)) return false;
+        if (filterDays === "8-13" && (days === null || days < 8 || days > 13)) return false;
+        if (filterDays === "14+" && (days === null || days < 14)) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        if (
+          !order.frameBrand.toLowerCase().includes(q) &&
+          !order.frameModel.toLowerCase().includes(q) &&
+          !order.frameColor.toLowerCase().includes(q) &&
+          !(order.labName ?? "").toLowerCase().includes(q) &&
+          !(order.labOrderNumber ?? "").toLowerCase().includes(q) &&
+          !(order.visionPlan ?? "").toLowerCase().includes(q)
+        ) return false;
+      }
+      return true;
+    });
+  }, [orders, filterStatus, filterLab, filterVisionPlan, filterDays, searchQuery]);
+
+  const pendingOrders = orders.filter((o) => o.status === "pending");
+  const urgentCount = pendingOrders.filter((o) => {
+    const days = calcDaysAtLab(o.dateSentToLab);
+    return days !== null && days >= 14;
   }).length;
 
-  const hasActiveFilters =
-    searchQuery.trim() !== "" ||
-    filterLab !== "all" ||
-    filterVisionPlan !== "all" ||
-    filterDays !== "all";
+  const uniqueLabs = [...new Set(orders.map((o) => o.labName).filter(Boolean))];
+  const uniqueVisionPlans = [...new Set(orders.map((o) => o.visionPlan).filter(Boolean))];
 
-  function clearFilters() {
-    setSearchQuery("");
-    setFilterLab("all");
-    setFilterVisionPlan("all");
-    setFilterDays("all");
-  }
-
-  const filtered = useMemo(() => {
-    return labFrames
-      .slice()
-      .sort((a, b) => {
-        const da = calcDaysAtLab(a.dateSentToLab) ?? -1;
-        const db = calcDaysAtLab(b.dateSentToLab) ?? -1;
-        return db - da;
-      })
-      .filter((f) => {
-        if (searchQuery.trim()) {
-          const q = searchQuery.trim().toLowerCase();
-          if (!(f.labOrderNumber ?? "").toLowerCase().includes(q)) return false;
-        }
-        if (filterLab !== "all") {
-          if ((f.labName ?? "") !== filterLab) return false;
-        }
-        if (filterVisionPlan !== "all") {
-          if ((f.visionPlan ?? "") !== filterVisionPlan) return false;
-        }
-        if (filterDays !== "all") {
-          const days = calcDaysAtLab(f.dateSentToLab);
-          if (days === null) return false;
-          if (filterDays === "0-7" && days > 7) return false;
-          if (filterDays === "8-13" && (days < 8 || days > 13)) return false;
-          if (filterDays === "14+" && days < 14) return false;
-        }
-        return true;
-      });
-  }, [labFrames, searchQuery, filterLab, filterVisionPlan, filterDays]);
+  const hasActiveFilters = filterLab !== "all" || filterVisionPlan !== "all" || filterDays !== "all" || filterStatus !== "pending";
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
-            <FlaskConical className="w-6 h-6 text-primary" />
-            Lab Orders
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl font-bold text-foreground" data-testid="text-lab-orders-title">Lab Orders</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Frames currently at the lab
           </p>
         </div>
@@ -853,7 +824,7 @@ export default function LabOrders() {
           )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-lab-total">
             <FlaskConical className="w-4 h-4" />
-            {isLoading ? "..." : `${labFrames.length} at lab`}
+            {isLoading ? "..." : `${pendingOrders.length} pending`}
           </div>
           <Button onClick={() => setShowAddLabOrder(true)} data-testid="button-add-lab-order">
             <Plus className="w-4 h-4 mr-1.5" /> Add Lab Order
@@ -861,85 +832,102 @@ export default function LabOrders() {
         </div>
       </div>
 
+      {/* Days at lab legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="font-medium">Days at lab:</span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-green-500"></span>
-          0–7 days
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /> 0–7 days
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-yellow-400"></span>
-          8–13 days
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block" /> 8–13 days
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-red-500"></span>
-          14+ days
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> 14+ days (overdue)
         </span>
       </div>
 
       {/* Search + Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <input
             type="text"
-            placeholder="Search Lab Order #"
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-input bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Search by frame, lab, order number…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-9 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            data-testid="input-search-lab-order"
+            data-testid="input-search-orders"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery("")}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearchQuery("")}
               data-testid="button-clear-search"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
+        <Button
+          variant={showFilters || hasActiveFilters ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowFilters((v) => !v)}
+          data-testid="button-toggle-filters"
+        >
+          <SlidersHorizontal className="w-4 h-4 mr-1.5" />
+          Filters
+          {hasActiveFilters && (
+            <span className="ml-1.5 bg-white/20 text-xs rounded-full px-1.5 py-0.5">active</span>
+          )}
+        </Button>
+      </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <SlidersHorizontal className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-
-          <Select value={filterLab} onValueChange={setFilterLab}>
-            <SelectTrigger className="h-9 text-sm w-[160px]" data-testid="select-filter-lab">
-              <SelectValue placeholder="All Labs" />
+      {showFilters && (
+        <div className="flex items-center gap-3 flex-wrap p-4 rounded-lg bg-muted/30 border border-border">
+          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as StatusFilter)}>
+            <SelectTrigger className="w-36 h-8 text-sm" data-testid="select-filter-status">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Labs</SelectItem>
-              {labsData.map((lab) => (
-                <SelectItem key={lab.id} value={lab.name}>
-                  {lab.name}
-                </SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="received">Received</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterLab} onValueChange={setFilterLab}>
+            <SelectTrigger className="w-44 h-8 text-sm" data-testid="select-filter-lab">
+              <SelectValue placeholder="All labs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All labs</SelectItem>
+              {uniqueLabs.map((lab) => (
+                <SelectItem key={lab!} value={lab!}>{lab}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={filterVisionPlan} onValueChange={setFilterVisionPlan}>
-            <SelectTrigger className="h-9 text-sm w-[180px]" data-testid="select-filter-vision-plan">
-              <SelectValue placeholder="All Vision Plans" />
+            <SelectTrigger className="w-44 h-8 text-sm" data-testid="select-filter-vision-plan">
+              <SelectValue placeholder="All vision plans" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Vision Plans</SelectItem>
-              {VISION_PLAN_OPTIONS.map((plan) => (
-                <SelectItem key={plan} value={plan}>
-                  {plan}
-                </SelectItem>
+              <SelectItem value="all">All vision plans</SelectItem>
+              {uniqueVisionPlans.map((vp) => (
+                <SelectItem key={vp!} value={vp!}>{vp}</SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select value={filterDays} onValueChange={(v) => setFilterDays(v as DaysFilter)}>
-            <SelectTrigger className="h-9 text-sm w-[150px]" data-testid="select-filter-days">
-              <SelectValue placeholder="All Days" />
+            <SelectTrigger className="w-40 h-8 text-sm" data-testid="select-filter-days">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Days at Lab</SelectItem>
+              <SelectItem value="all">All durations</SelectItem>
               <SelectItem value="0-7">0–7 days</SelectItem>
               <SelectItem value="8-13">8–13 days</SelectItem>
-              <SelectItem value="14+">14+ days</SelectItem>
+              <SelectItem value="14+">14+ days (overdue)</SelectItem>
             </SelectContent>
           </Select>
 
@@ -947,35 +935,32 @@ export default function LabOrders() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={clearFilters}
-              className="h-9 text-muted-foreground hover:text-foreground gap-1.5"
+              onClick={() => {
+                setFilterLab("all");
+                setFilterVisionPlan("all");
+                setFilterDays("all");
+                setFilterStatus("pending");
+              }}
               data-testid="button-clear-filters"
             >
-              <X className="w-3.5 h-3.5" />
-              Clear
+              <X className="w-3.5 h-3.5 mr-1" /> Clear
             </Button>
           )}
         </div>
-      </div>
-
-      {hasActiveFilters && (
-        <p className="text-xs text-muted-foreground -mt-2">
-          Showing {filtered.length} of {labFrames.length} lab order{labFrames.length !== 1 ? "s" : ""}
-        </p>
       )}
 
+      {/* Table */}
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/40">
-              <TableHead className="font-semibold">Brand</TableHead>
-              <TableHead className="font-semibold">Model</TableHead>
-              <TableHead className="font-semibold">Lab Name</TableHead>
-              <TableHead className="font-semibold">Lab Order #</TableHead>
+            <TableRow className="bg-muted/30">
+              <TableHead className="font-semibold">Frame</TableHead>
+              <TableHead className="font-semibold">Lab</TableHead>
+              <TableHead className="font-semibold">Order #</TableHead>
               <TableHead className="font-semibold">Vision Plan</TableHead>
               <TableHead className="font-semibold">Tracking</TableHead>
-              <TableHead className="font-semibold">Date Sent</TableHead>
-              <TableHead className="font-semibold text-center">Days at Lab</TableHead>
+              <TableHead className="font-semibold">Days at Lab</TableHead>
+              <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="text-right font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -983,167 +968,182 @@ export default function LabOrders() {
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                  {Array.from({ length: 8 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
-            ) : labFrames.length === 0 ? (
+            ) : filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
-                  <FlaskConical className="w-10 h-10 mx-auto mb-3 opacity-25" />
-                  <p className="font-medium">No frames at the lab</p>
-                  <p className="text-xs mt-1">Frames sent to the lab will appear here</p>
-                </TableCell>
-              </TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
-                  <Search className="w-8 h-8 mx-auto mb-3 opacity-25" />
-                  <p className="font-medium">No matching lab orders</p>
-                  <p className="text-xs mt-1">Try adjusting your search or filters</p>
+                <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                  <FlaskConical className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                  <p className="font-medium text-sm">
+                    {orders.length === 0 ? "No lab orders yet" : "No orders match your filters"}
+                  </p>
+                  <p className="text-xs mt-1">
+                    {orders.length === 0
+                      ? "Click \"Add Lab Order\" to create your first lab order"
+                      : "Try adjusting your search or filters"}
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((frame) => {
-                  const days = calcDaysAtLab(frame.dateSentToLab);
-                  return (
-                    <TableRow
-                      key={frame.id}
-                      className="hover:bg-muted/30 transition-colors"
-                      data-testid={`row-lab-order-${frame.id}`}
-                    >
-                      <TableCell>
-                        <p className="font-medium text-foreground" data-testid={`text-brand-${frame.id}`}>{frame.brand}</p>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm text-muted-foreground" data-testid={`text-model-${frame.id}`}>{frame.model}</p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                          <span className="text-sm" data-testid={`text-lab-name-${frame.id}`}>
-                            {frame.labName ?? <span className="text-muted-foreground italic">—</span>}
-                          </span>
-                        </div>
-                        {frame.labAccountNumber && (
-                          <p className="text-xs text-muted-foreground font-mono mt-0.5 ml-5">
-                            #{frame.labAccountNumber}
-                          </p>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {frame.labOrderNumber ? (
-                          <span className="font-mono text-sm" data-testid={`text-order-num-${frame.id}`}>
-                            {frame.labOrderNumber}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {frame.visionPlan ? (
-                          <span className="text-sm" data-testid={`text-vision-plan-${frame.id}`}>
-                            {frame.visionPlan}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {frame.trackingNumber ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span
-                                className="font-mono text-xs text-primary cursor-default truncate max-w-[120px] block"
-                                data-testid={`text-tracking-${frame.id}`}
-                              >
-                                {frame.trackingNumber}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>{frame.trackingNumber}</TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {frame.dateSentToLab ? (
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm" data-testid={`text-date-sent-${frame.id}`}>
-                              {new Date(frame.dateSentToLab + "T00:00:00").toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
+              filteredOrders.map((order) => {
+                const days = calcDaysAtLab(order.dateSentToLab);
+                const isReceived = order.status === "received";
+                return (
+                  <TableRow key={order.id} className={isReceived ? "opacity-60" : undefined} data-testid={`row-order-${order.id}`}>
+                    <TableCell>
+                      <p className="text-sm font-semibold text-foreground" data-testid={`text-brand-${order.id}`}>{order.frameBrand}</p>
+                      <p className="text-sm text-muted-foreground" data-testid={`text-model-${order.id}`}>{order.frameModel}</p>
+                      <p className="text-xs text-muted-foreground">{order.frameColor}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm" data-testid={`text-lab-name-${order.id}`}>
+                          {order.labName ?? <span className="text-muted-foreground italic">—</span>}
+                        </span>
+                      </div>
+                      {order.labAccountNumber && (
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5 ml-5">#{order.labAccountNumber}</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {order.labOrderNumber ? (
+                        <span className="font-mono text-sm" data-testid={`text-order-num-${order.id}`}>{order.labOrderNumber}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {order.visionPlan ? (
+                        <span className="text-sm" data-testid={`text-vision-plan-${order.id}`}>{order.visionPlan}</span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {order.trackingNumber ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-mono text-xs text-primary cursor-default truncate max-w-[120px] block" data-testid={`text-tracking-${order.id}`}>
+                              {order.trackingNumber}
                             </span>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
+                          </TooltipTrigger>
+                          <TooltipContent>{order.trackingNumber}</TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isReceived && order.dateReceivedFromLab ? (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                          <span className="text-xs text-muted-foreground">{order.dateReceivedFromLab}</span>
+                        </div>
+                      ) : (
                         <DaysAtLabBadge days={days} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                onClick={() => setEditFrame(frame)}
-                                data-testid={`button-edit-lab-order-${frame.id}`}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Edit lab order details</TooltipContent>
-                          </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isReceived ? (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0" data-testid={`badge-status-${order.id}`}>
+                          Received
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-0" data-testid={`badge-status-${order.id}`}>
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setEditOrder(order)}
+                              data-testid={`button-edit-${order.id}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit order details</TooltipContent>
+                        </Tooltip>
+                        {!isReceived && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="h-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30 border-green-200 dark:border-green-800"
-                                onClick={() => setReceiveFrame(frame)}
-                                data-testid={`button-receive-${frame.id}`}
+                                onClick={() => setReceiveOrder(order)}
+                                data-testid={`button-receive-${order.id}`}
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                                 Mark Received
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Mark frame as received from lab</TooltipContent>
+                            <TooltipContent>Mark order as received from lab</TooltipContent>
                           </Tooltip>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeleteOrder(order)}
+                              data-testid={`button-delete-${order.id}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete lab order</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
+
+      {filteredOrders.length > 0 && (
+        <p className="text-xs text-muted-foreground text-right">
+          Showing {filteredOrders.length} of {orders.length} order{orders.length !== 1 ? "s" : ""}
+        </p>
+      )}
 
       <AddLabOrderDialog
         open={showAddLabOrder}
         onClose={() => setShowAddLabOrder(false)}
       />
 
-      {editFrame && (
+      {editOrder && (
         <EditLabOrderDialog
-          frame={editFrame}
-          open={!!editFrame}
-          onClose={() => setEditFrame(null)}
+          order={editOrder}
+          open={!!editOrder}
+          onClose={() => setEditOrder(null)}
         />
       )}
 
       <MarkReceivedDialog
-        frame={receiveFrame}
-        open={!!receiveFrame}
-        onClose={() => setReceiveFrame(null)}
+        order={receiveOrder}
+        open={!!receiveOrder}
+        onClose={() => setReceiveOrder(null)}
+      />
+
+      <DeleteLabOrderDialog
+        order={deleteOrder}
+        open={!!deleteOrder}
+        onClose={() => setDeleteOrder(null)}
       />
     </div>
   );

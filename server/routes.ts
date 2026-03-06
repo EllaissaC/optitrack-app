@@ -4,7 +4,7 @@ import passport from "passport";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema } from "@shared/schema";
+import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema, insertLabOrderSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
 import { z } from "zod";
@@ -623,6 +623,59 @@ export async function registerRoutes(
       res.json({ message: "Deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete weekly metric" });
+    }
+  });
+
+  // ─── Lab Orders ─────────────────────────────────────────────────────────────
+
+  app.get("/api/lab-orders", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const orders = await storage.getLabOrders(user.clinicId);
+      res.json(orders);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch lab orders" });
+    }
+  });
+
+  app.post("/api/lab-orders", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const parsed = insertLabOrderSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
+      }
+      const order = await storage.createLabOrder(parsed.data);
+      if (parsed.data.frameId) {
+        await storage.incrementFrameSoldCount(parsed.data.frameId);
+      }
+      res.status(201).json(order);
+    } catch {
+      res.status(500).json({ message: "Failed to create lab order" });
+    }
+  });
+
+  app.patch("/api/lab-orders/:id", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertLabOrderSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
+      }
+      const order = await storage.updateLabOrder(req.params.id as string, parsed.data);
+      if (!order) return res.status(404).json({ message: "Lab order not found" });
+      res.json(order);
+    } catch {
+      res.status(500).json({ message: "Failed to update lab order" });
+    }
+  });
+
+  app.delete("/api/lab-orders/:id", requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteLabOrder(req.params.id as string);
+      if (!deleted) return res.status(404).json({ message: "Lab order not found" });
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete lab order" });
     }
   });
 

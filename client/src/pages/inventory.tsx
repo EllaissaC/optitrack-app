@@ -95,6 +95,7 @@ const formSchema = insertFrameSchema.extend({
     .string()
     .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
   barcode: z.string().optional().nullable(),
+  quantity: z.coerce.number().min(0).optional().nullable(),
   labOrderNumber: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
   labAccountNumber: z.string().optional().nullable(),
@@ -393,6 +394,7 @@ function FrameFormDialog({
       retailPrice: "",
       status: "on_board",
       barcode: "",
+      quantity: 1,
       multiplier: "",
       labOrderNumber: "",
       labName: "",
@@ -445,6 +447,7 @@ function FrameFormDialog({
               retailPrice: String(editFrame.retailPrice),
               status: editFrame.status as "on_board" | "at_lab" | "sold",
               barcode: editFrame.barcode ?? "",
+              quantity: editFrame.quantity ?? 1,
               multiplier: editFrame.multiplier ? String(editFrame.multiplier) : "",
               labOrderNumber: editFrame.labOrderNumber ?? "",
               labName: editFrame.labName ?? "",
@@ -466,6 +469,7 @@ function FrameFormDialog({
               retailPrice: "",
               status: "on_board",
               barcode: prefillBarcode ?? "",
+              quantity: 1,
               labOrderNumber: "",
               labName: "",
               labAccountNumber: "",
@@ -555,28 +559,53 @@ function FrameFormDialog({
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-              {/* Barcode */}
-              <FormField
-                control={form.control}
-                name="barcode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Barcode className="w-3.5 h-3.5 text-muted-foreground" />
-                      Barcode
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Scan or type barcode..."
-                        data-testid="input-barcode"
-                        {...field}
-                        value={field.value ?? ""}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Barcode + Quantity */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="barcode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Barcode className="w-3.5 h-3.5 text-muted-foreground" />
+                        Barcode
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Scan or type barcode..."
+                          data-testid="input-barcode"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        Qty in Stock
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          placeholder="1"
+                          data-testid="input-quantity"
+                          {...field}
+                          value={field.value ?? 1}
+                          onChange={(e) => field.onChange(e.target.value === "" ? 1 : parseInt(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Manufacturer + Brand */}
               <div className="grid grid-cols-2 gap-4">
@@ -1423,6 +1452,7 @@ export default function Inventory() {
                     <TableHead className="text-right">Wholesale</TableHead>
                     <TableHead className="text-right">Retail</TableHead>
                     <TableHead className="text-right">Profit</TableHead>
+                    <TableHead className="text-center">Qty / Sold</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="pr-6 text-right">Actions</TableHead>
                   </TableRow>
@@ -1477,6 +1507,12 @@ export default function Inventory() {
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                             ${(parseFloat(frame.retailPrice as string) - parseFloat(frame.cost as string)).toFixed(2)}
                           </span>
+                        </TableCell>
+                        <TableCell className="text-center py-3.5">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-sm font-semibold text-foreground" data-testid={`text-qty-${frame.id}`}>{frame.quantity ?? 1}</span>
+                            <span className="text-xs text-muted-foreground" data-testid={`text-sold-${frame.id}`}>{frame.soldCount ?? 0} sold</span>
+                          </div>
                         </TableCell>
                         <TableCell className="py-3.5">
                           <div className="space-y-1">

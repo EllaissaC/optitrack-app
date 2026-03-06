@@ -31,6 +31,8 @@ export const frames = pgTable("frames", {
   multiplier: numeric("multiplier", { precision: 10, scale: 4 }),
   retailPrice: numeric("retail_price", { precision: 10, scale: 2 }).notNull(),
   status: text("status", { enum: ["on_board", "at_lab", "sold"] }).notNull().default("on_board"),
+  quantity: integer("quantity").notNull().default(1),
+  soldCount: integer("sold_count").notNull().default(0),
   barcode: text("barcode"),
   labOrderNumber: text("lab_order_number"),
   labName: text("lab_name"),
@@ -129,3 +131,26 @@ export const weeklyMetrics = pgTable("weekly_metrics", {
 export const insertWeeklyMetricSchema = createInsertSchema(weeklyMetrics).omit({ id: true, createdAt: true });
 export type InsertWeeklyMetric = z.infer<typeof insertWeeklyMetricSchema>;
 export type WeeklyMetric = typeof weeklyMetrics.$inferSelect;
+
+export const labOrders = pgTable("lab_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+  frameId: varchar("frame_id").references(() => frames.id, { onDelete: "set null" }),
+  frameBrand: text("frame_brand").notNull(),
+  frameModel: text("frame_model").notNull(),
+  frameColor: text("frame_color").notNull(),
+  frameManufacturer: text("frame_manufacturer").notNull(),
+  visionPlan: text("vision_plan"),
+  labName: text("lab_name"),
+  labOrderNumber: text("lab_order_number"),
+  labAccountNumber: text("lab_account_number"),
+  trackingNumber: text("tracking_number"),
+  dateSentToLab: text("date_sent_to_lab"),
+  dateReceivedFromLab: text("date_received_from_lab"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertLabOrderSchema = createInsertSchema(labOrders).omit({ id: true, createdAt: true });
+export type InsertLabOrder = z.infer<typeof insertLabOrderSchema>;
+export type LabOrder = typeof labOrders.$inferSelect;
