@@ -16,14 +16,29 @@ import {
   ScanLine,
   AlertCircle,
   RotateCcw,
-  ChevronRight,
+  ChevronsUpDown,
+  Hash,
+  Truck,
+  Building2,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { insertFrameSchema, type Frame } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DEFAULT_MANUFACTURERS,
+  MANUFACTURER_BRANDS,
+  DEFAULT_LABS,
+  loadCustomManufacturers,
+  saveCustomManufacturers,
+  loadCustomBrands,
+  saveCustomBrands,
+  loadCustomLabs,
+  saveCustomLabs,
+} from "@/lib/manufacturers";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -46,7 +61,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -69,23 +87,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+const ADD_NEW_SENTINEL = "__add_new__";
+
 const formSchema = insertFrameSchema.extend({
   eyeSize: z.coerce.number().min(1, "Required").max(99),
   bridge: z.coerce.number().min(1, "Required").max(99),
   templeLength: z.coerce.number().min(1, "Required").max(999),
   cost: z.coerce
     .string()
-    .refine(
-      (v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0,
-      "Must be a valid price"
-    ),
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
   retailPrice: z.coerce
     .string()
-    .refine(
-      (v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0,
-      "Must be a valid price"
-    ),
+    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
   barcode: z.string().optional().nullable(),
+  labOrderNumber: z.string().optional().nullable(),
+  labName: z.string().optional().nullable(),
+  trackingNumber: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -94,22 +111,19 @@ const STATUS_CONFIG = {
   on_board: {
     label: "On Board",
     icon: Package,
-    className:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     dot: "bg-emerald-500",
   },
   at_lab: {
     label: "At Lab",
     icon: FlaskConical,
-    className:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     dot: "bg-amber-500",
   },
   sold: {
     label: "Sold",
     icon: CheckCircle,
-    className:
-      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     dot: "bg-blue-500",
   },
 };
@@ -118,12 +132,71 @@ function StatusPill({ status }: { status: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
   if (!config) return null;
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.className}`}
-    >
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.className}`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${config.dot}`} />
       {config.label}
     </span>
+  );
+}
+
+function AddNewDialog({
+  open,
+  onClose,
+  title,
+  label,
+  placeholder,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  label: string;
+  placeholder: string;
+  onAdd: (value: string) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (open) setValue("");
+  }, [open]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="add-new-input">{label}</Label>
+            <Input
+              id="add-new-input"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={placeholder}
+              autoFocus
+              data-testid="input-add-new"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!value.trim()} data-testid="button-confirm-add-new">
+              Add
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -155,11 +228,7 @@ function FrameFoundCard({
       onDismiss();
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to update status.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
     },
   });
 
@@ -168,24 +237,21 @@ function FrameFoundCard({
       key: "at_lab",
       label: "Send to Lab",
       icon: FlaskConical,
-      className:
-        "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
+      className: "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
       show: frame.status !== "at_lab",
     },
     {
       key: "sold",
       label: "Mark Sold",
       icon: CheckCircle,
-      className:
-        "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400",
+      className: "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400",
       show: frame.status !== "sold",
     },
     {
       key: "on_board",
       label: "Return to Board",
       icon: RotateCcw,
-      className:
-        "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400",
+      className: "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400",
       show: frame.status !== "on_board",
     },
   ].filter((a) => a.show);
@@ -195,7 +261,6 @@ function FrameFoundCard({
       className="rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 overflow-hidden"
       data-testid="frame-found-card"
     >
-      {/* Header strip */}
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-100 dark:bg-emerald-900/40 border-b border-emerald-200 dark:border-emerald-800">
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
@@ -216,9 +281,7 @@ function FrameFoundCard({
         </button>
       </div>
 
-      {/* Body */}
       <div className="p-4 flex flex-wrap items-start gap-4">
-        {/* Frame details */}
         <div className="flex-1 min-w-0 space-y-3">
           <div>
             <p className="text-lg font-bold text-foreground leading-tight">
@@ -228,7 +291,6 @@ function FrameFoundCard({
               {frame.manufacturer} · {frame.color}
             </p>
           </div>
-
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
             <div>
               <span className="text-muted-foreground text-xs uppercase tracking-wide">Size</span>
@@ -254,10 +316,21 @@ function FrameFoundCard({
                 <StatusPill status={frame.status} />
               </div>
             </div>
+            {frame.labName && (
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Lab</span>
+                <p className="font-medium text-foreground">{frame.labName}</p>
+              </div>
+            )}
+            {frame.labOrderNumber && (
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Order #</span>
+                <p className="font-mono font-medium text-foreground">{frame.labOrderNumber}</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
           {quickActions.map((action) => (
             <Button
@@ -304,6 +377,21 @@ function FrameFormDialog({
   const { toast } = useToast();
   const isEdit = !!editFrame;
 
+  const [customManufacturers, setCustomManufacturers] = useState<string[]>(
+    () => loadCustomManufacturers()
+  );
+  const [customBrands, setCustomBrands] = useState<Record<string, string[]>>(
+    () => loadCustomBrands()
+  );
+  const [customLabs, setCustomLabs] = useState<string[]>(() => loadCustomLabs());
+
+  const [addMfgOpen, setAddMfgOpen] = useState(false);
+  const [addBrandOpen, setAddBrandOpen] = useState(false);
+  const [addLabOpen, setAddLabOpen] = useState(false);
+
+  const allManufacturers = [...DEFAULT_MANUFACTURERS, ...customManufacturers];
+  const allLabs = [...DEFAULT_LABS, ...customLabs];
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -318,8 +406,23 @@ function FrameFormDialog({
       retailPrice: "",
       status: "on_board",
       barcode: "",
+      labOrderNumber: "",
+      labName: "",
+      trackingNumber: "",
     },
   });
+
+  const watchedManufacturer = form.watch("manufacturer");
+  const watchedStatus = form.watch("status");
+
+  const brandsForMfg = useCallback(
+    (mfg: string) => {
+      const defaults = MANUFACTURER_BRANDS[mfg] ?? [];
+      const customs = customBrands[mfg] ?? [];
+      return [...defaults, ...customs];
+    },
+    [customBrands]
+  );
 
   useEffect(() => {
     if (open) {
@@ -337,6 +440,9 @@ function FrameFormDialog({
               retailPrice: String(editFrame.retailPrice),
               status: editFrame.status as "on_board" | "at_lab" | "sold",
               barcode: editFrame.barcode ?? "",
+              labOrderNumber: editFrame.labOrderNumber ?? "",
+              labName: editFrame.labName ?? "",
+              trackingNumber: editFrame.trackingNumber ?? "",
             }
           : {
               manufacturer: "",
@@ -350,10 +456,64 @@ function FrameFormDialog({
               retailPrice: "",
               status: "on_board",
               barcode: prefillBarcode ?? "",
+              labOrderNumber: "",
+              labName: "",
+              trackingNumber: "",
             }
       );
     }
   }, [open, editFrame, prefillBarcode]);
+
+  function handleManufacturerChange(value: string, fieldOnChange: (v: string) => void) {
+    if (value === ADD_NEW_SENTINEL) {
+      setAddMfgOpen(true);
+      return;
+    }
+    fieldOnChange(value);
+    form.setValue("brand", "");
+  }
+
+  function handleBrandChange(value: string, fieldOnChange: (v: string) => void) {
+    if (value === ADD_NEW_SENTINEL) {
+      setAddBrandOpen(true);
+      return;
+    }
+    fieldOnChange(value);
+  }
+
+  function handleLabChange(value: string, fieldOnChange: (v: string) => void) {
+    if (value === ADD_NEW_SENTINEL) {
+      setAddLabOpen(true);
+      return;
+    }
+    fieldOnChange(value);
+  }
+
+  function addManufacturer(name: string) {
+    const updated = [...customManufacturers, name];
+    setCustomManufacturers(updated);
+    saveCustomManufacturers(updated);
+    form.setValue("manufacturer", name);
+    form.setValue("brand", "");
+  }
+
+  function addBrand(name: string) {
+    const mfg = form.getValues("manufacturer");
+    const updated = {
+      ...customBrands,
+      [mfg]: [...(customBrands[mfg] ?? []), name],
+    };
+    setCustomBrands(updated);
+    saveCustomBrands(updated);
+    form.setValue("brand", name);
+  }
+
+  function addLab(name: string) {
+    const updated = [...customLabs, name];
+    setCustomLabs(updated);
+    saveCustomLabs(updated);
+    form.setValue("labName", name);
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => apiRequest("POST", "/api/frames", data),
@@ -383,7 +543,13 @@ function FrameFormDialog({
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   function onSubmit(values: FormValues) {
-    const payload = { ...values, barcode: values.barcode || null };
+    const payload = {
+      ...values,
+      barcode: values.barcode || null,
+      labOrderNumber: values.labOrderNumber || null,
+      labName: values.labName || null,
+      trackingNumber: values.trackingNumber || null,
+    };
     if (isEdit) {
       updateMutation.mutate(payload);
     } else {
@@ -391,228 +557,396 @@ function FrameFormDialog({
     }
   }
 
+  const availableBrands = brandsForMfg(watchedManufacturer);
+  const isAtLab = watchedStatus === "at_lab";
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Frame" : "Add New Frame"}</DialogTitle>
-          {!isEdit && prefillBarcode && (
-            <DialogDescription>
-              No frame was found for barcode{" "}
-              <span className="font-mono font-semibold text-foreground">
-                {prefillBarcode}
-              </span>
-              . Fill in the details below to add it to inventory.
-            </DialogDescription>
-          )}
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            {/* Barcode */}
-            <FormField
-              control={form.control}
-              name="barcode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Barcode className="w-3.5 h-3.5 text-muted-foreground" />
-                    Barcode
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Scan or type barcode..."
-                      data-testid="input-barcode"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+    <>
+      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{isEdit ? "Edit Frame" : "Add New Frame"}</DialogTitle>
+            {!isEdit && prefillBarcode && (
+              <DialogDescription>
+                No frame found for barcode{" "}
+                <span className="font-mono font-semibold text-foreground">{prefillBarcode}</span>. Fill in the details below.
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              {/* Barcode */}
               <FormField
                 control={form.control}
-                name="manufacturer"
+                name="barcode"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Manufacturer</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Luxottica" data-testid="input-manufacturer" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="brand"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Brand</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Ray-Ban" data-testid="input-brand" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="model"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Model</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="color"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Color</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Matte Black" data-testid="input-color" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="eyeSize"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Eye Size (mm)</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} max={99} data-testid="input-eye-size" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bridge"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bridge (mm)</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} max={99} data-testid="input-bridge" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="templeLength"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Temple (mm)</FormLabel>
-                    <FormControl>
-                      <Input type="number" min={1} max={999} data-testid="input-temple" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="cost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cost ($)</FormLabel>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Barcode className="w-3.5 h-3.5 text-muted-foreground" />
+                      Barcode
+                    </FormLabel>
                     <FormControl>
                       <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        placeholder="0.00"
-                        data-testid="input-cost"
+                        placeholder="Scan or type barcode..."
+                        data-testid="input-barcode"
                         {...field}
+                        value={field.value ?? ""}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="retailPrice"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Retail Price ($)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        placeholder="0.00"
-                        data-testid="input-retail-price"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+
+              {/* Manufacturer + Brand */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="manufacturer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Manufacturer</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => handleManufacturerChange(v, field.onChange)}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-manufacturer">
+                            <SelectValue placeholder="Select manufacturer..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Manufacturers</SelectLabel>
+                            {allManufacturers.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                {m}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectSeparator />
+                          <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
+                            <span className="flex items-center gap-1.5">
+                              <Plus className="w-3.5 h-3.5" />
+                              Add Manufacturer
+                            </span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="brand"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Brand</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(v) => handleBrandChange(v, field.onChange)}
+                        disabled={!watchedManufacturer}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-brand">
+                            <SelectValue
+                              placeholder={
+                                watchedManufacturer
+                                  ? "Select brand..."
+                                  : "Select manufacturer first"
+                              }
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {availableBrands.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel>{watchedManufacturer} Brands</SelectLabel>
+                              {availableBrands.map((b) => (
+                                <SelectItem key={b} value={b}>
+                                  {b}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {watchedManufacturer && (
+                            <>
+                              {availableBrands.length > 0 && <SelectSeparator />}
+                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Add Brand
+                                </span>
+                              </SelectItem>
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Model + Color */}
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="model"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Model</FormLabel>
                       <FormControl>
-                        <SelectTrigger data-testid="select-status">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
+                        <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="on_board">On Board</SelectItem>
-                        <SelectItem value="at_lab">At Lab</SelectItem>
-                        <SelectItem value="sold">Sold</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="color"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Color</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Matte Black" data-testid="input-color" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <DialogFooter className="gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                data-testid="button-cancel-frame"
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isPending} data-testid="button-save-frame">
-                {isPending ? "Saving..." : isEdit ? "Update Frame" : "Add Frame"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              {/* Sizes */}
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="eyeSize"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Eye Size (mm)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} max={99} data-testid="input-eye-size" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="bridge"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bridge (mm)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} max={99} data-testid="input-bridge" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="templeLength"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Temple (mm)</FormLabel>
+                      <FormControl>
+                        <Input type="number" min={1} max={999} data-testid="input-temple" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Pricing + Status */}
+              <div className="grid grid-cols-3 gap-4">
+                <FormField
+                  control={form.control}
+                  name="cost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cost ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min={0} placeholder="0.00" data-testid="input-cost" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="retailPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Retail Price ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min={0} placeholder="0.00" data-testid="input-retail-price" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-status">
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="on_board">On Board</SelectItem>
+                          <SelectItem value="at_lab">At Lab</SelectItem>
+                          <SelectItem value="sold">Sold</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Lab fields — shown only when status = at_lab */}
+              {isAtLab && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-4">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <FlaskConical className="w-4 h-4" />
+                    <p className="text-sm font-semibold">Lab Details</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="labOrderNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1">
+                            <Hash className="w-3 h-3 text-muted-foreground" /> Order Number
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. ORD-12345"
+                              data-testid="input-lab-order-number"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="labName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-muted-foreground" /> Lab Name
+                          </FormLabel>
+                          <Select
+                            value={field.value ?? ""}
+                            onValueChange={(v) => handleLabChange(v, field.onChange)}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-lab-name">
+                                <SelectValue placeholder="Select lab..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Labs</SelectLabel>
+                                {allLabs.map((lab) => (
+                                  <SelectItem key={lab} value={lab}>
+                                    {lab}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                              <SelectSeparator />
+                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Add Lab
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="trackingNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1">
+                            <Truck className="w-3 h-3 text-muted-foreground" /> Tracking Number
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. 1Z999AA0..."
+                              data-testid="input-tracking-number"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel-frame">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending} data-testid="button-save-frame">
+                  {isPending ? "Saving..." : isEdit ? "Update Frame" : "Add Frame"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <AddNewDialog
+        open={addMfgOpen}
+        onClose={() => setAddMfgOpen(false)}
+        title="Add Manufacturer"
+        label="Manufacturer Name"
+        placeholder="e.g. Rodenstock"
+        onAdd={addManufacturer}
+      />
+      <AddNewDialog
+        open={addBrandOpen}
+        onClose={() => setAddBrandOpen(false)}
+        title={`Add Brand for ${watchedManufacturer}`}
+        label="Brand Name"
+        placeholder="e.g. New Brand"
+        onAdd={addBrand}
+      />
+      <AddNewDialog
+        open={addLabOpen}
+        onClose={() => setAddLabOpen(false)}
+        title="Add Lab"
+        label="Lab Name"
+        placeholder="e.g. Regional Optical Lab"
+        onAdd={addLab}
+      />
+    </>
   );
 }
 
@@ -677,9 +1011,7 @@ export default function Inventory() {
     (value: string) => {
       const barcode = value.trim();
       if (!barcode) return;
-
       const match = frames.find((f) => f.barcode && f.barcode.trim() === barcode);
-
       if (match) {
         setScanState("found");
         setFoundFrame(match);
@@ -740,7 +1072,6 @@ export default function Inventory() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Inventory</h1>
@@ -754,7 +1085,7 @@ export default function Inventory() {
         </Button>
       </div>
 
-      {/* Barcode scanner input */}
+      {/* Barcode scanner */}
       <div
         className={`flex items-center gap-3 p-4 rounded-lg border transition-colors duration-200 ${
           scanState === "found"
@@ -776,12 +1107,8 @@ export default function Inventory() {
         >
           <ScanLine className="w-5 h-5" />
         </div>
-
         <div className="flex-1 min-w-0">
-          <label
-            htmlFor="scan-input"
-            className="block text-sm font-medium text-foreground mb-1"
-          >
+          <label htmlFor="scan-input" className="block text-sm font-medium text-foreground mb-1">
             Scan Frame Barcode
           </label>
           <div className="relative">
@@ -798,10 +1125,7 @@ export default function Inventory() {
             />
             {scanValue && (
               <button
-                onClick={() => {
-                  setScanValue("");
-                  scanInputRef.current?.focus();
-                }}
+                onClick={() => { setScanValue(""); scanInputRef.current?.focus(); }}
                 className="absolute right-[4.5rem] top-1/2 -translate-y-1/2 text-muted-foreground"
                 data-testid="button-clear-scan"
               >
@@ -820,7 +1144,6 @@ export default function Inventory() {
             </Button>
           </div>
         </div>
-
         <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 min-w-[90px]">
           {scanState === "found" ? (
             <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
@@ -836,7 +1159,7 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Frame found card — shown inline when a barcode matches */}
+      {/* Frame found detail card */}
       {foundFrame && (
         <FrameFoundCard
           frame={foundFrame}
@@ -845,7 +1168,7 @@ export default function Inventory() {
         />
       )}
 
-      {/* Search + filter row */}
+      {/* Search + filter */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-56">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -867,7 +1190,6 @@ export default function Inventory() {
             </button>
           )}
         </div>
-
         <div className="flex items-center gap-2 flex-wrap">
           {(["all", "on_board", "at_lab", "sold"] as const).map((s) => (
             <button
@@ -880,26 +1202,18 @@ export default function Inventory() {
                   : "bg-muted text-muted-foreground"
               }`}
             >
-              {s === "all"
-                ? "All"
-                : s === "on_board"
-                ? "On Board"
-                : s === "at_lab"
-                ? "At Lab"
-                : "Sold"}
+              {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "at_lab" ? "At Lab" : "Sold"}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Frames table */}
+      {/* Table */}
       <Card className="border-card-border">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
+              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
@@ -911,11 +1225,7 @@ export default function Inventory() {
                   : "Add your first frame to get started"}
               </p>
               {!search && statusFilter === "all" && (
-                <Button
-                  className="mt-4"
-                  onClick={openAdd}
-                  data-testid="button-add-first-frame"
-                >
+                <Button className="mt-4" onClick={openAdd} data-testid="button-add-first-frame">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Frame
                 </Button>
@@ -950,19 +1260,13 @@ export default function Inventory() {
                         ref={isHighlighted ? highlightedRowRef : null}
                         data-testid={`row-frame-${frame.id}`}
                         className={`border-b border-card-border/60 last:border-0 transition-colors duration-500 ${
-                          isHighlighted
-                            ? "bg-primary/10 dark:bg-primary/15"
-                            : ""
+                          isHighlighted ? "bg-primary/10 dark:bg-primary/15" : ""
                         }`}
                       >
                         <TableCell className="pl-6 py-3.5">
                           <div>
-                            <p className="font-semibold text-foreground text-sm">
-                              {frame.brand}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {frame.model}
-                            </p>
+                            <p className="font-semibold text-foreground text-sm">{frame.brand}</p>
+                            <p className="text-xs text-muted-foreground">{frame.model}</p>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground py-3.5">
@@ -982,9 +1286,7 @@ export default function Inventory() {
                               {frame.barcode}
                             </span>
                           ) : (
-                            <span className="text-xs text-muted-foreground/40 italic">
-                              —
-                            </span>
+                            <span className="text-xs text-muted-foreground/40 italic">—</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right text-sm py-3.5">
@@ -996,7 +1298,14 @@ export default function Inventory() {
                           ${parseFloat(frame.retailPrice as string).toFixed(2)}
                         </TableCell>
                         <TableCell className="py-3.5">
-                          <StatusPill status={frame.status} />
+                          <div className="space-y-1">
+                            <StatusPill status={frame.status} />
+                            {frame.status === "at_lab" && frame.labName && (
+                              <p className="text-xs text-muted-foreground truncate max-w-[120px]">
+                                {frame.labName}
+                              </p>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="pr-6 text-right py-3.5">
                           <div className="flex items-center justify-end gap-1">

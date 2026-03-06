@@ -16,6 +16,9 @@ export const frames = pgTable("frames", {
   retailPrice: numeric("retail_price", { precision: 10, scale: 2 }).notNull(),
   status: text("status", { enum: ["on_board", "at_lab", "sold"] }).notNull().default("on_board"),
   barcode: text("barcode"),
+  labOrderNumber: text("lab_order_number"),
+  labName: text("lab_name"),
+  trackingNumber: text("tracking_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
