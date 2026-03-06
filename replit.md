@@ -8,8 +8,8 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - **Inventory**: Full CRUD table with search and status filtering
 - **Barcode Scanning**: USB scanner-compatible scan input at top of inventory page; found frames show a detail card with quick-action buttons; unknown barcodes auto-open Add Frame form pre-filled
 - **Manufacturer/Brand dropdowns**: Dependent select dropdowns with 11 manufacturers and their associated brands; custom entries persisted to localStorage via `client/src/lib/manufacturers.ts`
-- **Lab Workflow**: When status = "At Lab", form reveals Lab Order Number, Lab Name (dropdown with 14 labs + custom), Tracking Number fields
-- **Frame fields**: manufacturer, brand, model, color, eye size, bridge, temple length, cost, retail price, status, barcode, labOrderNumber, labName, trackingNumber
+- **Lab Workflow**: When status = "At Lab", form reveals: Lab Name dropdown (5 default labs with account numbers), Account Number (auto-filled on lab select), Lab Order Number, Date Sent to Lab (auto-fills today), Tracking Number. "+ Add Lab" opens a dialog to enter Lab Name + Account Number. Custom labs persist in localStorage.
+- **Frame fields**: manufacturer, brand, model, color, eye size, bridge, temple length, cost, retail price, status, barcode, labOrderNumber, labName, labAccountNumber, trackingNumber, dateSentToLab
 
 ## Architecture
 - **Frontend**: React + TypeScript + Vite, TanStack Query, shadcn/ui, wouter routing

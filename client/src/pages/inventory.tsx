@@ -34,6 +34,7 @@ import {
   saveCustomBrands,
   loadCustomLabs,
   saveCustomLabs,
+  type Lab,
 } from "@/lib/manufacturers";
 
 import { Button } from "@/components/ui/button";
@@ -102,7 +103,9 @@ const formSchema = insertFrameSchema.extend({
   barcode: z.string().optional().nullable(),
   labOrderNumber: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
+  labAccountNumber: z.string().optional().nullable(),
   trackingNumber: z.string().optional().nullable(),
+  dateSentToLab: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -170,7 +173,7 @@ function AddNewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -192,6 +195,75 @@ function AddNewDialog({
             </Button>
             <Button type="submit" disabled={!value.trim()} data-testid="button-confirm-add-new">
               Add
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddLabDialog({
+  open,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (lab: Lab) => void;
+}) {
+  const [name, setName] = useState("");
+  const [account, setAccount] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setAccount("");
+    }
+  }, [open]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    onAdd({ name: trimmedName, account: account.trim() });
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Add Lab</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="add-lab-name">Lab Name</Label>
+            <Input
+              id="add-lab-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Regional Optical Lab"
+              autoFocus
+              data-testid="input-add-lab-name"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="add-lab-account">Account Number</Label>
+            <Input
+              id="add-lab-account"
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+              placeholder="e.g. A12345"
+              data-testid="input-add-lab-account"
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!name.trim()} data-testid="button-confirm-add-lab">
+              Add Lab
             </Button>
           </DialogFooter>
         </form>
@@ -383,7 +455,7 @@ function FrameFormDialog({
   const [customBrands, setCustomBrands] = useState<Record<string, string[]>>(
     () => loadCustomBrands()
   );
-  const [customLabs, setCustomLabs] = useState<string[]>(() => loadCustomLabs());
+  const [customLabs, setCustomLabs] = useState<Lab[]>(() => loadCustomLabs());
 
   const [addMfgOpen, setAddMfgOpen] = useState(false);
   const [addBrandOpen, setAddBrandOpen] = useState(false);
@@ -408,12 +480,20 @@ function FrameFormDialog({
       barcode: "",
       labOrderNumber: "",
       labName: "",
+      labAccountNumber: "",
       trackingNumber: "",
+      dateSentToLab: "",
     },
   });
 
   const watchedManufacturer = form.watch("manufacturer");
   const watchedStatus = form.watch("status");
+
+  useEffect(() => {
+    if (watchedStatus === "at_lab" && !form.getValues("dateSentToLab")) {
+      form.setValue("dateSentToLab", new Date().toISOString().split("T")[0]);
+    }
+  }, [watchedStatus]);
 
   const brandsForMfg = useCallback(
     (mfg: string) => {
@@ -442,7 +522,9 @@ function FrameFormDialog({
               barcode: editFrame.barcode ?? "",
               labOrderNumber: editFrame.labOrderNumber ?? "",
               labName: editFrame.labName ?? "",
+              labAccountNumber: editFrame.labAccountNumber ?? "",
               trackingNumber: editFrame.trackingNumber ?? "",
+              dateSentToLab: editFrame.dateSentToLab ?? "",
             }
           : {
               manufacturer: "",
@@ -458,7 +540,9 @@ function FrameFormDialog({
               barcode: prefillBarcode ?? "",
               labOrderNumber: "",
               labName: "",
+              labAccountNumber: "",
               trackingNumber: "",
+              dateSentToLab: "",
             }
       );
     }
@@ -487,6 +571,8 @@ function FrameFormDialog({
       return;
     }
     fieldOnChange(value);
+    const lab = allLabs.find((l) => l.name === value);
+    form.setValue("labAccountNumber", lab?.account ?? "");
   }
 
   function addManufacturer(name: string) {
@@ -508,11 +594,12 @@ function FrameFormDialog({
     form.setValue("brand", name);
   }
 
-  function addLab(name: string) {
-    const updated = [...customLabs, name];
+  function addLab(lab: Lab) {
+    const updated = [...customLabs, lab];
     setCustomLabs(updated);
     saveCustomLabs(updated);
-    form.setValue("labName", name);
+    form.setValue("labName", lab.name);
+    form.setValue("labAccountNumber", lab.account);
   }
 
   const createMutation = useMutation({
@@ -548,7 +635,9 @@ function FrameFormDialog({
       barcode: values.barcode || null,
       labOrderNumber: values.labOrderNumber || null,
       labName: values.labName || null,
+      labAccountNumber: values.labAccountNumber || null,
       trackingNumber: values.trackingNumber || null,
+      dateSentToLab: values.dateSentToLab || null,
     };
     if (isEdit) {
       updateMutation.mutate(payload);
@@ -823,6 +912,87 @@ function FrameFormDialog({
                     <p className="text-sm font-semibold">Lab Details</p>
                   </div>
 
+                  {/* Row 1: Lab Name + Account Number display */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="labName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-muted-foreground" /> Lab Name
+                          </FormLabel>
+                          <Select
+                            value={field.value ?? ""}
+                            onValueChange={(v) => handleLabChange(v, field.onChange)}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-lab-name">
+                                <SelectValue placeholder="Select lab..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Labs</SelectLabel>
+                                {allLabs.map((lab) => (
+                                  <SelectItem key={lab.name} value={lab.name}>
+                                    <span className="flex items-center justify-between gap-3 w-full">
+                                      <span>{lab.name}</span>
+                                      {lab.account && (
+                                        <span className="text-xs text-muted-foreground font-mono">
+                                          #{lab.account}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                              <SelectSeparator />
+                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
+                                <span className="flex items-center gap-1.5">
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Add Lab
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="labAccountNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1">
+                            <Hash className="w-3 h-3 text-muted-foreground" /> Account Number
+                          </FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                placeholder="Auto-filled on lab selection"
+                                data-testid="input-lab-account-number"
+                                {...field}
+                                value={field.value ?? ""}
+                                className="font-mono"
+                                readOnly={!!allLabs.find((l) => l.name === form.watch("labName") && l.account)}
+                              />
+                              {field.value && (
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">
+                                  auto
+                                </span>
+                              )}
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Row 2: Order Number + Date + Tracking */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <FormField
                       control={form.control}
@@ -847,39 +1017,20 @@ function FrameFormDialog({
 
                     <FormField
                       control={form.control}
-                      name="labName"
+                      name="dateSentToLab"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3 text-muted-foreground" /> Lab Name
+                            <ChevronsUpDown className="w-3 h-3 text-muted-foreground" /> Date Sent
                           </FormLabel>
-                          <Select
-                            value={field.value ?? ""}
-                            onValueChange={(v) => handleLabChange(v, field.onChange)}
-                          >
-                            <FormControl>
-                              <SelectTrigger data-testid="select-lab-name">
-                                <SelectValue placeholder="Select lab..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectLabel>Labs</SelectLabel>
-                                {allLabs.map((lab) => (
-                                  <SelectItem key={lab} value={lab}>
-                                    {lab}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                              <SelectSeparator />
-                              <SelectItem value={ADD_NEW_SENTINEL} className="text-primary font-medium">
-                                <span className="flex items-center gap-1.5">
-                                  <Plus className="w-3.5 h-3.5" />
-                                  Add Lab
-                                </span>
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              data-testid="input-date-sent-to-lab"
+                              {...field}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -938,12 +1089,9 @@ function FrameFormDialog({
         placeholder="e.g. New Brand"
         onAdd={addBrand}
       />
-      <AddNewDialog
+      <AddLabDialog
         open={addLabOpen}
         onClose={() => setAddLabOpen(false)}
-        title="Add Lab"
-        label="Lab Name"
-        placeholder="e.g. Regional Optical Lab"
         onAdd={addLab}
       />
     </>

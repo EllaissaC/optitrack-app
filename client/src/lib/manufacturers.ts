@@ -111,26 +111,22 @@ export const MANUFACTURER_BRANDS: Record<string, string[]> = {
   Blackfin: ["Blackfin", "Blackfin Titanium"],
 };
 
-export const DEFAULT_LABS = [
-  "VSP Labs",
-  "Essilor Labs of America",
-  "Luxottica Lab",
-  "OptiLens",
-  "AccuLens",
-  "Walman Optical",
-  "Vision Ease",
-  "Hoya Vision Care",
-  "Carl Zeiss Vision",
-  "Shamir Optical",
-  "BBGR Optical",
-  "Younger Optics",
-  "Opticraft",
-  "National Vision Labs",
+export interface Lab {
+  name: string;
+  account: string;
+}
+
+export const DEFAULT_LABS: Lab[] = [
+  { name: "Vision-Craft", account: "Y1500" },
+  { name: "Opti-Craft", account: "18369" },
+  { name: "Custom Eyelab", account: "1015" },
+  { name: "HOYA Lab", account: "632142" },
+  { name: "Frame Dream", account: "fd10673" },
 ];
 
 const STORAGE_KEY_MANUFACTURERS = "optitrack_custom_manufacturers";
 const STORAGE_KEY_BRANDS = "optitrack_custom_brands";
-const STORAGE_KEY_LABS = "optitrack_custom_labs";
+const STORAGE_KEY_LABS = "optitrack_custom_labs_v2";
 
 export function loadCustomManufacturers(): string[] {
   try {
@@ -158,7 +154,7 @@ export function saveCustomBrands(map: Record<string, string[]>) {
   localStorage.setItem(STORAGE_KEY_BRANDS, JSON.stringify(map));
 }
 
-export function loadCustomLabs(): string[] {
+export function loadCustomLabs(): Lab[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_LABS);
     return raw ? JSON.parse(raw) : [];
@@ -167,6 +163,6 @@ export function loadCustomLabs(): string[] {
   }
 }
 
-export function saveCustomLabs(list: string[]) {
+export function saveCustomLabs(list: Lab[]) {
   localStorage.setItem(STORAGE_KEY_LABS, JSON.stringify(list));
 }
