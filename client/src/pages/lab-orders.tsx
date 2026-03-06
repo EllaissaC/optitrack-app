@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,9 @@ import {
   PackageCheck,
   AlertTriangle,
   ShieldCheck,
+  Search,
+  X,
+  SlidersHorizontal,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame } from "@shared/schema";
@@ -372,12 +375,22 @@ function MarkReceivedDialog({
   );
 }
 
+type DaysFilter = "all" | "0-7" | "8-13" | "14+";
+
 export default function LabOrders() {
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [receiveFrame, setReceiveFrame] = useState<Frame | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterLab, setFilterLab] = useState("all");
+  const [filterVisionPlan, setFilterVisionPlan] = useState("all");
+  const [filterDays, setFilterDays] = useState<DaysFilter>("all");
 
   const { data: framesData, isLoading } = useQuery<Frame[]>({
     queryKey: ["/api/frames"],
+  });
+
+  const { data: labsData = [] } = useQuery<{ id: string; name: string; account: string }[]>({
+    queryKey: ["/api/labs"],
   });
 
   const labFrames = (framesData ?? []).filter((f) => f.status === "at_lab");
@@ -386,6 +399,49 @@ export default function LabOrders() {
     const d = calcDaysAtLab(f.dateSentToLab);
     return d !== null && d >= 14;
   }).length;
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    filterLab !== "all" ||
+    filterVisionPlan !== "all" ||
+    filterDays !== "all";
+
+  function clearFilters() {
+    setSearchQuery("");
+    setFilterLab("all");
+    setFilterVisionPlan("all");
+    setFilterDays("all");
+  }
+
+  const filtered = useMemo(() => {
+    return labFrames
+      .slice()
+      .sort((a, b) => {
+        const da = calcDaysAtLab(a.dateSentToLab) ?? -1;
+        const db = calcDaysAtLab(b.dateSentToLab) ?? -1;
+        return db - da;
+      })
+      .filter((f) => {
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          if (!(f.labOrderNumber ?? "").toLowerCase().includes(q)) return false;
+        }
+        if (filterLab !== "all") {
+          if ((f.labName ?? "") !== filterLab) return false;
+        }
+        if (filterVisionPlan !== "all") {
+          if ((f.visionPlan ?? "") !== filterVisionPlan) return false;
+        }
+        if (filterDays !== "all") {
+          const days = calcDaysAtLab(f.dateSentToLab);
+          if (days === null) return false;
+          if (filterDays === "0-7" && days > 7) return false;
+          if (filterDays === "8-13" && (days < 8 || days > 13)) return false;
+          if (filterDays === "14+" && days < 14) return false;
+        }
+        return true;
+      });
+  }, [labFrames, searchQuery, filterLab, filterVisionPlan, filterDays]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -432,6 +488,93 @@ export default function LabOrders() {
         </span>
       </div>
 
+      {/* Search + Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search Lab Order #"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-9 py-2 text-sm rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+            data-testid="input-search-lab-order"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              data-testid="button-clear-search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <SlidersHorizontal className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+
+          <Select value={filterLab} onValueChange={setFilterLab}>
+            <SelectTrigger className="h-9 text-sm w-[160px]" data-testid="select-filter-lab">
+              <SelectValue placeholder="All Labs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Labs</SelectItem>
+              {labsData.map((lab) => (
+                <SelectItem key={lab.id} value={lab.name}>
+                  {lab.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterVisionPlan} onValueChange={setFilterVisionPlan}>
+            <SelectTrigger className="h-9 text-sm w-[180px]" data-testid="select-filter-vision-plan">
+              <SelectValue placeholder="All Vision Plans" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vision Plans</SelectItem>
+              {VISION_PLAN_OPTIONS.map((plan) => (
+                <SelectItem key={plan} value={plan}>
+                  {plan}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterDays} onValueChange={(v) => setFilterDays(v as DaysFilter)}>
+            <SelectTrigger className="h-9 text-sm w-[150px]" data-testid="select-filter-days">
+              <SelectValue placeholder="All Days" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Days at Lab</SelectItem>
+              <SelectItem value="0-7">0–7 days</SelectItem>
+              <SelectItem value="8-13">8–13 days</SelectItem>
+              <SelectItem value="14+">14+ days</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-9 text-muted-foreground hover:text-foreground gap-1.5"
+              data-testid="button-clear-filters"
+            >
+              <X className="w-3.5 h-3.5" />
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {hasActiveFilters && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Showing {filtered.length} of {labFrames.length} lab order{labFrames.length !== 1 ? "s" : ""}
+        </p>
+      )}
+
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
@@ -464,15 +607,16 @@ export default function LabOrders() {
                   <p className="text-xs mt-1">Frames sent to the lab will appear here</p>
                 </TableCell>
               </TableRow>
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <Search className="w-8 h-8 mx-auto mb-3 opacity-25" />
+                  <p className="font-medium">No matching lab orders</p>
+                  <p className="text-xs mt-1">Try adjusting your search or filters</p>
+                </TableCell>
+              </TableRow>
             ) : (
-              labFrames
-                .slice()
-                .sort((a, b) => {
-                  const da = calcDaysAtLab(a.dateSentToLab) ?? -1;
-                  const db = calcDaysAtLab(b.dateSentToLab) ?? -1;
-                  return db - da;
-                })
-                .map((frame) => {
+              filtered.map((frame) => {
                   const days = calcDaysAtLab(frame.dateSentToLab);
                   return (
                     <TableRow
