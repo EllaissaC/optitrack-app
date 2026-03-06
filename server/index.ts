@@ -6,6 +6,12 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import "./auth";
 
+declare module "express-session" {
+  interface SessionData {
+    expiresAt?: number;
+  }
+}
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -43,6 +49,24 @@ app.use(
 
 app.use(passport.initialize());
 app.use(passport.session());
+
+app.use((req, res, next) => {
+  if (
+    req.path.startsWith("/api") &&
+    req.isAuthenticated() &&
+    req.session?.expiresAt &&
+    Date.now() > req.session.expiresAt
+  ) {
+    req.logout((err) => {
+      if (err) console.error("Session expiry logout error:", err);
+    });
+    return res.status(401).json({
+      message: "Your session has expired. Please log in again.",
+      reason: "SESSION_EXPIRED",
+    });
+  }
+  next();
+});
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

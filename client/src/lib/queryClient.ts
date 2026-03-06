@@ -34,6 +34,12 @@ export const getQueryFn: <T>(options: {
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      try {
+        const body = await res.clone().json();
+        if (body?.reason === "SESSION_EXPIRED") {
+          sessionStorage.setItem("sessionExpired", "1");
+        }
+      } catch {}
       return null;
     }
 

@@ -24,6 +24,73 @@ import type { Lab, Manufacturer, Brand } from "@shared/schema";
 
 // ─── Settings (Email + Pricing) ───────────────────────────────────────────────
 
+const securitySettingsSchema = z.object({
+  sessionExpirationDays: z.string().refine(
+    (v) => !v || (!isNaN(Number(v)) && Number(v) >= 1 && Number(v) <= 365),
+    { message: "Must be between 1 and 365 days" }
+  ),
+});
+
+type SecuritySettingsValues = z.infer<typeof securitySettingsSchema>;
+
+function SecurityCard({ settingsMap }: { settingsMap: Record<string, string> }) {
+  const { toast } = useToast();
+
+  const form = useForm<SecuritySettingsValues>({
+    resolver: zodResolver(securitySettingsSchema),
+    defaultValues: {
+      sessionExpirationDays: settingsMap.sessionExpirationDays || "7",
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (data: SecuritySettingsValues) => {
+      await apiRequest("PUT", "/api/settings", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({ title: "Security settings saved" });
+    },
+    onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
+  });
+
+  return (
+    <Card className="border-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-muted-foreground" /> Security
+        </CardTitle>
+        <CardDescription>Control session behavior for all users.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((v) => save.mutate(v))} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="sessionExpirationDays"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Session Expiration (days)</FormLabel>
+                  <FormControl>
+                    <Input {...field} type="number" min="1" max="365" placeholder="7" className="max-w-[160px]" data-testid="input-session-expiration" />
+                  </FormControl>
+                  <FormDescription>
+                    Users will be automatically logged out after this many days of inactivity. Default is 7. Changes apply on next login.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" disabled={save.isPending} data-testid="button-save-security">
+              {save.isPending ? "Saving..." : "Save settings"}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
 const emailSettingsSchema = z.object({
   reminderEmail: z.string().email("Enter a valid email address").or(z.literal("")),
   emailFrom: z.string().email("Enter a valid sender email address").or(z.literal("")),
@@ -175,6 +242,8 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
           </div>
         </CardContent>
       </Card>
+
+      <SecurityCard settingsMap={settingsMap} />
     </div>
   );
 }

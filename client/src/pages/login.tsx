@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
-import { Package } from "lucide-react";
+import { Package, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,14 @@ export default function Login() {
   const { isAuthenticated, isLoading } = useAuth();
   const [, navigate] = useLocation();
   const login = useLogin();
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("sessionExpired")) {
+      setSessionExpired(true);
+      sessionStorage.removeItem("sessionExpired");
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -49,6 +57,13 @@ export default function Login() {
             <p className="text-sm text-muted-foreground mt-0.5">Frame Inventory & Lab Order Management</p>
           </div>
         </div>
+
+        {sessionExpired && (
+          <div className="flex items-start gap-2.5 p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-300" data-testid="text-session-expired">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <p className="text-sm">Your session has expired. Please log in again.</p>
+          </div>
+        )}
 
         <Card className="border-border">
           <CardHeader className="pb-3">

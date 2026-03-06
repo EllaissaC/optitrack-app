@@ -55,8 +55,13 @@ export async function registerRoutes(
       if (err) return next(err);
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
 
-      req.login(user, (loginErr) => {
+      req.login(user, async (loginErr) => {
         if (loginErr) return next(loginErr);
+        const setting = await storage.getSetting("sessionExpirationDays");
+        const days = setting ? Math.max(1, parseInt(setting)) : 7;
+        const maxAge = days * 24 * 60 * 60 * 1000;
+        req.session.expiresAt = Date.now() + maxAge;
+        req.session.cookie.maxAge = maxAge;
         res.json({ id: user.id, username: user.username, email: user.email, role: user.role });
       });
     })(req, res, next);
