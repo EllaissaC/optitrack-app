@@ -14,7 +14,6 @@ export function useAuth() {
   const { data: user, isLoading } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    staleTime: 30 * 1000,
   });
 
   return {

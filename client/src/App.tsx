@@ -27,7 +27,6 @@ function AppShell() {
   const { data: setupStatus, isLoading: setupLoading } = useQuery<{ setupRequired: boolean }>({
     queryKey: ["/api/auth/setup-required"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    staleTime: 60 * 1000,
   });
 
   const ready = !isLoading && !setupLoading;
