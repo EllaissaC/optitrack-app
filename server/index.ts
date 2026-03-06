@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import passport from "passport";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
@@ -16,6 +17,8 @@ const app = express();
 const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
+
+const PgStore = connectPgSimple(session);
 
 declare module "http" {
   interface IncomingMessage {
@@ -35,6 +38,10 @@ app.use(express.urlencoded({ extended: false }));
 
 app.use(
   session({
+    store: new PgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "optitrack-dev-secret-change-in-prod",
     resave: false,
     saveUninitialized: false,
