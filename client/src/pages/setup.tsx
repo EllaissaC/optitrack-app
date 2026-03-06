@@ -35,8 +35,8 @@ export default function Setup() {
       });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
       navigate("/dashboard");
     },
   });
