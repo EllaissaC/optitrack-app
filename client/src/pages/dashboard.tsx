@@ -133,10 +133,12 @@ function topN(
 ): { name: string; count: number; revenue: number }[] {
   const map = new Map<string, { count: number; revenue: number }>();
   for (const f of frames) {
+    const units = f.soldCount ?? 0;
+    if (units === 0) continue;
     const k = String(f[key] ?? "Unknown");
     const existing = map.get(k) ?? { count: 0, revenue: 0 };
-    existing.count += 1;
-    existing.revenue += parseFloat(f.retailPrice as string);
+    existing.count += units;
+    existing.revenue += units * parseFloat(f.retailPrice as string);
     map.set(k, existing);
   }
   return [...map.entries()]
@@ -161,25 +163,19 @@ export default function Dashboard() {
   const atLab = frames.filter((f) => f.status === "at_lab").length;
   const total = frames.length;
 
-  const soldFrames = frames.filter((f) => f.status === "sold");
-  const sold = soldFrames.length;
+  const sold = frames.reduce((acc, f) => acc + (f.soldCount ?? 0), 0);
 
-  const totalRevenue = soldFrames.reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
-  const totalWholesaleCost = soldFrames.reduce((acc, f) => acc + parseFloat(f.cost as string), 0);
+  const totalRevenue = frames.reduce((acc, f) => acc + (f.soldCount ?? 0) * parseFloat(f.retailPrice as string), 0);
+  const totalWholesaleCost = frames.reduce((acc, f) => acc + (f.soldCount ?? 0) * parseFloat(f.cost as string), 0);
   const totalProfit = totalRevenue - totalWholesaleCost;
 
-  const soldThisMonth = soldFrames.filter((f) => {
-    if (f.dateSold) return isThisMonth(f.dateSold);
-    const d = new Date(f.createdAt);
-    const now = new Date();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  });
-  const revenueThisMonth = soldThisMonth.reduce((acc, f) => acc + parseFloat(f.retailPrice as string), 0);
-  const framesThisMonth = soldThisMonth.length;
+  const soldThisMonth = frames.filter((f) => (f.soldCount ?? 0) > 0 && f.dateSold && isThisMonth(f.dateSold));
+  const revenueThisMonth = soldThisMonth.reduce((acc, f) => acc + (f.soldCount ?? 0) * parseFloat(f.retailPrice as string), 0);
+  const framesThisMonth = soldThisMonth.reduce((acc, f) => acc + (f.soldCount ?? 0), 0);
 
-  const topBrands = topN(soldFrames, "brand");
-  const topManufacturers = topN(soldFrames, "manufacturer");
-  const topModels = topN(soldFrames, "model");
+  const topBrands = topN(frames, "brand");
+  const topManufacturers = topN(frames, "manufacturer");
+  const topModels = topN(frames, "model");
 
   const recentFrames = [...frames]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

@@ -353,18 +353,12 @@ export class DbStorage implements IStorage {
       .where(eq(labOrders.id, labOrderId));
 
     if (order.frameId) {
-      const [frame] = await db.select().from(frames).where(eq(frames.id, order.frameId));
-      if (frame) {
-        const newQuantity = Math.max(0, (frame.quantity ?? 1) - 1);
-        await db.update(frames)
-          .set({
-            soldCount: sql`${frames.soldCount} + 1`,
-            quantity: newQuantity,
-            dateSold: today,
-            status: newQuantity === 0 ? "sold" : frame.status,
-          })
-          .where(eq(frames.id, order.frameId));
-      }
+      await db.update(frames)
+        .set({
+          soldCount: sql`${frames.soldCount} + 1`,
+          dateSold: today,
+        })
+        .where(eq(frames.id, order.frameId));
     }
   }
 }
