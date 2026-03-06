@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
   AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays,
-  LayoutDashboard, Plus, Barcode, Truck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -192,113 +191,11 @@ export default function Dashboard() {
 
   const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
-  const [location] = useLocation();
-
-  const navCards = [
-    {
-      title: "Dashboard",
-      description: "Overview & analytics",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      title: "Inventory",
-      description: "Manage frame stock",
-      url: "/inventory",
-      icon: Package,
-    },
-    {
-      title: "Lab Orders",
-      description: "Frames at the lab",
-      url: "/lab-orders",
-      icon: FlaskConical,
-    },
-    {
-      title: "Weekly Metrics",
-      description: "Performance tracking",
-      url: "/weekly-metrics",
-      icon: BarChart2,
-    },
-  ];
-
-  const quickActions = [
-    { label: "Add Frame", icon: Plus, url: "/inventory", testId: "quick-action-add-frame" },
-    { label: "Scan Barcode", icon: Barcode, url: "/inventory", testId: "quick-action-scan-barcode" },
-    { label: "Send to Lab", icon: Truck, url: "/lab-orders", testId: "quick-action-send-to-lab" },
-  ];
-
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
-      </div>
-
-      {/* Navigation cards */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Navigate</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {navCards.map((card) => {
-            const isActive = location === card.url;
-            return (
-              <Link key={card.url} href={card.url} data-testid={`nav-card-${card.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                <Card
-                  className={`cursor-pointer transition-all group border ${
-                    isActive
-                      ? "border-primary/50 bg-primary/5 dark:bg-primary/10"
-                      : "border-card-border hover:border-primary/30 hover:shadow-sm"
-                  }`}
-                >
-                  <CardContent className="p-5 flex flex-col items-center text-center gap-3">
-                    <div
-                      className={`p-3 rounded-xl transition-colors ${
-                        isActive
-                          ? "bg-primary/10 dark:bg-primary/20"
-                          : "bg-muted/60 group-hover:bg-primary/8 dark:group-hover:bg-primary/10"
-                      }`}
-                    >
-                      <card.icon
-                        className={`w-6 h-6 transition-colors ${
-                          isActive
-                            ? "text-primary"
-                            : "text-muted-foreground group-hover:text-primary"
-                        }`}
-                        strokeWidth={1.5}
-                      />
-                    </div>
-                    <div>
-                      <p className={`font-semibold text-sm ${isActive ? "text-primary" : "text-foreground"}`}>
-                        {card.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{card.description}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Quick Actions</p>
-        <div className="flex flex-wrap gap-2">
-          {quickActions.map((action) => (
-            <Button
-              key={action.label}
-              variant="outline"
-              className="gap-2 h-9"
-              asChild
-              data-testid={action.testId}
-            >
-              <Link href={action.url}>
-                <action.icon className="w-4 h-4" strokeWidth={1.5} />
-                {action.label}
-              </Link>
-            </Button>
-          ))}
-        </div>
       </div>
 
       {/* Row 1: Inventory status stats */}

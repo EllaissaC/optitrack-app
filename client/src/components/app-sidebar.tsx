@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, FlaskConical, Settings, LogOut, User, BarChart2 } from "lucide-react";
+import { LayoutDashboard, Package, FlaskConical, Settings, LogOut, User, BarChart2, Home } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 
 const navItems = [
+  { title: "Home", url: "/home", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Lab Orders", url: "/lab-orders", icon: FlaskConical },
