@@ -20,6 +20,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
+import { Building2 } from "lucide-react";
 
 function AppShell() {
   const { user, isLoading } = useAuth();
@@ -86,6 +87,25 @@ function AppShell() {
           <header className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background/95 sticky top-0 z-50">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex-1 min-w-0" />
+            {user?.clinic && (
+              <div className="flex items-start gap-2 text-right" data-testid="header-clinic-info">
+                <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground leading-tight" data-testid="text-clinic-name">
+                    {user.clinic.clinicName}
+                  </p>
+                  {(user.clinic.address || user.clinic.city) && (
+                    <p className="text-xs text-muted-foreground leading-tight" data-testid="text-clinic-address">
+                      {[
+                        user.clinic.address,
+                        [user.clinic.city, user.clinic.state].filter(Boolean).join(", "),
+                        user.clinic.zip,
+                      ].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </header>
           <main className="flex-1 overflow-y-auto">
             <Switch>

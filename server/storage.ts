@@ -2,6 +2,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   frames, type Frame, type InsertFrame,
+  clinics, type Clinic, type InsertClinic,
   users, type User, type InsertUser,
   settings, type Setting,
   labs, type Lab, type InsertLab,
@@ -17,13 +18,19 @@ export interface IStorage {
   updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined>;
   deleteFrame(id: string): Promise<boolean>;
 
+  getClinics(): Promise<Clinic[]>;
+  getClinic(id: string): Promise<Clinic | undefined>;
+  createClinic(data: InsertClinic): Promise<Clinic>;
+  updateClinic(id: string, data: Partial<InsertClinic>): Promise<Clinic | undefined>;
+  deleteClinic(id: string): Promise<boolean>;
+
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByInviteToken(token: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
-  createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; isActive?: boolean }): Promise<User>;
-  updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined>;
+  createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User>;
+  updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "clinicId" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   countUsers(): Promise<number>;
 
@@ -83,6 +90,30 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
+  async getClinics(): Promise<Clinic[]> {
+    return db.select().from(clinics).orderBy(clinics.clinicName);
+  }
+
+  async getClinic(id: string): Promise<Clinic | undefined> {
+    const [clinic] = await db.select().from(clinics).where(eq(clinics.id, id));
+    return clinic;
+  }
+
+  async createClinic(data: InsertClinic): Promise<Clinic> {
+    const [created] = await db.insert(clinics).values(data).returning();
+    return created;
+  }
+
+  async updateClinic(id: string, data: Partial<InsertClinic>): Promise<Clinic | undefined> {
+    const [updated] = await db.update(clinics).set(data).where(eq(clinics.id, id)).returning();
+    return updated;
+  }
+
+  async deleteClinic(id: string): Promise<boolean> {
+    const result = await db.delete(clinics).where(eq(clinics.id, id)).returning();
+    return result.length > 0;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -107,18 +138,19 @@ export class DbStorage implements IStorage {
     return db.select().from(users).orderBy(users.createdAt);
   }
 
-  async createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; isActive?: boolean }): Promise<User> {
+  async createUser(data: { username: string; email: string; password: string; role: "admin" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User> {
     const [user] = await db.insert(users).values({
       username: data.username,
       email: data.email,
       password: data.password,
       role: data.role,
+      clinicId: data.clinicId ?? null,
       isActive: data.isActive ?? true,
     }).returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined> {
+  async updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "clinicId" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined> {
     const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return updated;
   }

@@ -36,12 +36,27 @@ export const insertFrameSchema = createInsertSchema(frames).omit({
 export type InsertFrame = z.infer<typeof insertFrameSchema>;
 export type Frame = typeof frames.$inferSelect;
 
+export const clinics = pgTable("clinics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicName: text("clinic_name").notNull(),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zip: text("zip"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertClinicSchema = createInsertSchema(clinics).omit({ id: true, createdAt: true });
+export type InsertClinic = z.infer<typeof insertClinicSchema>;
+export type Clinic = typeof clinics.$inferSelect;
+
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").unique(),
   password: text("password").notNull(),
   role: text("role", { enum: ["admin", "staff"] }).notNull().default("staff"),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "set null" }),
   inviteToken: text("invite_token"),
   inviteExpiry: timestamp("invite_expiry"),
   isActive: boolean("is_active").notNull().default(true),

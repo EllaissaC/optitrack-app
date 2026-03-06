@@ -9,7 +9,8 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - **Lab Orders**: Dedicated page showing only `at_lab` frames. Search by Lab Order #, filters for Lab / Vision Plan / Days at Lab. Columns: Brand, Model, Lab Name, Lab Order #, Vision Plan, Tracking, Date Sent, Days at Lab (color-coded). "Mark Received" moves frame back to On Board.
 - **Weekly Metrics**: Staff enter weekly optical data (Total Comprehensive Exams, Follow Ups/Next Year, Scheduled Appointments, Total Optical Orders). Auto-calculates Scheduling Rate and Capture Rate (with live preview while typing). History table shows all previous weeks. Color-coded badges (≥80% green, 60-79% yellow, <60% red). Summary stat cards show averages.
 - **Authentication**: Passport-local auth with bcryptjs, session management, admin/staff roles, invite-by-email with 7-day expiry tokens, first-run admin setup flow
-- **Settings (Admin Only)**: 4 tabs — General (email reminders, default multiplier), Labs CRUD, Manufacturers & Brands CRUD, Team management (invite, toggle, delete)
+- **Settings (Admin Only)**: 6 tabs — General (email reminders, default multiplier, session expiration), Labs CRUD, Brands/Manufacturers CRUD (with inline quick-add), Team management (invite, toggle, delete), Account (email/password change), Clinic (name, address, city, state, zip)
+- **Multi-Clinic Support**: `clinics` table, `clinicId` on users, clinic name + address shown in header when assigned, admin can create/edit clinic from Settings → Clinic tab
 - **Email Reminders**: SendGrid integration for frames 14+ days at lab; `/api/reminders/check` endpoint
 
 ## Architecture
@@ -21,7 +22,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - **Email**: `server/email.ts` (SendGrid)
 
 ## Key Files
-- `shared/schema.ts` - Full database schema (frames, users, settings, labs, manufacturers, brands, weeklyMetrics)
+- `shared/schema.ts` - Full database schema (frames, users, settings, labs, manufacturers, brands, weeklyMetrics, clinics)
 - `server/storage.ts` - Database storage interface
 - `server/routes.ts` - All API endpoints
 - `server/auth.ts` - Authentication setup (passport, session, routes)

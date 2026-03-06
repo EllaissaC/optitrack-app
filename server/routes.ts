@@ -4,11 +4,11 @@ import passport from "passport";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertFrameSchema, insertWeeklyMetricSchema } from "@shared/schema";
+import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
 import { z } from "zod";
-import type { User } from "@shared/schema";
+import type { User, Clinic } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -17,10 +17,22 @@ export async function registerRoutes(
 
   // ─── Auth Routes ──────────────────────────────────────────────────────────
 
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const user = req.user as User;
-    res.json({ id: user.id, username: user.username, email: user.email, role: user.role, isActive: user.isActive });
+    let clinic: Clinic | undefined;
+    if (user.clinicId) {
+      clinic = await storage.getClinic(user.clinicId);
+    }
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+      clinicId: user.clinicId ?? null,
+      clinic: clinic ?? null,
+    });
   });
 
   app.get("/api/auth/setup-required", async (_req, res) => {
@@ -285,6 +297,62 @@ export async function registerRoutes(
       res.json({ message: "Settings saved" });
     } catch {
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ─── Clinics ───────────────────────────────────────────────────────────────
+
+  app.get("/api/clinics", requireAuth, async (_req, res) => {
+    const allClinics = await storage.getClinics();
+    res.json(allClinics);
+  });
+
+  app.post("/api/clinics", requireAdmin, async (req, res) => {
+    try {
+      const parsed = insertClinicSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid clinic data" });
+      const clinic = await storage.createClinic(parsed.data);
+      res.status(201).json(clinic);
+    } catch {
+      res.status(500).json({ message: "Failed to create clinic" });
+    }
+  });
+
+  app.put("/api/clinics/:id", requireAdmin, async (req, res) => {
+    try {
+      const { clinicName, address, city, state, zip } = req.body;
+      const updates: Record<string, string | null> = {};
+      if (clinicName !== undefined) updates.clinicName = clinicName;
+      if (address !== undefined) updates.address = address || null;
+      if (city !== undefined) updates.city = city || null;
+      if (state !== undefined) updates.state = state || null;
+      if (zip !== undefined) updates.zip = zip || null;
+      const updated = await storage.updateClinic(req.params.id, updates as any);
+      if (!updated) return res.status(404).json({ message: "Clinic not found" });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update clinic" });
+    }
+  });
+
+  app.delete("/api/clinics/:id", requireAdmin, async (req, res) => {
+    try {
+      const deleted = await storage.deleteClinic(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Clinic not found" });
+      res.json({ message: "Clinic deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete clinic" });
+    }
+  });
+
+  app.patch("/api/users/:id/clinic", requireAdmin, async (req, res) => {
+    try {
+      const { clinicId } = req.body;
+      const updated = await storage.updateUser(req.params.id, { clinicId: clinicId ?? null });
+      if (!updated) return res.status(404).json({ message: "User not found" });
+      res.json({ id: updated.id, username: updated.username, clinicId: updated.clinicId });
+    } catch {
+      res.status(500).json({ message: "Failed to update user clinic" });
     }
   });
 

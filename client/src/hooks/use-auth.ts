@@ -2,12 +2,23 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 
+export interface AuthClinic {
+  id: string;
+  clinicName: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
   email: string | null;
   role: "admin" | "staff";
   isActive: boolean;
+  clinicId: string | null;
+  clinic: AuthClinic | null;
 }
 
 export function useAuth() {

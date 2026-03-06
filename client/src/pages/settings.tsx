@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   Settings as SettingsIcon, Mail, FlaskConical, Users, Tag, ChevronRight,
   Plus, Pencil, Trash2, Copy, Check, AlertCircle, Send, Package, KeyRound,
+  Building2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,9 +19,9 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, getQueryFn } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
-import type { Lab, Manufacturer, Brand } from "@shared/schema";
+import type { Lab, Manufacturer, Brand, Clinic } from "@shared/schema";
 
 // ─── Settings (Email + Pricing) ───────────────────────────────────────────────
 
@@ -866,6 +867,265 @@ const accountSchema = z.object({
 
 type AccountValues = z.infer<typeof accountSchema>;
 
+// ─── Clinic Settings ─────────────────────────────────────────────────────────
+
+const clinicSchema = z.object({
+  clinicName: z.string().min(1, "Clinic name is required"),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip: z.string().optional(),
+});
+
+type ClinicValues = z.infer<typeof clinicSchema>;
+
+function ClinicTab() {
+  const { user, isAdmin } = useAuth();
+  const { toast } = useToast();
+
+  const { data: clinics = [], isLoading } = useQuery<Clinic[]>({
+    queryKey: ["/api/clinics"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    enabled: !!user,
+  });
+
+  const clinic = clinics[0] ?? null;
+  const [showCreate, setShowCreate] = useState(false);
+
+  const editForm = useForm<ClinicValues>({
+    resolver: zodResolver(clinicSchema),
+    defaultValues: {
+      clinicName: clinic?.clinicName ?? "",
+      address: clinic?.address ?? "",
+      city: clinic?.city ?? "",
+      state: clinic?.state ?? "",
+      zip: clinic?.zip ?? "",
+    },
+  });
+
+  const createForm = useForm<ClinicValues>({
+    resolver: zodResolver(clinicSchema),
+    defaultValues: { clinicName: "", address: "", city: "", state: "", zip: "" },
+  });
+
+  const updateClinic = useMutation({
+    mutationFn: async (data: ClinicValues) => {
+      await apiRequest("PUT", `/api/clinics/${clinic!.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clinics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({ title: "Clinic information saved" });
+    },
+    onError: () => toast({ title: "Failed to save clinic", variant: "destructive" }),
+  });
+
+  const createClinic = useMutation({
+    mutationFn: async (data: ClinicValues) => {
+      const res = await apiRequest("POST", "/api/clinics", data);
+      const created = await res.json() as Clinic;
+      await apiRequest("PATCH", `/api/users/${user!.id}/clinic`, { clinicId: created.id });
+      return created;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clinics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      createForm.reset();
+      setShowCreate(false);
+      toast({ title: "Clinic created successfully" });
+    },
+    onError: () => toast({ title: "Failed to create clinic", variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className="py-8 text-center text-sm text-muted-foreground">Loading clinic information...</div>;
+  }
+
+  if (!clinic) {
+    return (
+      <Card className="border-card-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-muted-foreground" /> Clinic Information
+          </CardTitle>
+          <CardDescription>No clinic has been set up yet. Create one to display clinic info in the header.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!showCreate ? (
+            <Button onClick={() => setShowCreate(true)} data-testid="button-create-clinic">
+              <Plus className="w-4 h-4 mr-1.5" /> Create Clinic
+            </Button>
+          ) : (
+            <Form {...createForm}>
+              <form onSubmit={createForm.handleSubmit((v) => createClinic.mutate(v))} className="space-y-4">
+                <FormField control={createForm.control} name="clinicName" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Clinic Name <span className="text-destructive">*</span></FormLabel>
+                    <FormControl><Input placeholder="e.g. Steese Clinic" data-testid="input-clinic-name" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={createForm.control} name="address" render={({ field }) => (
+                    <FormItem className="col-span-2">
+                      <FormLabel>Address</FormLabel>
+                      <FormControl><Input placeholder="123 Example St" data-testid="input-clinic-address" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="city" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>City</FormLabel>
+                      <FormControl><Input placeholder="Fairbanks" data-testid="input-clinic-city" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="state" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>State</FormLabel>
+                      <FormControl><Input placeholder="AK" maxLength={2} data-testid="input-clinic-state" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={createForm.control} name="zip" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Zip Code</FormLabel>
+                      <FormControl><Input placeholder="99701" data-testid="input-clinic-zip" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={createClinic.isPending} data-testid="button-save-clinic-create">
+                    {createClinic.isPending ? "Creating..." : "Create Clinic"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
+                </div>
+              </form>
+            </Form>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-card-border">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-muted-foreground" /> Clinic Information
+        </CardTitle>
+        <CardDescription>
+          {!isAdmin
+            ? "Contact an admin to update clinic information."
+            : "Edit your clinic details. Changes appear immediately in the header."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...editForm}>
+          <form
+            onSubmit={editForm.handleSubmit((v) => {
+              editForm.reset({
+                clinicName: clinic.clinicName,
+                address: clinic.address ?? "",
+                city: clinic.city ?? "",
+                state: clinic.state ?? "",
+                zip: clinic.zip ?? "",
+              });
+              updateClinic.mutate(v);
+            })}
+            className="space-y-4"
+          >
+            <FormField control={editForm.control} name="clinicName" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Clinic Name <span className="text-destructive">*</span></FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g. Steese Clinic"
+                    data-testid="input-clinic-name"
+                    disabled={!isAdmin}
+                    defaultValue={clinic.clinicName}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={editForm.control} name="address" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Address</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="123 Example St"
+                    data-testid="input-clinic-address"
+                    disabled={!isAdmin}
+                    defaultValue={clinic.address ?? ""}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <div className="grid grid-cols-3 gap-4">
+              <FormField control={editForm.control} name="city" render={({ field }) => (
+                <FormItem className="col-span-1">
+                  <FormLabel>City</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Fairbanks"
+                      data-testid="input-clinic-city"
+                      disabled={!isAdmin}
+                      defaultValue={clinic.city ?? ""}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={editForm.control} name="state" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>State</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="AK"
+                      maxLength={2}
+                      data-testid="input-clinic-state"
+                      disabled={!isAdmin}
+                      defaultValue={clinic.state ?? ""}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={editForm.control} name="zip" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Zip Code</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="99701"
+                      data-testid="input-clinic-zip"
+                      disabled={!isAdmin}
+                      defaultValue={clinic.zip ?? ""}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+            {isAdmin && (
+              <Button type="submit" disabled={updateClinic.isPending} data-testid="button-save-clinic">
+                {updateClinic.isPending ? "Saving..." : "Save Clinic Info"}
+              </Button>
+            )}
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AccountTab() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1038,6 +1298,9 @@ export default function Settings() {
           <TabsTrigger value="account" data-testid="tab-account">
             <KeyRound className="w-4 h-4 mr-1.5" /> Account
           </TabsTrigger>
+          <TabsTrigger value="clinic" data-testid="tab-clinic">
+            <Building2 className="w-4 h-4 mr-1.5" /> Clinic
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -1054,6 +1317,9 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="account">
           <AccountTab />
+        </TabsContent>
+        <TabsContent value="clinic">
+          <ClinicTab />
         </TabsContent>
       </Tabs>
     </div>
