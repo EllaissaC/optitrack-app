@@ -70,7 +70,7 @@ export interface IStorage {
   createLabOrder(data: InsertLabOrder): Promise<LabOrder>;
   updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined>;
   deleteLabOrder(id: string): Promise<boolean>;
-  incrementFrameSoldCount(frameId: string): Promise<void>;
+  markLabOrderFrameSold(labOrderId: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -341,10 +341,31 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  async incrementFrameSoldCount(frameId: string): Promise<void> {
-    await db.update(frames)
-      .set({ soldCount: sql`${frames.soldCount} + 1` })
-      .where(eq(frames.id, frameId));
+  async markLabOrderFrameSold(labOrderId: string): Promise<void> {
+    const order = await this.getLabOrder(labOrderId);
+    if (!order) throw new Error("Lab order not found");
+    if (order.frameSold) throw new Error("Frame already marked as sold");
+
+    const today = new Date().toISOString().split("T")[0];
+
+    await db.update(labOrders)
+      .set({ frameSold: true, frameSoldAt: today })
+      .where(eq(labOrders.id, labOrderId));
+
+    if (order.frameId) {
+      const [frame] = await db.select().from(frames).where(eq(frames.id, order.frameId));
+      if (frame) {
+        const newQuantity = Math.max(0, (frame.quantity ?? 1) - 1);
+        await db.update(frames)
+          .set({
+            soldCount: sql`${frames.soldCount} + 1`,
+            quantity: newQuantity,
+            dateSold: today,
+            status: newQuantity === 0 ? "sold" : frame.status,
+          })
+          .where(eq(frames.id, order.frameId));
+      }
+    }
   }
 }
 

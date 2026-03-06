@@ -148,6 +148,8 @@ export const labOrders = pgTable("lab_orders", {
   dateSentToLab: text("date_sent_to_lab"),
   dateReceivedFromLab: text("date_received_from_lab"),
   status: text("status").notNull().default("pending"),
+  frameSold: boolean("frame_sold").notNull().default(false),
+  frameSoldAt: text("frame_sold_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

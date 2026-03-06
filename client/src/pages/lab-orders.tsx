@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Glasses,
   Trash2,
+  DollarSign,
+  BadgeCheck,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame, type LabOrder } from "@shared/schema";
@@ -764,6 +766,79 @@ function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null
   );
 }
 
+// ─── Frame Sold Dialog ─────────────────────────────────────────────────────────
+
+function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; open: boolean; onClose: () => void }) {
+  const { toast } = useToast();
+  const orderIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (order) orderIdRef.current = order.id;
+  }, [order]);
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const id = orderIdRef.current;
+      if (!id) throw new Error("No order selected");
+      return apiRequest("POST", `/api/lab-orders/${id}/frame-sold`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Frame sale recorded", description: "Inventory updated and analytics have been refreshed." });
+      onClose();
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to record frame sale";
+      toast({ title: msg, variant: "destructive" });
+    },
+  });
+
+  function handleConfirm() {
+    const id = order?.id ?? orderIdRef.current;
+    if (!id) return;
+    orderIdRef.current = id;
+    mutation.mutate();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && !mutation.isPending && onClose()}>
+      <DialogContent className="max-w-md" aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-amber-600" />
+            Record Frame Sale
+          </DialogTitle>
+          <div className="text-sm text-muted-foreground mt-1 space-y-1">
+            {order && (
+              <>
+                <p>
+                  Confirm that the patient has paid for the frame:{" "}
+                  <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel} ({order.frameColor})</span>.
+                </p>
+                <p className="text-xs">This will decrease inventory quantity by 1 and update sales analytics.</p>
+              </>
+            )}
+          </div>
+        </DialogHeader>
+        <DialogFooter className="gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} disabled={mutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={mutation.isPending}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+            data-testid="button-confirm-frame-sold"
+          >
+            {mutation.isPending ? "Recording..." : "Confirm Sale"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 type DaysFilter = "all" | "0-7" | "8-13" | "14+";
@@ -773,6 +848,7 @@ export default function LabOrders() {
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null);
   const [receiveOrder, setReceiveOrder] = useState<LabOrder | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<LabOrder | null>(null);
+  const [sellOrder, setSellOrder] = useState<LabOrder | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterLab, setFilterLab] = useState("all");
   const [filterVisionPlan, setFilterVisionPlan] = useState("all");
@@ -1074,15 +1150,23 @@ export default function LabOrders() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {isReceived ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0" data-testid={`badge-status-${order.id}`}>
-                          Received
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-0" data-testid={`badge-status-${order.id}`}>
-                          Pending
-                        </Badge>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {isReceived ? (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0 w-fit" data-testid={`badge-status-${order.id}`}>
+                            Received
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-0 w-fit" data-testid={`badge-status-${order.id}`}>
+                            Pending
+                          </Badge>
+                        )}
+                        {order.frameSold && (
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-0 w-fit" data-testid={`badge-frame-sold-${order.id}`}>
+                            <DollarSign className="w-3 h-3 mr-0.5" />
+                            Frame Sold
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
@@ -1115,6 +1199,34 @@ export default function LabOrders() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Mark order as received from lab</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {order.frameId && !order.frameSold && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 border-amber-200 dark:border-amber-800"
+                                onClick={() => setSellOrder(order)}
+                                data-testid={`button-frame-sold-${order.id}`}
+                              >
+                                <DollarSign className="w-3.5 h-3.5 mr-1" />
+                                Frame Sold
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Record frame sale & update inventory</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {order.frameSold && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 rounded border border-dashed border-muted-foreground/30">
+                                <BadgeCheck className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Sold {order.frameSoldAt ?? ""}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>Frame sale recorded on {order.frameSoldAt ?? "unknown date"}</TooltipContent>
                           </Tooltip>
                         )}
                         <Tooltip>
@@ -1170,6 +1282,12 @@ export default function LabOrders() {
         order={deleteOrder}
         open={!!deleteOrder}
         onClose={() => setDeleteOrder(null)}
+      />
+
+      <FrameSoldDialog
+        order={sellOrder}
+        open={!!sellOrder}
+        onClose={() => setSellOrder(null)}
       />
     </div>
   );

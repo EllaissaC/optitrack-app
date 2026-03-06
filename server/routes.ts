@@ -646,9 +646,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
       }
       const order = await storage.createLabOrder(parsed.data);
-      if (parsed.data.frameId) {
-        await storage.incrementFrameSoldCount(parsed.data.frameId);
-      }
       res.status(201).json(order);
     } catch {
       res.status(500).json({ message: "Failed to create lab order" });
@@ -678,6 +675,17 @@ export async function registerRoutes(
     } catch (err) {
       console.error("[lab-orders PATCH] Error:", err);
       res.status(500).json({ message: "Failed to update lab order" });
+    }
+  });
+
+  app.post("/api/lab-orders/:id/frame-sold", requireAuth, async (req, res) => {
+    try {
+      await storage.markLabOrderFrameSold(req.params.id as string);
+      res.json({ message: "Frame marked as sold" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to mark frame as sold";
+      const status = msg === "Frame already marked as sold" ? 409 : 500;
+      res.status(status).json({ message: msg });
     }
   });
 
