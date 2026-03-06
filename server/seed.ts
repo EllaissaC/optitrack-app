@@ -1,0 +1,95 @@
+import { db } from "./db";
+import { frames } from "@shared/schema";
+import { sql } from "drizzle-orm";
+
+export async function seedDatabase() {
+  const existing = await db.select({ count: sql<number>`count(*)` }).from(frames);
+  if (Number(existing[0].count) > 0) return;
+
+  await db.insert(frames).values([
+    {
+      manufacturer: "Safilo Group",
+      brand: "Carrera",
+      model: "CA 8865",
+      color: "Matte Black",
+      eyeSize: 54,
+      bridge: 17,
+      templeLength: 145,
+      cost: "42.00",
+      retailPrice: "195.00",
+      status: "on_board",
+    },
+    {
+      manufacturer: "Luxottica",
+      brand: "Ray-Ban",
+      model: "RB5154 Clubmaster",
+      color: "Tortoise / Gold",
+      eyeSize: 51,
+      bridge: 21,
+      templeLength: 150,
+      cost: "58.50",
+      retailPrice: "175.00",
+      status: "on_board",
+    },
+    {
+      manufacturer: "Kering Eyewear",
+      brand: "Gucci",
+      model: "GG0396O",
+      color: "Havana Brown",
+      eyeSize: 52,
+      bridge: 18,
+      templeLength: 145,
+      cost: "115.00",
+      retailPrice: "395.00",
+      status: "at_lab",
+    },
+    {
+      manufacturer: "Silhouette",
+      brand: "Silhouette",
+      model: "Momentum 2924",
+      color: "Crystal Grey",
+      eyeSize: 50,
+      bridge: 16,
+      templeLength: 140,
+      cost: "89.00",
+      retailPrice: "340.00",
+      status: "sold",
+    },
+    {
+      manufacturer: "Marchon Eyewear",
+      brand: "Nike",
+      model: "NK 7252",
+      color: "Navy Blue",
+      eyeSize: 56,
+      bridge: 18,
+      templeLength: 145,
+      cost: "33.00",
+      retailPrice: "130.00",
+      status: "on_board",
+    },
+    {
+      manufacturer: "Safilo Group",
+      brand: "Hugo Boss",
+      model: "BOSS 1084",
+      color: "Dark Ruthenium",
+      eyeSize: 53,
+      bridge: 19,
+      templeLength: 150,
+      cost: "67.00",
+      retailPrice: "260.00",
+      status: "at_lab",
+    },
+    {
+      manufacturer: "Luxottica",
+      brand: "Prada",
+      model: "PR 08WV",
+      color: "Pale Gold / Top Black",
+      eyeSize: 54,
+      bridge: 18,
+      templeLength: 140,
+      cost: "98.00",
+      retailPrice: "360.00",
+      status: "sold",
+    },
+  ]);
+}

@@ -1,38 +1,39 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { frames, type Frame, type InsertFrame } from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getFrames(): Promise<Frame[]>;
+  getFrame(id: string): Promise<Frame | undefined>;
+  createFrame(frame: InsertFrame): Promise<Frame>;
+  updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined>;
+  deleteFrame(id: string): Promise<boolean>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DbStorage implements IStorage {
+  async getFrames(): Promise<Frame[]> {
+    return db.select().from(frames).orderBy(frames.createdAt);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getFrame(id: string): Promise<Frame | undefined> {
+    const [frame] = await db.select().from(frames).where(eq(frames.id, id));
+    return frame;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createFrame(frame: InsertFrame): Promise<Frame> {
+    const [created] = await db.insert(frames).values(frame).returning();
+    return created;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined> {
+    const [updated] = await db.update(frames).set(frame).where(eq(frames.id, id)).returning();
+    return updated;
+  }
+
+  async deleteFrame(id: string): Promise<boolean> {
+    const result = await db.delete(frames).where(eq(frames.id, id)).returning();
+    return result.length > 0;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DbStorage();
