@@ -65,6 +65,9 @@ export interface IStorage {
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
 
+  findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; clinicId?: string | null }): Promise<Frame | null>;
+  replaceFrame(oldFrameId: string, newFrameData: InsertFrame): Promise<Frame>;
+
   getLabOrders(clinicId?: string | null): Promise<LabOrder[]>;
   getLabOrder(id: string): Promise<LabOrder | undefined>;
   createLabOrder(data: InsertLabOrder): Promise<LabOrder>;
@@ -99,6 +102,36 @@ export class DbStorage implements IStorage {
   async deleteFrame(id: string): Promise<boolean> {
     const result = await db.delete(frames).where(eq(frames.id, id)).returning();
     return result.length > 0;
+  }
+
+  async findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; clinicId?: string | null }): Promise<Frame | null> {
+    if (params.barcode) {
+      const conds = [eq(frames.barcode, params.barcode)];
+      if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
+      const [frame] = await db.select().from(frames).where(and(...conds));
+      return frame ?? null;
+    }
+    const conds = [
+      eq(frames.brand, params.brand),
+      eq(frames.model, params.model),
+      eq(frames.color, params.color),
+      eq(frames.eyeSize, params.eyeSize),
+    ];
+    if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
+    const [frame] = await db.select().from(frames).where(and(...conds));
+    return frame ?? null;
+  }
+
+  async replaceFrame(oldFrameId: string, newFrameData: InsertFrame): Promise<Frame> {
+    const oldFrame = await this.getFrame(oldFrameId);
+    if (!oldFrame) throw new Error("Existing frame not found");
+    await db.delete(frames).where(eq(frames.id, oldFrameId));
+    const [created] = await db.insert(frames).values({
+      ...newFrameData,
+      soldCount: oldFrame.soldCount,
+      dateSold: oldFrame.dateSold,
+    }).returning();
+    return created;
   }
 
   async getClinics(): Promise<Clinic[]> {

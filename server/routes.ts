@@ -557,10 +557,44 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
+      const duplicate = await storage.findDuplicateFrame({
+        barcode: parsed.data.barcode,
+        brand: parsed.data.brand,
+        model: parsed.data.model,
+        color: parsed.data.color,
+        eyeSize: parsed.data.eyeSize,
+        clinicId: parsed.data.clinicId,
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          existingFrameId: duplicate.id,
+          existingBrand: duplicate.brand,
+          existingModel: duplicate.model,
+          existingColor: duplicate.color,
+        });
+      }
       const frame = await storage.createFrame(parsed.data);
       res.status(201).json(frame);
     } catch {
       res.status(500).json({ message: "Failed to create frame" });
+    }
+  });
+
+  app.post("/api/frames/replace", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { existingFrameId, newFrame } = req.body;
+      if (!existingFrameId || !newFrame) {
+        return res.status(400).json({ message: "existingFrameId and newFrame are required" });
+      }
+      const parsed = insertFrameSchema.safeParse({ ...newFrame, clinicId: user.clinicId ?? null });
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
+      }
+      const frame = await storage.replaceFrame(existingFrameId as string, parsed.data);
+      res.status(201).json(frame);
+    } catch {
+      res.status(500).json({ message: "Failed to replace frame" });
     }
   });
 

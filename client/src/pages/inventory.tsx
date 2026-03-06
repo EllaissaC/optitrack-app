@@ -330,6 +330,8 @@ function FrameFormDialog({
   const [showAddBrandModal, setShowAddBrandModal] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
   const [newBrandMfgId, setNewBrandMfgId] = useState<string>("");
+  const [duplicateInfo, setDuplicateInfo] = useState<{ existingFrameId: string; existingBrand: string; existingModel: string; existingColor: string } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
 
   const addMfgMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -497,14 +499,51 @@ function FrameFormDialog({
   }
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => apiRequest("POST", "/api/frames", data),
-    onSuccess: () => {
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await fetch("/api/frames", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (res.status === 409) {
+        const json = await res.json();
+        return { duplicate: true as const, ...json };
+      }
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return { duplicate: false as const, frame: await res.json() };
+    },
+    onSuccess: (result) => {
+      if (result.duplicate) {
+        setDuplicateInfo({
+          existingFrameId: result.existingFrameId,
+          existingBrand: result.existingBrand,
+          existingModel: result.existingModel,
+          existingColor: result.existingColor,
+        });
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       toast({ title: "Frame added", description: "The frame has been added to inventory." });
       onClose();
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to add frame.", variant: "destructive" });
+    },
+  });
+
+  const replaceMutation = useMutation({
+    mutationFn: (data: { existingFrameId: string; newFrame: Record<string, unknown> }) =>
+      apiRequest("POST", "/api/frames/replace", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Frame replaced", description: "The existing frame has been replaced with the new entry." });
+      setDuplicateInfo(null);
+      setPendingPayload(null);
+      onClose();
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to replace frame.", variant: "destructive" });
     },
   });
 
@@ -521,7 +560,7 @@ function FrameFormDialog({
     },
   });
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = createMutation.isPending || updateMutation.isPending || replaceMutation.isPending;
 
   function onSubmit(values: FormValues) {
     const payload = {
@@ -538,6 +577,7 @@ function FrameFormDialog({
     if (isEdit) {
       updateMutation.mutate(payload);
     } else {
+      setPendingPayload(payload);
       createMutation.mutate(payload);
     }
   }
@@ -1156,6 +1196,49 @@ function FrameFormDialog({
               }}
             >
               {addBrandMutation.isPending ? "Saving..." : "Add Brand"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!duplicateInfo} onOpenChange={(o) => { if (!o) setDuplicateInfo(null); }}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Duplicate Frame Detected</DialogTitle>
+            <DialogDescription>
+              This frame already exists in inventory
+              {duplicateInfo && (
+                <span className="block mt-1 font-semibold text-foreground">
+                  {duplicateInfo.existingBrand} {duplicateInfo.existingModel} — {duplicateInfo.existingColor}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Would you like to replace the existing entry with the new one? Sales history will be preserved.
+          </p>
+          <DialogFooter className="gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="button-duplicate-cancel"
+              onClick={() => setDuplicateInfo(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              data-testid="button-duplicate-replace"
+              disabled={replaceMutation.isPending}
+              onClick={() => {
+                if (!duplicateInfo || !pendingPayload) return;
+                replaceMutation.mutate({
+                  existingFrameId: duplicateInfo.existingFrameId,
+                  newFrame: pendingPayload,
+                });
+              }}
+            >
+              {replaceMutation.isPending ? "Replacing..." : "Replace Existing Frame"}
             </Button>
           </DialogFooter>
         </DialogContent>
