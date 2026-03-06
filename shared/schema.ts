@@ -147,6 +147,7 @@ export const labOrders = pgTable("lab_orders", {
   trackingNumber: text("tracking_number"),
   dateSentToLab: text("date_sent_to_lab"),
   dateReceivedFromLab: text("date_received_from_lab"),
+  notes: text("notes"),
   status: text("status").notNull().default("pending"),
   patientOwnFrame: boolean("patient_own_frame").notNull().default(false),
   frameSold: boolean("frame_sold").notNull().default(false),

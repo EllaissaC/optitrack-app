@@ -27,6 +27,7 @@ import {
   DollarSign,
   BadgeCheck,
   UserCheck,
+  StickyNote,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame, type LabOrder } from "@shared/schema";
@@ -53,6 +54,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -77,6 +79,7 @@ const addLabOrderSchema = z.object({
   labAccountNumber: z.string().optional().nullable(),
   trackingNumber: z.string().optional().nullable(),
   dateSentToLab: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 type AddLabOrderValues = z.infer<typeof addLabOrderSchema>;
@@ -118,6 +121,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      notes: "",
     },
   });
 
@@ -136,6 +140,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         labAccountNumber: "",
         trackingNumber: "",
         dateSentToLab: new Date().toISOString().split("T")[0],
+        notes: "",
       });
     }
   }, [open]);
@@ -150,6 +155,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      notes: "",
     });
     setStep("details");
   }
@@ -183,6 +189,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: matchingLab?.account ?? frame.labAccountNumber ?? "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      notes: "",
     });
     setStep("details");
   }
@@ -203,6 +210,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             labAccountNumber: values.labAccountNumber || null,
             trackingNumber: values.trackingNumber || null,
             dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+            notes: values.notes || null,
             status: "pending",
           }
         : {
@@ -218,6 +226,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             labAccountNumber: values.labAccountNumber || null,
             trackingNumber: values.trackingNumber || null,
             dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+            notes: values.notes || null,
             status: "pending",
           };
       await apiRequest("POST", "/api/lab-orders", body);
@@ -508,6 +517,24 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 )} />
               </div>
 
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-1.5">
+                    <StickyNote className="w-3.5 h-3.5 text-muted-foreground" /> Notes
+                  </FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Rush job, redo, special instructions…"
+                      rows={3}
+                      data-testid="textarea-notes"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
               <DialogFooter className="gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                 <Button type="submit" disabled={mutation.isPending} data-testid="button-send-to-lab">
@@ -567,6 +594,7 @@ const editOrderSchema = z.object({
   dateSentToLab: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
   visionPlan: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 type EditOrderValues = z.infer<typeof editOrderSchema>;
@@ -583,6 +611,7 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
       dateSentToLab: order.dateSentToLab ?? "",
       labName: order.labName ?? "",
       visionPlan: order.visionPlan ?? "",
+      notes: order.notes ?? "",
     },
   });
 
@@ -595,6 +624,7 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
         dateSentToLab: values.dateSentToLab || null,
         labName: values.labName || null,
         visionPlan: values.visionPlan || null,
+        notes: values.notes || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
@@ -693,6 +723,23 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
                 </FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="notes" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5">
+                  <StickyNote className="w-3.5 h-3.5 text-muted-foreground" /> Notes
+                </FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Rush job, redo, special instructions…"
+                    rows={3}
+                    data-testid="textarea-edit-notes"
+                    {...field}
+                    value={field.value ?? ""}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={mutation.isPending} data-testid="button-save-lab-order">
@@ -1197,6 +1244,14 @@ export default function LabOrders() {
                           <p className="text-xs text-muted-foreground">{order.frameColor}</p>
                         </>
                       )}
+                      <div className="flex items-start gap-1 mt-1" data-testid={`notes-section-${order.id}`}>
+                        <StickyNote className="w-3 h-3 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        {order.notes ? (
+                          <p className="text-xs text-muted-foreground leading-snug" data-testid={`text-notes-${order.id}`}>{order.notes}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/50 italic">No notes added</p>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
