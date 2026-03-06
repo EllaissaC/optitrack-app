@@ -20,7 +20,9 @@ import {
   Hash,
   Truck,
   Building2,
+  PlusCircle,
 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
 import { insertFrameSchema, type Frame, type Manufacturer, type Brand, type Lab } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -319,7 +321,49 @@ function FrameFormDialog({
   prefillBarcode?: string;
 }) {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const isEdit = !!editFrame;
+
+  const [showAddMfgModal, setShowAddMfgModal] = useState(false);
+  const [newMfgName, setNewMfgName] = useState("");
+  const [showAddBrandModal, setShowAddBrandModal] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [newBrandMfgId, setNewBrandMfgId] = useState<string>("");
+
+  const addMfgMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/manufacturers", { name });
+      return res.json() as Promise<Manufacturer>;
+    },
+    onSuccess: (newMfg) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/manufacturers"] });
+      form.setValue("manufacturer", newMfg.name);
+      form.setValue("brand", "");
+      setNewMfgName("");
+      setShowAddMfgModal(false);
+      toast({ title: `Manufacturer "${newMfg.name}" added` });
+    },
+    onError: () => toast({ title: "Failed to add manufacturer", variant: "destructive" }),
+  });
+
+  const addBrandMutation = useMutation({
+    mutationFn: async ({ manufacturerId, name }: { manufacturerId: string; name: string }) => {
+      const res = await apiRequest("POST", `/api/manufacturers/${manufacturerId}/brands`, { name });
+      return res.json() as Promise<Brand>;
+    },
+    onSuccess: (newBrand) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/manufacturers"] });
+      if (newBrandMfgId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/manufacturers", newBrandMfgId, "brands"] });
+      }
+      form.setValue("brand", newBrand.name);
+      setNewBrandName("");
+      setNewBrandMfgId("");
+      setShowAddBrandModal(false);
+      toast({ title: `Brand "${newBrand.name}" added` });
+    },
+    onError: () => toast({ title: "Failed to add brand", variant: "destructive" }),
+  });
 
   const { data: manufacturersData = [] } = useQuery<Manufacturer[]>({
     queryKey: ["/api/manufacturers"],
@@ -560,6 +604,26 @@ function FrameFormDialog({
                               </SelectItem>
                             ))}
                           </SelectGroup>
+                          {isAdmin && (
+                            <>
+                              <SelectSeparator />
+                              <div className="px-1 pb-1">
+                                <button
+                                  type="button"
+                                  data-testid="button-add-manufacturer-inline"
+                                  className="flex w-full items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm text-primary hover:bg-accent cursor-pointer"
+                                  onPointerDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setNewMfgName("");
+                                    setShowAddMfgModal(true);
+                                  }}
+                                >
+                                  <PlusCircle className="w-3.5 h-3.5" />
+                                  Add Manufacturer
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -601,8 +665,29 @@ function FrameFormDialog({
                             </SelectGroup>
                           ) : (
                             <div className="px-3 py-4 text-xs text-muted-foreground text-center">
-                              No brands for this manufacturer.<br />Add brands in Settings.
+                              No brands for this manufacturer.
                             </div>
+                          )}
+                          {isAdmin && watchedManufacturer && (
+                            <>
+                              <SelectSeparator />
+                              <div className="px-1 pb-1">
+                                <button
+                                  type="button"
+                                  data-testid="button-add-brand-inline"
+                                  className="flex w-full items-center gap-1.5 rounded-sm px-2 py-1.5 text-sm text-primary hover:bg-accent cursor-pointer"
+                                  onPointerDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    setNewBrandName("");
+                                    setNewBrandMfgId(selectedMfgObj?.id ?? "");
+                                    setShowAddBrandModal(true);
+                                  }}
+                                >
+                                  <PlusCircle className="w-3.5 h-3.5" />
+                                  Add Brand
+                                </button>
+                              </div>
+                            </>
                           )}
                         </SelectContent>
                       </Select>
@@ -953,6 +1038,99 @@ function FrameFormDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Quick-add Manufacturer modal */}
+      <Dialog open={showAddMfgModal} onOpenChange={(o) => { if (!o) setShowAddMfgModal(false); }}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Add Manufacturer</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Manufacturer Name</label>
+              <Input
+                data-testid="input-new-manufacturer-name"
+                placeholder="e.g. Luxottica"
+                value={newMfgName}
+                onChange={(e) => setNewMfgName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const name = newMfgName.trim();
+                    if (name) addMfgMutation.mutate(name);
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowAddMfgModal(false)}>Cancel</Button>
+            <Button
+              type="button"
+              data-testid="button-save-new-manufacturer"
+              disabled={!newMfgName.trim() || addMfgMutation.isPending}
+              onClick={() => {
+                const name = newMfgName.trim();
+                if (name) addMfgMutation.mutate(name);
+              }}
+            >
+              {addMfgMutation.isPending ? "Saving..." : "Add Manufacturer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick-add Brand modal */}
+      <Dialog open={showAddBrandModal} onOpenChange={(o) => { if (!o) setShowAddBrandModal(false); }}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Add Brand</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Brand Name</label>
+              <Input
+                data-testid="input-new-brand-name"
+                placeholder="e.g. Ray-Ban"
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Manufacturer</label>
+              <Select value={newBrandMfgId} onValueChange={setNewBrandMfgId}>
+                <SelectTrigger data-testid="select-new-brand-manufacturer">
+                  <SelectValue placeholder="Select manufacturer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {manufacturersData.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setShowAddBrandModal(false)}>Cancel</Button>
+            <Button
+              type="button"
+              data-testid="button-save-new-brand"
+              disabled={!newBrandName.trim() || !newBrandMfgId || addBrandMutation.isPending}
+              onClick={() => {
+                const name = newBrandName.trim();
+                if (name && newBrandMfgId) {
+                  addBrandMutation.mutate({ manufacturerId: newBrandMfgId, name });
+                }
+              }}
+            >
+              {addBrandMutation.isPending ? "Saving..." : "Add Brand"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
