@@ -680,7 +680,11 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
       }
       const order = await storage.createLabOrder(parsed.data);
-      res.status(201).json(order);
+      if (!parsed.data.patientOwnFrame && parsed.data.frameId) {
+        await storage.markLabOrderFrameSold(order.id);
+      }
+      const finalOrder = await storage.getLabOrder(order.id);
+      res.status(201).json(finalOrder ?? order);
     } catch {
       res.status(500).json({ message: "Failed to create lab order" });
     }
