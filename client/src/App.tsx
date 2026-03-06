@@ -13,6 +13,7 @@ import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Setup from "@/pages/setup";
 import Invite from "@/pages/invite";
+import WeeklyMetrics from "@/pages/weekly-metrics";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
@@ -88,6 +89,7 @@ function AppShell() {
               <Route path="/dashboard" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />
+              <Route path="/weekly-metrics" component={WeeklyMetrics} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />
             </Switch>

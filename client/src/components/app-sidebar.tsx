@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, FlaskConical, Settings, LogOut, User } from "lucide-react";
+import { LayoutDashboard, Package, FlaskConical, Settings, LogOut, User, BarChart2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -21,6 +21,7 @@ const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Lab Orders", url: "/lab-orders", icon: FlaskConical },
+  { title: "Weekly Metrics", url: "/weekly-metrics", icon: BarChart2 },
 ];
 
 export function AppSidebar() {

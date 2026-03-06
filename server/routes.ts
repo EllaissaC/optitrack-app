@@ -4,7 +4,7 @@ import passport from "passport";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { storage } from "./storage";
-import { insertFrameSchema } from "@shared/schema";
+import { insertFrameSchema, insertWeeklyMetricSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
 import { z } from "zod";
@@ -453,6 +453,38 @@ export async function registerRoutes(
       res.json({ message: "Frame deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete frame" });
+    }
+  });
+
+  app.get("/api/weekly-metrics", requireAuth, async (_req, res) => {
+    try {
+      const metrics = await storage.getWeeklyMetrics();
+      res.json(metrics);
+    } catch {
+      res.status(500).json({ message: "Failed to fetch weekly metrics" });
+    }
+  });
+
+  app.post("/api/weekly-metrics", requireAuth, async (req, res) => {
+    try {
+      const parsed = insertWeeklyMetricSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+      }
+      const metric = await storage.createWeeklyMetric(parsed.data);
+      res.status(201).json(metric);
+    } catch {
+      res.status(500).json({ message: "Failed to save weekly metrics" });
+    }
+  });
+
+  app.delete("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteWeeklyMetric(req.params.id as string);
+      if (!deleted) return res.status(404).json({ message: "Not found" });
+      res.json({ message: "Deleted" });
+    } catch {
+      res.status(500).json({ message: "Failed to delete weekly metric" });
     }
   });
 

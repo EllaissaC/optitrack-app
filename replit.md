@@ -4,9 +4,10 @@
 A web dashboard for tracking optical frame inventory for opticians and eyewear professionals, with user authentication, lab workflow management, and email reminders.
 
 ## Features
-- **Dashboard**: Stats overview (total frames, on board, at lab, sold), recent frames list, financial summary, "Frames Needing Lab Follow-Up" amber alert card (14+ days)
-- **Inventory**: Full CRUD table with search and status filtering; barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation
-- **Lab Orders**: Dedicated page showing only frames with `at_lab` status. Separate columns for Brand, Model, Lab Name, Lab Order #, Vision Plan, Tracking, Date Sent, and Days at Lab with color indicators (0-7 green, 8-13 yellow, 14+ red). "Mark Received" button changes status to On Board and records `dateReceivedFromLab`. Edit dialog lets staff update all lab order fields including Vision Plan.
+- **Dashboard**: Inventory overview stats (total, on board, at lab, sold) + Sales Performance cards (total revenue, wholesale cost, profit, profit margin) + monthly stats + Top 5 Brands/Manufacturers/Models analytics + overdue lab alert + recent frames list
+- **Inventory**: Full CRUD table with search and status filtering; Profit column (retail − wholesale); barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation
+- **Lab Orders**: Dedicated page showing only `at_lab` frames. Search by Lab Order #, filters for Lab / Vision Plan / Days at Lab. Columns: Brand, Model, Lab Name, Lab Order #, Vision Plan, Tracking, Date Sent, Days at Lab (color-coded). "Mark Received" moves frame back to On Board.
+- **Weekly Metrics**: Staff enter weekly optical data (Total Comprehensive Exams, Follow Ups/Next Year, Scheduled Appointments, Total Optical Orders). Auto-calculates Scheduling Rate and Capture Rate (with live preview while typing). History table shows all previous weeks. Color-coded badges (≥80% green, 60-79% yellow, <60% red). Summary stat cards show averages.
 - **Authentication**: Passport-local auth with bcryptjs, session management, admin/staff roles, invite-by-email with 7-day expiry tokens, first-run admin setup flow
 - **Settings (Admin Only)**: 4 tabs — General (email reminders, default multiplier), Labs CRUD, Manufacturers & Brands CRUD, Team management (invite, toggle, delete)
 - **Email Reminders**: SendGrid integration for frames 14+ days at lab; `/api/reminders/check` endpoint
@@ -20,7 +21,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - **Email**: `server/email.ts` (SendGrid)
 
 ## Key Files
-- `shared/schema.ts` - Full database schema (frames, users, settings, labs, manufacturers, brands)
+- `shared/schema.ts` - Full database schema (frames, users, settings, labs, manufacturers, brands, weeklyMetrics)
 - `server/storage.ts` - Database storage interface
 - `server/routes.ts` - All API endpoints
 - `server/auth.ts` - Authentication setup (passport, session, routes)
@@ -29,6 +30,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `client/src/pages/dashboard.tsx` - Dashboard page
 - `client/src/pages/inventory.tsx` - Inventory table page with FrameDialog
 - `client/src/pages/lab-orders.tsx` - Lab orders page (at_lab frames only)
+- `client/src/pages/weekly-metrics.tsx` - Weekly optical performance metrics page
 - `client/src/pages/settings.tsx` - Admin settings page (4 tabs)
 - `client/src/pages/login.tsx` - Login page
 - `client/src/pages/setup.tsx` - First-run admin setup
@@ -39,6 +41,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `/` - Dashboard
 - `/inventory` - Frame inventory
 - `/lab-orders` - Lab orders (at-lab frames)
+- `/weekly-metrics` - Weekly optical performance metrics
 - `/settings` - Admin settings
 - `/login` - Login
 - `/setup` - First-run admin setup
@@ -65,6 +68,9 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `GET /api/auth/invite/:token` - Check invite token
 - `POST /api/auth/accept-invite` - Accept invite and set password
 - `POST /api/reminders/check` - Trigger email reminder check
+- `GET /api/weekly-metrics` - List weekly metrics (newest first)
+- `POST /api/weekly-metrics` - Save a new week's metrics
+- `DELETE /api/weekly-metrics/:id` - Delete a weekly metric entry
 
 ## Frame Status Values
 - `on_board` - Frame is in stock

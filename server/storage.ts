@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "./db";
 import {
   frames, type Frame, type InsertFrame,
@@ -7,6 +7,7 @@ import {
   labs, type Lab, type InsertLab,
   manufacturers, type Manufacturer, type InsertManufacturer,
   brands, type Brand, type InsertBrand,
+  weeklyMetrics, type WeeklyMetric, type InsertWeeklyMetric,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -51,6 +52,10 @@ export interface IStorage {
   createBrand(data: InsertBrand): Promise<Brand>;
   updateBrand(id: string, data: Partial<InsertBrand>): Promise<Brand | undefined>;
   deleteBrand(id: string): Promise<boolean>;
+
+  getWeeklyMetrics(): Promise<WeeklyMetric[]>;
+  createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
+  deleteWeeklyMetric(id: string): Promise<boolean>;
 }
 
 export class DbStorage implements IStorage {
@@ -235,6 +240,20 @@ export class DbStorage implements IStorage {
 
   async deleteBrand(id: string): Promise<boolean> {
     const result = await db.delete(brands).where(eq(brands.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getWeeklyMetrics(): Promise<WeeklyMetric[]> {
+    return db.select().from(weeklyMetrics).orderBy(desc(weeklyMetrics.weekStarting));
+  }
+
+  async createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric> {
+    const [created] = await db.insert(weeklyMetrics).values(data).returning();
+    return created;
+  }
+
+  async deleteWeeklyMetric(id: string): Promise<boolean> {
+    const result = await db.delete(weeklyMetrics).where(eq(weeklyMetrics.id, id)).returning();
     return result.length > 0;
   }
 }

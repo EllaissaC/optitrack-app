@@ -96,3 +96,17 @@ export const brands = pgTable("brands", {
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
 export type InsertBrand = z.infer<typeof insertBrandSchema>;
 export type Brand = typeof brands.$inferSelect;
+
+export const weeklyMetrics = pgTable("weekly_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  weekStarting: text("week_starting").notNull(),
+  totalComprehensiveExams: integer("total_comprehensive_exams").notNull(),
+  followUps: integer("follow_ups").notNull(),
+  scheduledAppointments: integer("scheduled_appointments").notNull(),
+  totalOpticalOrders: integer("total_optical_orders").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWeeklyMetricSchema = createInsertSchema(weeklyMetrics).omit({ id: true, createdAt: true });
+export type InsertWeeklyMetric = z.infer<typeof insertWeeklyMetricSchema>;
+export type WeeklyMetric = typeof weeklyMetrics.$inferSelect;
