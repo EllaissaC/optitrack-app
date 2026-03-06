@@ -59,10 +59,6 @@ const formSchema = z.object({
     .number({ invalid_type_error: "Must be a number" })
     .int()
     .min(0, "Cannot be negative"),
-  scheduledAppointments: z.coerce
-    .number({ invalid_type_error: "Must be a number" })
-    .int()
-    .min(0, "Cannot be negative"),
   totalOpticalOrders: z.coerce
     .number({ invalid_type_error: "Must be a number" })
     .int()
@@ -119,10 +115,12 @@ function MetricStatCard({
             ) : (
               <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
             )}
-            {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+            {subtitle && !loading && (
+              <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+            )}
           </div>
-          <div className={`p-2.5 rounded-lg ${bgColor} flex-shrink-0`}>
-            <Icon className={`w-4 h-4 ${iconColor}`} />
+          <div className={`w-9 h-9 rounded-lg ${bgColor} flex items-center justify-center flex-shrink-0`}>
+            <Icon className={`w-4.5 h-4.5 ${iconColor}`} />
           </div>
         </div>
       </CardContent>
@@ -149,17 +147,16 @@ export default function WeeklyMetricsPage() {
       weekStarting: "",
       totalComprehensiveExams: "" as unknown as number,
       followUps: "" as unknown as number,
-      scheduledAppointments: "" as unknown as number,
       totalOpticalOrders: "" as unknown as number,
     },
   });
 
   const watchedExams = form.watch("totalComprehensiveExams");
-  const watchedScheduled = form.watch("scheduledAppointments");
+  const watchedFollowUps = form.watch("followUps");
   const watchedOrders = form.watch("totalOpticalOrders");
 
   const examsNum = Number(watchedExams) || 0;
-  const liveSchedulingRate = calcRate(Number(watchedScheduled) || 0, examsNum);
+  const liveSchedulingRate = calcRate(Number(watchedFollowUps) || 0, examsNum);
   const liveCaptureRate = calcRate(Number(watchedOrders) || 0, examsNum);
 
   const saveMutation = useMutation({
@@ -172,7 +169,6 @@ export default function WeeklyMetricsPage() {
         weekStarting: "",
         totalComprehensiveExams: "" as unknown as number,
         followUps: "" as unknown as number,
-        scheduledAppointments: "" as unknown as number,
         totalOpticalOrders: "" as unknown as number,
       });
     },
@@ -201,7 +197,7 @@ export default function WeeklyMetricsPage() {
   const avgSchedulingRate =
     metrics.length > 0
       ? metrics.reduce((acc, m) => {
-          const r = calcRate(m.scheduledAppointments, m.totalComprehensiveExams);
+          const r = calcRate(m.followUps, m.totalComprehensiveExams);
           return acc + (r ?? 0);
         }, 0) / metrics.length
       : null;
@@ -323,7 +319,7 @@ export default function WeeklyMetricsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-1.5">
-                        <ClipboardList className="w-3.5 h-3.5 text-muted-foreground" />
+                        <Target className="w-3.5 h-3.5 text-muted-foreground" />
                         Follow Ups / Next Year Exams
                       </FormLabel>
                       <FormControl>
@@ -332,29 +328,6 @@ export default function WeeklyMetricsPage() {
                           min={0}
                           placeholder="0"
                           data-testid="input-follow-ups"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="scheduledAppointments"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-muted-foreground" />
-                        Scheduled Appointments
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          data-testid="input-scheduled"
                           {...field}
                         />
                       </FormControl>
@@ -396,7 +369,7 @@ export default function WeeklyMetricsPage() {
                       <span className="text-sm text-foreground">Scheduling Rate</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                          {Number(watchedScheduled) || 0} ÷ {examsNum} × 100
+                          {Number(watchedFollowUps) || 0} ÷ {examsNum} × 100
                         </span>
                         <RateBadge rate={liveSchedulingRate} label="scheduling-live" />
                       </div>
@@ -453,7 +426,6 @@ export default function WeeklyMetricsPage() {
                       <TableHead className="font-semibold pl-5">Week</TableHead>
                       <TableHead className="font-semibold text-right">Exams</TableHead>
                       <TableHead className="font-semibold text-right">Follow Ups</TableHead>
-                      <TableHead className="font-semibold text-right">Scheduled</TableHead>
                       <TableHead className="font-semibold text-right">Orders</TableHead>
                       <TableHead className="font-semibold text-center">Scheduling Rate</TableHead>
                       <TableHead className="font-semibold text-center">Capture Rate</TableHead>
@@ -462,7 +434,7 @@ export default function WeeklyMetricsPage() {
                   </TableHeader>
                   <TableBody>
                     {metrics.map((m) => {
-                      const schedulingRate = calcRate(m.scheduledAppointments, m.totalComprehensiveExams);
+                      const schedulingRate = calcRate(m.followUps, m.totalComprehensiveExams);
                       const captureRate = calcRate(m.totalOpticalOrders, m.totalComprehensiveExams);
                       return (
                         <TableRow
@@ -480,9 +452,6 @@ export default function WeeklyMetricsPage() {
                           </TableCell>
                           <TableCell className="text-right text-sm text-muted-foreground py-3.5" data-testid={`text-followups-${m.id}`}>
                             {m.followUps}
-                          </TableCell>
-                          <TableCell className="text-right text-sm py-3.5" data-testid={`text-scheduled-${m.id}`}>
-                            {m.scheduledAppointments}
                           </TableCell>
                           <TableCell className="text-right text-sm py-3.5" data-testid={`text-orders-${m.id}`}>
                             {m.totalOpticalOrders}
