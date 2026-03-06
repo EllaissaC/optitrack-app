@@ -14,6 +14,7 @@ import Login from "@/pages/login";
 import Setup from "@/pages/setup";
 import Invite from "@/pages/invite";
 import WeeklyMetrics from "@/pages/weekly-metrics";
+import Home from "@/pages/home";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
@@ -45,7 +46,7 @@ function AppShell() {
     }
 
     if (location === "/" || location === "/login" || location === "/setup") {
-      navigate("/dashboard");
+      navigate("/home");
     }
   }, [ready, setupStatus, user, location, navigate]);
 
@@ -74,6 +75,10 @@ function AppShell() {
     );
   }
 
+  if (location === "/home") {
+    return <Home />;
+  }
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -86,6 +91,7 @@ function AppShell() {
           <main className="flex-1 overflow-y-auto">
             <Switch>
               <Route path="/" component={Dashboard} />
+              <Route path="/home" component={Home} />
               <Route path="/dashboard" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />

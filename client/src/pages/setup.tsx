@@ -37,7 +37,7 @@ export default function Setup() {
     },
     onSuccess: async () => {
       await queryClient.refetchQueries({ queryKey: ["/api/auth/me"] });
-      navigate("/dashboard");
+      navigate("/home");
     },
   });
 
