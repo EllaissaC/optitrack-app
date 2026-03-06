@@ -10,6 +10,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -297,11 +298,11 @@ function LabsTab() {
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-2">
-              <FormLabel>Lab Name</FormLabel>
+              <Label>Lab Name</Label>
               <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Vision-Craft" data-testid="input-lab-name" />
             </div>
             <div className="space-y-2">
-              <FormLabel>Account Number</FormLabel>
+              <Label>Account Number</Label>
               <Input value={formAccount} onChange={(e) => setFormAccount(e.target.value)} placeholder="e.g. Y1500" data-testid="input-lab-account" />
             </div>
           </div>
@@ -321,11 +322,11 @@ function LabsTab() {
           </DialogHeader>
           <div className="space-y-4 py-1">
             <div className="space-y-2">
-              <FormLabel>Lab Name</FormLabel>
+              <Label>Lab Name</Label>
               <Input value={formName} onChange={(e) => setFormName(e.target.value)} data-testid="input-edit-lab-name" />
             </div>
             <div className="space-y-2">
-              <FormLabel>Account Number</FormLabel>
+              <Label>Account Number</Label>
               <Input value={formAccount} onChange={(e) => setFormAccount(e.target.value)} data-testid="input-edit-lab-account" />
             </div>
           </div>
@@ -521,7 +522,7 @@ function ManufacturersTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Add Manufacturer</DialogTitle></DialogHeader>
           <div className="py-1">
-            <FormLabel>Name</FormLabel>
+            <Label>Name</Label>
             <Input className="mt-2" value={mfgName} onChange={(e) => setMfgName(e.target.value)} placeholder="e.g. Luxottica" data-testid="input-manufacturer-name" />
           </div>
           <DialogFooter>
@@ -537,7 +538,7 @@ function ManufacturersTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Manufacturer</DialogTitle></DialogHeader>
           <div className="py-1">
-            <FormLabel>Name</FormLabel>
+            <Label>Name</Label>
             <Input className="mt-2" value={mfgName} onChange={(e) => setMfgName(e.target.value)} data-testid="input-edit-manufacturer-name" />
           </div>
           <DialogFooter>
@@ -553,7 +554,7 @@ function ManufacturersTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Add Brand to {selectedMfg?.name}</DialogTitle></DialogHeader>
           <div className="py-1">
-            <FormLabel>Brand Name</FormLabel>
+            <Label>Brand Name</Label>
             <Input className="mt-2" value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="e.g. Ray-Ban" data-testid="input-brand-name" />
           </div>
           <DialogFooter>
@@ -569,7 +570,7 @@ function ManufacturersTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Brand</DialogTitle></DialogHeader>
           <div className="py-1">
-            <FormLabel>Brand Name</FormLabel>
+            <Label>Brand Name</Label>
             <Input className="mt-2" value={brandName} onChange={(e) => setBrandName(e.target.value)} data-testid="input-edit-brand-name" />
           </div>
           <DialogFooter>
@@ -746,11 +747,11 @@ function TeamTab() {
           ) : (
             <div className="space-y-4 py-1">
               <div className="space-y-2">
-                <FormLabel>Email address</FormLabel>
+                <Label>Email address</Label>
                 <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="staff@clinic.com" data-testid="input-invite-email" />
               </div>
               <div className="space-y-2">
-                <FormLabel>Role</FormLabel>
+                <Label>Role</Label>
                 <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "admin" | "staff")}>
                   <SelectTrigger data-testid="select-invite-role">
                     <SelectValue />
