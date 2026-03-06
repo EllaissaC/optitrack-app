@@ -37,7 +37,7 @@ export function AppSidebar() {
           </div>
           <div>
             <p className="text-sm font-semibold text-sidebar-foreground leading-tight">OptiTrack</p>
-            <p className="text-xs text-muted-foreground">Frame Inventory</p>
+            <p className="text-xs text-muted-foreground">Frame Inventory & Lab Order Management</p>
           </div>
         </div>
       </SidebarHeader>

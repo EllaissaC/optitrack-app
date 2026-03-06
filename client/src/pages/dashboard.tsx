@@ -96,7 +96,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Overview of your optical frame inventory</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

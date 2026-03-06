@@ -46,7 +46,7 @@ export default function Login() {
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-foreground">OptiTrack</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Frame Inventory Management</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Frame Inventory & Lab Order Management</p>
           </div>
         </div>
 
