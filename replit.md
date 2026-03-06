@@ -1,41 +1,77 @@
 # OptiTrack - Optical Frame Inventory Tracker
 
 ## Overview
-A web dashboard for tracking optical frame inventory for opticians and eyewear professionals.
+A web dashboard for tracking optical frame inventory for opticians and eyewear professionals, with user authentication, lab workflow management, and email reminders.
 
 ## Features
-- **Dashboard**: Stats overview (total frames, on board, at lab, sold), recent frames list, financial summary
-- **Inventory**: Full CRUD table with search and status filtering
-- **Barcode Scanning**: USB scanner-compatible scan input at top of inventory page; found frames show a detail card with quick-action buttons; unknown barcodes auto-open Add Frame form pre-filled
-- **Manufacturer/Brand dropdowns**: Dependent select dropdowns with 11 manufacturers and their associated brands; custom entries persisted to localStorage via `client/src/lib/manufacturers.ts`
-- **Lab Workflow**: When status = "At Lab", form reveals: Lab Name dropdown (5 default labs with account numbers), Account Number (auto-filled on lab select), Lab Order Number, Date Sent to Lab (auto-fills today), Tracking Number. "+ Add Lab" opens a dialog to enter Lab Name + Account Number. Custom labs persist in localStorage.
-- **Frame fields**: manufacturer, brand, model, color, eye size, bridge, temple length, cost, retail price, status, barcode, labOrderNumber, labName, labAccountNumber, trackingNumber, dateSentToLab
+- **Dashboard**: Stats overview (total frames, on board, at lab, sold), recent frames list, financial summary, "Frames Needing Lab Follow-Up" amber alert card (14+ days)
+- **Inventory**: Full CRUD table with search and status filtering; barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation
+- **Lab Orders**: Dedicated page showing only frames with `at_lab` status. Table displays brand, model, lab name, order number, tracking number, date sent, and days at lab with color indicators (0-7 green, 8-13 yellow, 14+ red). Users can edit lab order details or mark frames as received (changes status to On Board or Sold).
+- **Authentication**: Passport-local auth with bcryptjs, session management, admin/staff roles, invite-by-email with 7-day expiry tokens, first-run admin setup flow
+- **Settings (Admin Only)**: 4 tabs — General (email reminders, default multiplier), Labs CRUD, Manufacturers & Brands CRUD, Team management (invite, toggle, delete)
+- **Email Reminders**: SendGrid integration for frames 14+ days at lab; `/api/reminders/check` endpoint
 
 ## Architecture
 - **Frontend**: React + TypeScript + Vite, TanStack Query, shadcn/ui, wouter routing
 - **Backend**: Express.js REST API
 - **Database**: PostgreSQL via Drizzle ORM
 - **Schema**: `shared/schema.ts`
+- **Auth**: `server/auth.ts` (passport-local, bcryptjs, express-session)
+- **Email**: `server/email.ts` (SendGrid)
 
 ## Key Files
-- `shared/schema.ts` - Frame and User database schema
-- `server/db.ts` - Drizzle + pg database connection
+- `shared/schema.ts` - Full database schema (frames, users, settings, labs, manufacturers, brands)
 - `server/storage.ts` - Database storage interface
-- `server/routes.ts` - API endpoints (CRUD for frames)
-- `server/seed.ts` - Seed data (7 realistic frames)
-- `client/src/App.tsx` - App layout with sidebar
+- `server/routes.ts` - All API endpoints
+- `server/auth.ts` - Authentication setup (passport, session, routes)
+- `server/email.ts` - SendGrid email module
+- `client/src/App.tsx` - App layout with auth-gated routing
 - `client/src/pages/dashboard.tsx` - Dashboard page
-- `client/src/pages/inventory.tsx` - Inventory table page
+- `client/src/pages/inventory.tsx` - Inventory table page with FrameDialog
+- `client/src/pages/lab-orders.tsx` - Lab orders page (at_lab frames only)
+- `client/src/pages/settings.tsx` - Admin settings page (4 tabs)
+- `client/src/pages/login.tsx` - Login page
+- `client/src/pages/setup.tsx` - First-run admin setup
+- `client/src/pages/invite.tsx` - Accept invite page
 - `client/src/components/app-sidebar.tsx` - Navigation sidebar
 
+## Navigation
+- `/` - Dashboard
+- `/inventory` - Frame inventory
+- `/lab-orders` - Lab orders (at-lab frames)
+- `/settings` - Admin settings
+- `/login` - Login
+- `/setup` - First-run admin setup
+- `/invite` - Accept invite
+
 ## API Endpoints
-- `GET /api/frames` - List all frames
-- `GET /api/frames/:id` - Get single frame
-- `POST /api/frames` - Create frame
-- `PATCH /api/frames/:id` - Update frame
-- `DELETE /api/frames/:id` - Delete frame
+- `GET/POST /api/frames` - List/create frames
+- `GET/PATCH/DELETE /api/frames/:id` - Single frame operations
+- `GET /api/labs` - List labs
+- `POST /api/labs` - Create lab (admin)
+- `PATCH/DELETE /api/labs/:id` - Update/delete lab (admin)
+- `GET /api/manufacturers` - List manufacturers
+- `GET /api/manufacturers/:id/brands` - List brands for manufacturer
+- `POST/PATCH/DELETE /api/manufacturers/:id` - Manage manufacturers (admin)
+- `POST/PATCH/DELETE /api/brands/:id` - Manage brands (admin)
+- `GET/PUT /api/settings` - App settings (auth required / admin)
+- `GET/POST/PATCH/DELETE /api/users` - User management (admin)
+- `POST /api/auth/login` - Login
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Current user
+- `POST /api/auth/setup` - Create first admin
+- `GET /api/auth/setup-required` - Check if setup needed
+- `POST /api/auth/invite` - Send invite (admin)
+- `GET /api/auth/invite/:token` - Check invite token
+- `POST /api/auth/accept-invite` - Accept invite and set password
+- `POST /api/reminders/check` - Trigger email reminder check
 
 ## Frame Status Values
 - `on_board` - Frame is in stock
 - `at_lab` - Frame is being processed at a lab
 - `sold` - Frame has been sold
+
+## Environment Variables
+- `DATABASE_URL` - PostgreSQL connection string
+- `SESSION_SECRET` - Express session secret
+- `SENDGRID_API_KEY` - SendGrid API key for email reminders (optional)

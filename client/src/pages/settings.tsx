@@ -163,19 +163,17 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
         </CardContent>
       </Card>
 
-      {!process.env.SENDGRID_API_KEY && (
-        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
-          <CardContent className="pt-4 flex gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Email sending not configured</p>
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Add a <code className="font-mono text-xs bg-amber-100 dark:bg-amber-900 px-1 rounded">SENDGRID_API_KEY</code> secret to enable email delivery. The reminder system will still track overdue frames even without email.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+        <CardContent className="pt-4 flex gap-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Email sending not configured</p>
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Add a <code className="font-mono text-xs bg-amber-100 dark:bg-amber-900 px-1 rounded">SENDGRID_API_KEY</code> secret to enable email delivery. The reminder system will still track overdue frames even without email.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

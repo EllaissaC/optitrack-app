@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Inventory from "@/pages/inventory";
+import LabOrders from "@/pages/lab-orders";
 import Settings from "@/pages/settings";
 import Login from "@/pages/login";
 import Setup from "@/pages/setup";
@@ -64,6 +65,7 @@ function AppShell() {
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
+              <Route path="/lab-orders" component={LabOrders} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />
             </Switch>
