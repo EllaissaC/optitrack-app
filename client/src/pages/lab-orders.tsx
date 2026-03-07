@@ -842,6 +842,7 @@ function DeleteLabOrderDialog({ order, open, onClose }: { order: LabOrder | null
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       toast({ title: "Lab order deleted" });
       onClose();
     },

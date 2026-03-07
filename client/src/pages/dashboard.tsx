@@ -2,14 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
-  AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays,
+  AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays, RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Frame } from "@shared/schema";
-import { getQueryFn } from "@/lib/queryClient";
+import { queryClient, getQueryFn } from "@/lib/queryClient";
 
 const STATUS_CONFIG = {
   on_board: { label: "On Board", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", dot: "bg-emerald-500" },
@@ -148,7 +148,7 @@ function topN(
 }
 
 export default function Dashboard() {
-  const { data: frames = [], isLoading } = useQuery<Frame[]>({
+  const { data: frames = [], isLoading, isFetching, refetch } = useQuery<Frame[]>({
     queryKey: ["/api/frames"],
   });
 
@@ -187,11 +187,29 @@ export default function Dashboard() {
 
   const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
+  async function handleRefresh() {
+    await queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    refetch();
+  }
+
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isFetching}
+          data-testid="button-refresh-analytics"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+          {isFetching ? "Refreshing..." : "Refresh Analytics"}
+        </Button>
       </div>
 
       {/* Row 1: Inventory status stats */}
