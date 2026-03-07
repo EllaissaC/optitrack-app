@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { createRequire } from "module";
 
-const require = createRequire(import.meta.url);
-const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = require("pdf-parse");
+const _require = createRequire(import.meta.url ?? (process.cwd() + "/server/invoiceParser.ts"));
+const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
