@@ -1252,6 +1252,7 @@ function FrameFormDialog({
 }
 
 interface ExtractedFrame {
+  manufacturer: string;
   brand: string;
   model: string;
   color: string;
@@ -1351,9 +1352,12 @@ function InvoiceImportDialog({
       try {
         const costNum = parseFloat(row.cost) || 0;
         const retailNum = Math.round(costNum * 2.5 * 100) / 100;
+        const manufacturer = row.manufacturer?.trim() || row.brand?.trim() || "Unknown";
+        const brand = row.brand?.trim() || manufacturer;
 
         const payload = {
-          brand: row.brand,
+          manufacturer,
+          brand,
           model: row.model,
           color: row.color,
           eyeSize: Number(row.eyeSize) || 52,
@@ -1387,9 +1391,11 @@ function InvoiceImportDialog({
     queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
     setImporting(false);
     setImportSummary({ added, skipped });
+    const parts = [`${added} frame${added !== 1 ? "s" : ""} added`];
+    if (skipped > 0) parts.push(`${skipped} skipped (already exist)`);
     toast({
       title: "Import complete",
-      description: `${added} frame${added !== 1 ? "s" : ""} added${skipped > 0 ? `, ${skipped} skipped (already exist)` : ""}.`,
+      description: parts.join(", ") + ".",
     });
   }
 
@@ -1461,6 +1467,7 @@ function InvoiceImportDialog({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Manufacturer</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead>Model</TableHead>
                       <TableHead>Color</TableHead>
@@ -1475,6 +1482,14 @@ function InvoiceImportDialog({
                   <TableBody>
                     {rows.map((row, idx) => (
                       <TableRow key={idx} data-testid={`row-invoice-frame-${idx}`}>
+                        <TableCell>
+                          <input
+                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            value={row.manufacturer ?? ""}
+                            onChange={(e) => updateRow(idx, "manufacturer", e.target.value)}
+                            data-testid={`input-invoice-manufacturer-${idx}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <input
                             className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"

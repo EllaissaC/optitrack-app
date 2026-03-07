@@ -10,6 +10,7 @@ const openai = new OpenAI({
 });
 
 export interface ExtractedFrame {
+  manufacturer: string;
   brand: string;
   model: string;
   color: string;
@@ -23,13 +24,14 @@ export interface ExtractedFrame {
 const SYSTEM_PROMPT = `You are an optical frame inventory specialist. Extract eyeglass/spectacle frame line items from invoices.
 
 For each frame product found, output a JSON object with these fields:
-- brand: brand name (e.g. "Ray-Ban", "Oakley", "Gucci", "Silhouette")
-- model: model name or SKU (e.g. "RX5228", "Pitchman R", "GG0396O")
+- manufacturer: the company that manufactures or distributes the frames (e.g. "Marchon", "Safilo", "Luxottica", "Silhouette"). This is usually the invoice sender or vendor name. If unclear, use the same value as brand.
+- brand: the specific label or brand name on the frame (e.g. "Ray-Ban", "Dragon", "Oakley", "Boss", "Gucci"). If the manufacturer sells directly under their own name, use the same value as manufacturer.
+- model: model name or SKU (e.g. "RX5228", "M-2037", "GG0396O")
 - color: color or finish (e.g. "Black", "Tortoise Brown", "Shiny Gold")
 - eyeSize: eye lens width as integer mm (from size like "53-17-140" → 53, or "53□17" → 53). Default 52 if unknown.
 - bridge: bridge width as integer mm (from size → 17). Default 18 if unknown.
 - templeLength: temple arm length as integer mm (from size → 140). Default 145 if unknown.
-- cost: wholesale/invoice unit price as string (e.g. "62.00"). If shown in a currency, strip the symbol.
+- cost: wholesale/invoice unit price as string (e.g. "62.00"). Strip any currency symbols.
 - quantity: integer quantity ordered. Default 1 if not shown.
 
 Rules:

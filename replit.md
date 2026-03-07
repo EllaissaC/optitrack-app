@@ -30,7 +30,8 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `server/email.ts` - SendGrid email module
 - `client/src/App.tsx` - App layout with auth-gated routing
 - `client/src/pages/dashboard.tsx` - Dashboard page
-- `client/src/pages/inventory.tsx` - Inventory table page with FrameDialog
+- `client/src/pages/inventory.tsx` - Inventory table page with FrameDialog and InvoiceImportDialog
+- `server/invoiceParser.ts` - PDF invoice parser using OpenAI gpt-4o (pdf-parse v1.1.1, createRequire CJS fallback)
 - `client/src/pages/lab-orders.tsx` - Lab orders page (at_lab frames only)
 - `client/src/pages/weekly-metrics.tsx` - Weekly optical performance metrics page
 - `client/src/pages/settings.tsx` - Admin settings page (4 tabs)
@@ -70,6 +71,7 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `GET /api/auth/invite/:token` - Check invite token
 - `POST /api/auth/accept-invite` - Accept invite and set password
 - `POST /api/reminders/check` - Trigger email reminder check
+- `POST /api/invoice/parse` - Parse PDF invoice via OpenAI, returns array of ExtractedFrame objects (manufacturer, brand, model, color, eyeSize, bridge, templeLength, cost, quantity)
 - `GET /api/weekly-metrics` - List weekly metrics (newest first)
 - `POST /api/weekly-metrics` - Save a new week's metrics
 - `DELETE /api/weekly-metrics/:id` - Delete a weekly metric entry
