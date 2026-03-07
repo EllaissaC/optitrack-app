@@ -370,8 +370,26 @@ export class DbStorage implements IStorage {
   }
 
   async deleteLabOrder(id: string): Promise<boolean> {
+    const order = await this.getLabOrder(id);
+
     const result = await db.delete(labOrders).where(eq(labOrders.id, id)).returning();
-    return result.length > 0;
+    if (result.length === 0) return false;
+
+    if (order && order.frameSold && !order.patientOwnFrame && order.frameId) {
+      const frameRows = await db.select().from(frames).where(eq(frames.id, order.frameId)).limit(1);
+      if (frameRows.length > 0) {
+        const currentCount = frameRows[0].soldCount ?? 0;
+        const newCount = Math.max(0, currentCount - 1);
+        await db.update(frames)
+          .set({
+            soldCount: newCount,
+            dateSold: newCount === 0 ? null : frameRows[0].dateSold,
+          })
+          .where(eq(frames.id, order.frameId));
+      }
+    }
+
+    return true;
   }
 
   async markLabOrderFrameSold(labOrderId: string): Promise<void> {
