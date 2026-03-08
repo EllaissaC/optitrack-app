@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, QueryCache } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -48,6 +48,20 @@ export const getQueryFn: <T>(options: {
   };
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // If any data query gets a 401, treat it as session expiry:
+      // clear the auth cache so AppShell redirects to login gracefully
+      // instead of leaving the user on a broken/blank page.
+      if (error instanceof Error && error.message.startsWith("401:")) {
+        const key = query.queryKey[0];
+        // Don't loop on the auth query itself — it already uses returnNull
+        if (key !== "/api/auth/me" && key !== "/api/auth/setup-required") {
+          queryClient.setQueryData(["/api/auth/me"], null);
+        }
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),

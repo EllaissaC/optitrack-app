@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { useEffect } from "react";
+import { useEffect, Component, ReactNode } from "react";
 import { useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -20,7 +20,73 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
-import { Building2 } from "lucide-react";
+import { Building2, RefreshCw, AlertTriangle } from "lucide-react";
+
+// ─── Error Boundary ────────────────────────────────────────────────────────────
+// Catches any unhandled React rendering error and shows a recovery screen
+// instead of leaving the user on a blank white page.
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string;
+}
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: "" };
+  }
+
+  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
+    const msg =
+      error instanceof Error ? error.message : "An unexpected error occurred.";
+    return { hasError: true, errorMessage: msg };
+  }
+
+  componentDidCatch(error: unknown, info: { componentStack: string }) {
+    console.error("[ErrorBoundary] Caught error:", error, info.componentStack);
+  }
+
+  handleReload = () => {
+    // Clear query cache so stale/broken data doesn't immediately re-crash
+    queryClient.clear();
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background px-4">
+          <div className="max-w-sm w-full text-center space-y-4">
+            <div className="flex justify-center">
+              <AlertTriangle className="w-12 h-12 text-amber-500" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Something went wrong
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              The page encountered an unexpected error. This is usually
+              temporary — reloading will fix it.
+            </p>
+            <button
+              onClick={this.handleReload}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reload page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── App Shell ─────────────────────────────────────────────────────────────────
 
 function AppShell() {
   const { user, isLoading } = useAuth();
@@ -125,11 +191,15 @@ function AppShell() {
   );
 }
 
+// ─── Root ──────────────────────────────────────────────────────────────────────
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppShell />
+        <ErrorBoundary>
+          <AppShell />
+        </ErrorBoundary>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
