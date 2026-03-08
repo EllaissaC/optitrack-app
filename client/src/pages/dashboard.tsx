@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Frame } from "@shared/schema";
+import type { Frame, LabOrder } from "@shared/schema";
 import { queryClient, getQueryFn } from "@/lib/queryClient";
 
 const STATUS_CONFIG = {
@@ -157,10 +157,15 @@ export default function Dashboard() {
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
 
+  const { data: labOrders = [] } = useQuery<LabOrder[]>({
+    queryKey: ["/api/lab-orders"],
+  });
+
   const reminderDays = parseInt(settingsMap.labReminderDays || "14");
 
   const onBoard = frames.filter((f) => f.status === "on_board").length;
-  const atLab = frames.filter((f) => f.status === "at_lab").length;
+  const activeLabOrders = labOrders.filter((o) => o.status === "pending" && !o.patientOwnFrame);
+  const atLab = activeLabOrders.length;
   const soldByStatus = frames.filter((f) => f.status === "sold").length;
   const total = frames.length;
 
@@ -182,15 +187,16 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
-  const overdueLabFrames = frames.filter(
-    (f) => f.status === "at_lab" && f.dateSentToLab && daysAtLab(f.dateSentToLab) >= reminderDays
-  ).sort((a, b) => daysAtLab(b.dateSentToLab!) - daysAtLab(a.dateSentToLab!));
+  const overdueLabOrders = activeLabOrders
+    .filter((o) => o.dateSentToLab && daysAtLab(o.dateSentToLab) >= reminderDays)
+    .sort((a, b) => daysAtLab(b.dateSentToLab!) - daysAtLab(a.dateSentToLab!));
 
   const currentMonth = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
   async function handleRefresh() {
     await queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
     await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
     refetch();
   }
 
@@ -323,7 +329,7 @@ export default function Dashboard() {
       </div>
 
       {/* Lab follow-up alert */}
-      {!isLoading && overdueLabFrames.length > 0 && (
+      {!isLoading && overdueLabOrders.length > 0 && (
         <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20">
           <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-3 px-6 pt-5">
             <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40 flex-shrink-0">
@@ -334,7 +340,7 @@ export default function Dashboard() {
                 Frames Needing Lab Follow-Up
               </CardTitle>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                {overdueLabFrames.length} frame{overdueLabFrames.length !== 1 ? "s" : ""} at lab for {reminderDays}+ days
+                {overdueLabOrders.length} order{overdueLabOrders.length !== 1 ? "s" : ""} at lab for {reminderDays}+ days
               </p>
             </div>
             <div className="ml-auto">
@@ -358,26 +364,26 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {overdueLabFrames.map((frame) => {
-                    const days = daysAtLab(frame.dateSentToLab!);
+                  {overdueLabOrders.map((order) => {
+                    const days = daysAtLab(order.dateSentToLab!);
                     return (
                       <tr
-                        key={frame.id}
+                        key={order.id}
                         className="border-b border-amber-100 dark:border-amber-900/50 last:border-0 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                        data-testid={`row-overdue-frame-${frame.id}`}
+                        data-testid={`row-overdue-frame-${order.id}`}
                       >
                         <td className="px-4 py-3">
-                          <p className="font-medium text-foreground">{frame.brand}</p>
-                          <p className="text-xs text-muted-foreground">{frame.model}</p>
+                          <p className="font-medium text-foreground">{order.frameBrand}</p>
+                          <p className="text-xs text-muted-foreground">{order.frameModel}</p>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                          {frame.labName || <span className="text-muted-foreground/50">—</span>}
+                          {order.labName || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                          {frame.visionPlan || <span className="text-muted-foreground/50">—</span>}
+                          {order.visionPlan || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                          {frame.labOrderNumber || <span className="text-muted-foreground/50">—</span>}
+                          {order.labOrderNumber || <span className="text-muted-foreground/50">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Badge
