@@ -89,6 +89,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
   const [step, setStep] = useState<"select" | "details">("select");
   const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
   const [isPOF, setIsPOF] = useState(false);
+  const [isPOFInventory, setIsPOFInventory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [barcodeValue, setBarcodeValue] = useState("");
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
@@ -130,6 +131,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       setStep("select");
       setSelectedFrame(null);
       setIsPOF(false);
+      setIsPOFInventory(false);
       setSearchQuery("");
       setBarcodeValue("");
       setBarcodeError(null);
@@ -196,39 +198,19 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
   const mutation = useMutation({
     mutationFn: async (values: AddLabOrderValues) => {
+      const commonFields = {
+        visionPlan: values.visionPlan || null,
+        labName: values.labName || null,
+        labOrderNumber: values.labOrderNumber || null,
+        labAccountNumber: values.labAccountNumber || null,
+        trackingNumber: values.trackingNumber || null,
+        dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+        notes: values.notes || null,
+        status: "pending",
+      };
       const body = isPOF
-        ? {
-            frameId: null,
-            frameBrand: "Patient Own Frame",
-            frameModel: "POF",
-            frameColor: "—",
-            frameManufacturer: "—",
-            patientOwnFrame: true,
-            visionPlan: values.visionPlan || null,
-            labName: values.labName || null,
-            labOrderNumber: values.labOrderNumber || null,
-            labAccountNumber: values.labAccountNumber || null,
-            trackingNumber: values.trackingNumber || null,
-            dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
-            notes: values.notes || null,
-            status: "pending",
-          }
-        : {
-            frameId: selectedFrame!.id,
-            frameBrand: selectedFrame!.brand,
-            frameModel: selectedFrame!.model,
-            frameColor: selectedFrame!.color,
-            frameManufacturer: selectedFrame!.manufacturer,
-            patientOwnFrame: false,
-            visionPlan: values.visionPlan || null,
-            labName: values.labName || null,
-            labOrderNumber: values.labOrderNumber || null,
-            labAccountNumber: values.labAccountNumber || null,
-            trackingNumber: values.trackingNumber || null,
-            dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
-            notes: values.notes || null,
-            status: "pending",
-          };
+        ? { ...commonFields, frameId: null, frameBrand: "Patient Own Frame", frameModel: "POF", frameColor: "—", frameManufacturer: "—", patientOwnFrame: true }
+        : { ...commonFields, frameId: selectedFrame!.id, frameBrand: selectedFrame!.brand, frameModel: selectedFrame!.model, frameColor: selectedFrame!.color, frameManufacturer: selectedFrame!.manufacturer, patientOwnFrame: isPOFInventory };
       await apiRequest("POST", "/api/lab-orders", body);
     },
     onSuccess: () => {
@@ -238,6 +220,8 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         title: "Lab order created",
         description: isPOF
           ? "Patient own frame order added"
+          : isPOFInventory
+          ? `${selectedFrame!.brand} ${selectedFrame!.model} — POF, no sale recorded`
           : `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab`,
       });
       onClose();
@@ -253,7 +237,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
             {step === "details" && (
               <button
                 type="button"
-                onClick={() => { setStep("select"); setIsPOF(false); setBarcodeValue(""); setBarcodeError(null); }}
+                onClick={() => { setStep("select"); setIsPOF(false); setIsPOFInventory(false); setBarcodeValue(""); setBarcodeError(null); }}
                 className="mr-1 text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="button-back-to-select"
               >
@@ -402,12 +386,37 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
-                  <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{selectedFrame!.brand} — {selectedFrame!.model}</p>
-                    <p className="text-xs text-muted-foreground truncate">{selectedFrame!.color} · {selectedFrame!.manufacturer}</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                    <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground truncate">{selectedFrame!.brand} — {selectedFrame!.model}</p>
+                      <p className="text-xs text-muted-foreground truncate">{selectedFrame!.color} · {selectedFrame!.manufacturer}</p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPOFInventory((v) => !v)}
+                    data-testid="button-toggle-pof-inventory"
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md border transition-colors text-left ${
+                      isPOFInventory
+                        ? "border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30"
+                        : "border-dashed border-muted-foreground/30 hover:border-amber-300 dark:hover:border-amber-700 hover:bg-amber-50/40 dark:hover:bg-amber-950/10"
+                    }`}
+                  >
+                    <UserCheck className={`w-4 h-4 flex-shrink-0 ${isPOFInventory ? "text-amber-600" : "text-muted-foreground"}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-medium ${isPOFInventory ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                        POF — Patient Own Frame
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {isPOFInventory ? "Enabled — no sale or analytics impact" : "Returning patient using their own frame from inventory"}
+                      </p>
+                    </div>
+                    <div className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 ${isPOFInventory ? "bg-amber-500" : "bg-muted-foreground/25"}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${isPOFInventory ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </div>
+                  </button>
                 </div>
               )}
 
