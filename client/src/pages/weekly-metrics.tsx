@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -164,6 +164,56 @@ function formatWeekDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+// ─── DailyInput ───────────────────────────────────────────────────────────────
+// Defined outside the page component so React never remounts it mid-typing.
+// Uses local state while the user types; commits to parent only on blur or Enter.
+function DailyInput({
+  value,
+  onCommit,
+  testId,
+}: {
+  value: string;
+  onCommit: (v: string) => void;
+  testId: string;
+}) {
+  const [local, setLocal] = useState(value);
+  const committed = useRef(value);
+
+  // Sync local state when parent resets (e.g., after successful save)
+  useEffect(() => {
+    if (value !== committed.current) {
+      setLocal(value);
+      committed.current = value;
+    }
+  }, [value]);
+
+  function commit(v: string) {
+    if (v !== committed.current) {
+      onCommit(v);
+      committed.current = v;
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      min={0}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => commit(local)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          commit(local);
+          (e.currentTarget as HTMLInputElement).blur();
+        }
+      }}
+      className="w-full h-8 px-2 text-sm text-center tabular-nums rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+      placeholder="—"
+      data-testid={testId}
+    />
+  );
+}
+
 // ─── Daily breakdown row (expandable in history) ──────────────────────────────
 
 function DailyBreakdownRow({ dailyDataJson }: { dailyDataJson: string }) {
@@ -299,29 +349,6 @@ export default function WeeklyMetricsPage() {
         }, 0) / metrics.length
       : null;
 
-  // ── Day input helper ──
-  function DayInput({
-    day,
-    field,
-    testId,
-  }: {
-    day: DayKey;
-    field: keyof DayEntry;
-    testId: string;
-  }) {
-    return (
-      <input
-        type="number"
-        min={0}
-        value={dailyData[day][field]}
-        onChange={(e) => setDay(day, field, e.target.value)}
-        className="w-full h-8 px-2 text-sm text-center tabular-nums rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        placeholder="—"
-        data-testid={testId}
-      />
-    );
-  }
-
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div>
@@ -447,13 +474,13 @@ export default function WeeklyMetricsPage() {
                           </span>
                         </td>
                         <td className="px-3 py-2">
-                          <DayInput day={day} field="comps" testId={`input-${day}-comps`} />
+                          <DailyInput value={dailyData[day].comps} onCommit={(v) => setDay(day, "comps", v)} testId={`input-${day}-comps`} />
                         </td>
                         <td className="px-3 py-2">
-                          <DayInput day={day} field="orders" testId={`input-${day}-orders`} />
+                          <DailyInput value={dailyData[day].orders} onCommit={(v) => setDay(day, "orders", v)} testId={`input-${day}-orders`} />
                         </td>
                         <td className="px-3 py-2">
-                          <DayInput day={day} field="followUps" testId={`input-${day}-followups`} />
+                          <DailyInput value={dailyData[day].followUps} onCommit={(v) => setDay(day, "followUps", v)} testId={`input-${day}-followups`} />
                         </td>
                       </tr>
                     ))}
@@ -523,6 +550,7 @@ export default function WeeklyMetricsPage() {
                 className="w-full sm:w-auto"
                 disabled={saveMutation.isPending}
                 data-testid="button-save-metrics"
+                onClick={() => (document.activeElement as HTMLElement)?.blur()}
               >
                 {saveMutation.isPending ? "Saving..." : "Save Week"}
               </Button>
