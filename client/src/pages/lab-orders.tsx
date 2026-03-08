@@ -644,6 +644,9 @@ function isOrderOverdue(order: LabOrder, threshold: number): boolean {
 // Standard lab turnaround used to decide if a custom due date qualifies as a rush.
 const STANDARD_TURNAROUND_DAYS = 21;
 
+// How many days before the custom due date to start showing the order in "Needs Attention".
+const RUSH_ALERT_DAYS = 3;
+
 function isRushOrder(order: LabOrder): boolean {
   if (order.status === "received") return false;
   if (!order.customDueDate) return false;
@@ -662,6 +665,27 @@ function standardDueDate(order: LabOrder): Date {
   const ref = new Date(refStr + "T00:00:00");
   ref.setHours(0, 0, 0, 0);
   return new Date(ref.getTime() + STANDARD_TURNAROUND_DAYS * 24 * 60 * 60 * 1000);
+}
+
+// Returns true when the rush order's custom due date is within RUSH_ALERT_DAYS days (approaching or past).
+function isRushApproaching(order: LabOrder): boolean {
+  if (!isRushOrder(order) || !order.customDueDate) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(order.customDueDate + "T00:00:00");
+  due.setHours(0, 0, 0, 0);
+  // Alert window starts RUSH_ALERT_DAYS before the due date
+  const alertStart = new Date(due.getTime() - RUSH_ALERT_DAYS * 24 * 60 * 60 * 1000);
+  return today >= alertStart;
+}
+
+// How many days until (positive) or since (negative) the custom due date.
+function daysUntilDue(customDueDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(customDueDate + "T00:00:00");
+  due.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // ─── Edit Lab Order Dialog ─────────────────────────────────────────────────────
@@ -1133,9 +1157,9 @@ export default function LabOrders() {
     [orders, threshold]
   );
 
-  // Rush orders that are not already flagged as overdue (avoids duplication in attention section)
+  // Rush orders approaching their due date that are not already overdue (goes into attention section)
   const rushAttentionOrders = useMemo(
-    () => orders.filter((o) => isRushOrder(o) && !isOrderOverdue(o, threshold)),
+    () => orders.filter((o) => isRushApproaching(o) && !isOrderOverdue(o, threshold)),
     [orders, threshold]
   );
 
@@ -1143,15 +1167,19 @@ export default function LabOrders() {
     return orders.filter((order) => {
       const overdue = isOrderOverdue(order, threshold);
       const rush = isRushOrder(order);
+      const rushApproaching = isRushApproaching(order);
 
       if (filterCategory === "all") {
-        // Both overdue and rush-attention orders move to the Needs Attention section
-        if (overdue || rush) return false;
+        // Only overdue + approaching-rush orders are moved to the Needs Attention section.
+        // Non-approaching rush orders remain in the normal list.
+        if (overdue || rushApproaching) return false;
       } else if (filterCategory === "overdue") {
         if (!overdue) return false;
       } else if (filterCategory === "at_lab") {
+        // Normal at-lab: pending, not overdue, not a rush order at all
         if (order.status !== "pending" || overdue || rush) return false;
       } else if (filterCategory === "rush") {
+        // Rush filter shows all rush orders (approaching or not)
         if (!rush) return false;
       } else if (filterCategory === "received") {
         if (order.status !== "received") return false;
@@ -1274,10 +1302,15 @@ export default function LabOrders() {
               );
             })}
 
-            {/* Rush-attention orders (not yet overdue, but due earlier than the 21-day standard) */}
+            {/* Rush-attention orders: approaching their custom due date */}
             {rushAttentionOrders.map((order) => {
-              const stdDue = standardDueDate(order);
-              const stdDueStr = stdDue.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+              const remaining = daysUntilDue(order.customDueDate!);
+              const dueLabel =
+                remaining < 0
+                  ? `Past due by ${Math.abs(remaining)} day${Math.abs(remaining) !== 1 ? "s" : ""}`
+                  : remaining === 0
+                  ? "Due today"
+                  : `Due in ${remaining} day${remaining !== 1 ? "s" : ""}`;
               return (
                 <div key={order.id} className="flex items-center gap-4 px-4 py-3 flex-wrap" data-testid={`rush-attention-row-${order.id}`}>
                   <div className="min-w-0 flex-1">
@@ -1301,16 +1334,13 @@ export default function LabOrders() {
                         <span className="text-xs font-mono text-muted-foreground">#{order.labOrderNumber}</span>
                       )}
                       <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
-                        <Timer className="w-3 h-3" /> Requested by: {order.customDueDate}
-                      </span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Standard turnaround: {stdDueStr}
+                        <Timer className="w-3 h-3" /> {dueLabel} — requested by {order.customDueDate}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-0 text-xs font-medium flex items-center gap-1">
-                      <Zap className="w-3 h-3" /> Needs Attention
+                      <Zap className="w-3 h-3" /> Rush Due Soon
                     </Badge>
                     <Button
                       variant="outline"
