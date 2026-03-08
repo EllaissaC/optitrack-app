@@ -12,6 +12,8 @@ import {
   Trash2,
   PlusCircle,
   Eye,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { WeeklyMetric } from "@shared/schema";
@@ -49,20 +51,49 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+interface DayEntry {
+  comps: string;
+  orders: string;
+  followUps: string;
+}
+
+type DailyData = Record<DayKey, DayEntry>;
+
+const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_LABELS: Record<DayKey, string> = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday",
+};
+
+function emptyDailyData(): DailyData {
+  return DAY_KEYS.reduce((acc, d) => {
+    acc[d] = { comps: "", orders: "", followUps: "" };
+    return acc;
+  }, {} as DailyData);
+}
+
+function parseNum(v: string): number {
+  const n = parseInt(v, 10);
+  return isNaN(n) || n < 0 ? 0 : n;
+}
+
+function sumField(data: DailyData, field: keyof DayEntry): number {
+  return DAY_KEYS.reduce((acc, d) => acc + parseNum(data[d][field]), 0);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const formSchema = z.object({
   weekStarting: z.string().min(1, "Week starting date is required"),
-  totalComprehensiveExams: z.coerce
-    .number({ invalid_type_error: "Must be a number" })
-    .int()
-    .min(0, "Cannot be negative"),
-  followUps: z.coerce
-    .number({ invalid_type_error: "Must be a number" })
-    .int()
-    .min(0, "Cannot be negative"),
-  totalOpticalOrders: z.coerce
-    .number({ invalid_type_error: "Must be a number" })
-    .int()
-    .min(0, "Cannot be negative"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -133,9 +164,59 @@ function formatWeekDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+// ─── Daily breakdown row (expandable in history) ──────────────────────────────
+
+function DailyBreakdownRow({ dailyDataJson }: { dailyDataJson: string }) {
+  let parsed: DailyData | null = null;
+  try {
+    parsed = JSON.parse(dailyDataJson);
+  } catch {
+    return null;
+  }
+  if (!parsed) return null;
+
+  return (
+    <div className="px-5 pb-4 pt-0">
+      <div className="rounded-md border border-border overflow-hidden bg-muted/20">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <th className="text-left px-3 py-1.5 font-medium text-muted-foreground w-28">Day</th>
+              <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Comp Exams</th>
+              <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Orders</th>
+              <th className="text-right px-3 py-1.5 font-medium text-muted-foreground">Follow Ups</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DAY_KEYS.map((day) => {
+              const entry = parsed![day];
+              const c = parseNum(entry.comps);
+              const o = parseNum(entry.orders);
+              const f = parseNum(entry.followUps);
+              if (c === 0 && o === 0 && f === 0) return null;
+              return (
+                <tr key={day} className="border-b border-border/50 last:border-0">
+                  <td className="px-3 py-1.5 text-foreground font-medium">{DAY_LABELS[day]}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{c || "—"}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{o || "—"}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-foreground">{f || "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function WeeklyMetricsPage() {
   const { toast } = useToast();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [dailyData, setDailyData] = useState<DailyData>(emptyDailyData);
 
   const { data: metrics = [], isLoading } = useQuery<WeeklyMetric[]>({
     queryKey: ["/api/weekly-metrics"],
@@ -143,34 +224,38 @@ export default function WeeklyMetricsPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      weekStarting: "",
-      totalComprehensiveExams: "" as unknown as number,
-      followUps: "" as unknown as number,
-      totalOpticalOrders: "" as unknown as number,
-    },
+    defaultValues: { weekStarting: "" },
   });
 
-  const watchedExams = form.watch("totalComprehensiveExams");
-  const watchedFollowUps = form.watch("followUps");
-  const watchedOrders = form.watch("totalOpticalOrders");
+  // ── Computed totals from daily data ──
+  const totalComps = sumField(dailyData, "comps");
+  const totalOrders = sumField(dailyData, "orders");
+  const totalFollowUps = sumField(dailyData, "followUps");
 
-  const examsNum = Number(watchedExams) || 0;
-  const liveSchedulingRate = calcRate(Number(watchedFollowUps) || 0, examsNum);
-  const liveCaptureRate = calcRate(Number(watchedOrders) || 0, examsNum);
+  const liveSchedulingRate = calcRate(totalFollowUps, totalComps);
+  const liveCaptureRate = calcRate(totalOrders, totalComps);
+
+  function setDay(day: DayKey, field: keyof DayEntry, value: string) {
+    setDailyData((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value },
+    }));
+  }
 
   const saveMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      apiRequest("POST", "/api/weekly-metrics", values),
+      apiRequest("POST", "/api/weekly-metrics", {
+        weekStarting: values.weekStarting,
+        totalComprehensiveExams: totalComps,
+        followUps: totalFollowUps,
+        totalOpticalOrders: totalOrders,
+        dailyData: JSON.stringify(dailyData),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-metrics"] });
       toast({ title: "Weekly metrics saved" });
-      form.reset({
-        weekStarting: "",
-        totalComprehensiveExams: "" as unknown as number,
-        followUps: "" as unknown as number,
-        totalOpticalOrders: "" as unknown as number,
-      });
+      form.reset({ weekStarting: "" });
+      setDailyData(emptyDailyData());
     },
     onError: () => {
       toast({ title: "Failed to save metrics", variant: "destructive" });
@@ -190,9 +275,14 @@ export default function WeeklyMetricsPage() {
   });
 
   function onSubmit(values: FormValues) {
+    if (totalComps === 0 && totalOrders === 0 && totalFollowUps === 0) {
+      toast({ title: "Please enter at least one daily value before saving", variant: "destructive" });
+      return;
+    }
     saveMutation.mutate(values);
   }
 
+  // ── Summary stats ──
   const mostRecentMetric = metrics[0];
   const avgSchedulingRate =
     metrics.length > 0
@@ -209,15 +299,38 @@ export default function WeeklyMetricsPage() {
         }, 0) / metrics.length
       : null;
 
+  // ── Day input helper ──
+  function DayInput({
+    day,
+    field,
+    testId,
+  }: {
+    day: DayKey;
+    field: keyof DayEntry;
+    testId: string;
+  }) {
+    return (
+      <input
+        type="number"
+        min={0}
+        value={dailyData[day][field]}
+        onChange={(e) => setDay(day, field, e.target.value)}
+        className="w-full h-8 px-2 text-sm text-center tabular-nums rounded-md border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        placeholder="—"
+        data-testid={testId}
+      />
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2.5" data-testid="text-weekly-metrics-title">
           <BarChart2 className="w-6 h-6 text-primary" />
           Weekly Metrics
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Track optical performance week over week
+          Enter daily numbers — totals calculate automatically
         </p>
       </div>
 
@@ -257,203 +370,242 @@ export default function WeeklyMetricsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Entry form */}
-        <Card className="border-card-border lg:col-span-2">
-          <CardHeader className="pb-4 px-5 pt-5">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <PlusCircle className="w-4 h-4 text-primary" />
-              Enter Weekly Data
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      {/* ── Entry form ───────────────────────────────────────────────────────── */}
+      <Card className="border-card-border">
+        <CardHeader className="pb-3 px-5 pt-5">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <PlusCircle className="w-4 h-4 text-primary" />
+            Enter Weekly Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Week Starting Date */}
+              <div className="flex items-end gap-4">
                 <FormField
                   control={form.control}
                   name="weekStarting"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="max-w-xs">
                       <FormLabel className="flex items-center gap-1.5">
                         <CalendarDays className="w-3.5 h-3.5 text-muted-foreground" />
                         Week Starting Date
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          type="date"
-                          data-testid="input-week-starting"
-                          {...field}
-                        />
+                        <Input type="date" data-testid="input-week-starting" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <p className="text-xs text-muted-foreground pb-1">
+                  Enter daily numbers below — totals are auto-calculated.
+                </p>
+              </div>
 
-                <FormField
-                  control={form.control}
-                  name="totalComprehensiveExams"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <ClipboardList className="w-3.5 h-3.5 text-muted-foreground" />
-                        Total Comprehensive Exams
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          data-testid="input-total-exams"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="followUps"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-muted-foreground" />
-                        Follow Ups / Next Year Exams
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          data-testid="input-follow-ups"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="totalOpticalOrders"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" />
-                        Total Optical Orders
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={0}
-                          placeholder="0"
-                          data-testid="input-optical-orders"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Live calculated rates */}
-                {examsNum > 0 && (
-                  <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Calculated Rates
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground">Scheduling Rate</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {Number(watchedFollowUps) || 0} ÷ {examsNum} × 100
+              {/* Daily entry grid */}
+              <div className="rounded-md border border-border overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-muted/40 border-b border-border">
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-32">
+                        Day
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <span className="flex items-center justify-center gap-1">
+                          <ClipboardList className="w-3 h-3" /> Comp Exams
                         </span>
-                        <RateBadge rate={liveSchedulingRate} label="scheduling-live" />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground">Capture Rate</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">
-                          {Number(watchedOrders) || 0} ÷ {examsNum} × 100
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <span className="flex items-center justify-center gap-1">
+                          <TrendingUp className="w-3 h-3" /> Optical Orders
                         </span>
-                        <RateBadge rate={liveCaptureRate} label="capture-live" />
-                      </div>
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        <span className="flex items-center justify-center gap-1">
+                          <Target className="w-3 h-3" /> Follow Ups / NY
+                        </span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DAY_KEYS.map((day, i) => (
+                      <tr
+                        key={day}
+                        className={`border-b border-border/60 last:border-0 ${
+                          i >= 5 ? "bg-muted/10" : ""
+                        }`}
+                        data-testid={`row-day-${day}`}
+                      >
+                        <td className="px-4 py-2">
+                          <span className={`text-sm font-medium ${i >= 5 ? "text-muted-foreground" : "text-foreground"}`}>
+                            {DAY_LABELS[day]}
+                            {i >= 5 && (
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground/70">(opt.)</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <DayInput day={day} field="comps" testId={`input-${day}-comps`} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <DayInput day={day} field="orders" testId={`input-${day}-orders`} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <DayInput day={day} field="followUps" testId={`input-${day}-followups`} />
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Totals row */}
+                    <tr className="bg-muted/30 border-t-2 border-border">
+                      <td className="px-4 py-2.5">
+                        <span className="text-sm font-bold text-foreground uppercase tracking-wide">Totals</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span
+                          className={`text-sm font-bold tabular-nums ${totalComps > 0 ? "text-foreground" : "text-muted-foreground"}`}
+                          data-testid="text-total-comps"
+                        >
+                          {totalComps > 0 ? totalComps : "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span
+                          className={`text-sm font-bold tabular-nums ${totalOrders > 0 ? "text-foreground" : "text-muted-foreground"}`}
+                          data-testid="text-total-orders"
+                        >
+                          {totalOrders > 0 ? totalOrders : "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span
+                          className={`text-sm font-bold tabular-nums ${totalFollowUps > 0 ? "text-foreground" : "text-muted-foreground"}`}
+                          data-testid="text-total-followups"
+                        >
+                          {totalFollowUps > 0 ? totalFollowUps : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Live rate preview */}
+              {totalComps > 0 && (
+                <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Calculated Rates
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Scheduling Rate</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {totalFollowUps} ÷ {totalComps} × 100
+                      </span>
+                      <RateBadge rate={liveSchedulingRate} label="scheduling-live" />
                     </div>
                   </div>
-                )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground">Capture Rate</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {totalOrders} ÷ {totalComps} × 100
+                      </span>
+                      <RateBadge rate={liveCaptureRate} label="capture-live" />
+                    </div>
+                  </div>
+                </div>
+              )}
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={saveMutation.isPending}
-                  data-testid="button-save-metrics"
-                >
-                  {saveMutation.isPending ? "Saving..." : "Save Week"}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+              <Button
+                type="submit"
+                className="w-full sm:w-auto"
+                disabled={saveMutation.isPending}
+                data-testid="button-save-metrics"
+              >
+                {saveMutation.isPending ? "Saving..." : "Save Week"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
 
-        {/* History table */}
-        <Card className="border-card-border lg:col-span-3">
-          <CardHeader className="pb-3 px-5 pt-5">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-muted-foreground" />
-              Weekly History
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            {isLoading ? (
-              <div className="px-5 pb-5 space-y-2">
-                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
-              </div>
-            ) : metrics.length === 0 ? (
-              <div className="py-14 text-center text-muted-foreground">
-                <BarChart2 className="w-10 h-10 mx-auto mb-3 opacity-25" />
-                <p className="font-medium text-sm">No weekly data yet</p>
-                <p className="text-xs mt-1">Use the form to record your first week</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40">
-                      <TableHead className="font-semibold pl-5">Week</TableHead>
-                      <TableHead className="font-semibold text-right">Exams</TableHead>
-                      <TableHead className="font-semibold text-right">Follow Ups</TableHead>
-                      <TableHead className="font-semibold text-right">Orders</TableHead>
-                      <TableHead className="font-semibold text-center">Scheduling Rate</TableHead>
-                      <TableHead className="font-semibold text-center">Capture Rate</TableHead>
-                      <TableHead className="pr-5 text-right font-semibold"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {metrics.map((m) => {
-                      const schedulingRate = calcRate(m.followUps, m.totalComprehensiveExams);
-                      const captureRate = calcRate(m.totalOpticalOrders, m.totalComprehensiveExams);
-                      return (
+      {/* ── History table ─────────────────────────────────────────────────────── */}
+      <Card className="border-card-border">
+        <CardHeader className="pb-3 px-5 pt-5">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <BarChart2 className="w-4 h-4 text-muted-foreground" />
+            Weekly History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          {isLoading ? (
+            <div className="px-5 pb-5 space-y-2">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : metrics.length === 0 ? (
+            <div className="py-14 text-center text-muted-foreground">
+              <BarChart2 className="w-10 h-10 mx-auto mb-3 opacity-25" />
+              <p className="font-medium text-sm">No weekly data yet</p>
+              <p className="text-xs mt-1">Use the form above to record your first week</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/40">
+                    <TableHead className="font-semibold pl-5">Week</TableHead>
+                    <TableHead className="font-semibold text-right">Exams</TableHead>
+                    <TableHead className="font-semibold text-right">Follow Ups</TableHead>
+                    <TableHead className="font-semibold text-right">Orders</TableHead>
+                    <TableHead className="font-semibold text-center">Scheduling Rate</TableHead>
+                    <TableHead className="font-semibold text-center">Capture Rate</TableHead>
+                    <TableHead className="pr-5 text-right font-semibold"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {metrics.map((m) => {
+                    const schedulingRate = calcRate(m.followUps, m.totalComprehensiveExams);
+                    const captureRate = calcRate(m.totalOpticalOrders, m.totalComprehensiveExams);
+                    const hasDailyData = !!m.dailyData;
+                    const isExpanded = expandedRow === m.id;
+                    return (
+                      <>
                         <TableRow
                           key={m.id}
                           className="hover:bg-muted/30 transition-colors"
                           data-testid={`row-metric-${m.id}`}
                         >
                           <TableCell className="pl-5 py-3.5">
-                            <p className="font-medium text-sm text-foreground">
-                              {formatWeekDate(m.weekStarting)}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-foreground">
+                                {formatWeekDate(m.weekStarting)}
+                              </p>
+                              {hasDailyData && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedRow(isExpanded ? null : m.id)}
+                                  className="text-muted-foreground hover:text-foreground transition-colors"
+                                  data-testid={`button-expand-daily-${m.id}`}
+                                  title="View daily breakdown"
+                                >
+                                  {isExpanded ? (
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </TableCell>
-                          <TableCell className="text-right text-sm py-3.5" data-testid={`text-exams-${m.id}`}>
+                          <TableCell className="text-right text-sm py-3.5 tabular-nums" data-testid={`text-exams-${m.id}`}>
                             {m.totalComprehensiveExams}
                           </TableCell>
-                          <TableCell className="text-right text-sm text-muted-foreground py-3.5" data-testid={`text-followups-${m.id}`}>
+                          <TableCell className="text-right text-sm text-muted-foreground py-3.5 tabular-nums" data-testid={`text-followups-${m.id}`}>
                             {m.followUps}
                           </TableCell>
-                          <TableCell className="text-right text-sm py-3.5" data-testid={`text-orders-${m.id}`}>
+                          <TableCell className="text-right text-sm py-3.5 tabular-nums" data-testid={`text-orders-${m.id}`}>
                             {m.totalOpticalOrders}
                           </TableCell>
                           <TableCell className="text-center py-3.5">
@@ -474,15 +626,22 @@ export default function WeeklyMetricsPage() {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                        {isExpanded && hasDailyData && (
+                          <TableRow key={`${m.id}-expanded`} className="bg-muted/10 hover:bg-muted/10">
+                            <TableCell colSpan={7} className="p-0">
+                              <DailyBreakdownRow dailyDataJson={m.dailyData!} />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
         <AlertDialogContent>

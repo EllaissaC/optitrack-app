@@ -125,6 +125,7 @@ export const weeklyMetrics = pgTable("weekly_metrics", {
   totalComprehensiveExams: integer("total_comprehensive_exams").notNull(),
   followUps: integer("follow_ups").notNull(),
   totalOpticalOrders: integer("total_optical_orders").notNull(),
+  dailyData: text("daily_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
