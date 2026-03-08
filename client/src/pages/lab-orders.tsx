@@ -641,8 +641,27 @@ function isOrderOverdue(order: LabOrder, threshold: number): boolean {
   return days !== null && days >= threshold;
 }
 
+// Standard lab turnaround used to decide if a custom due date qualifies as a rush.
+const STANDARD_TURNAROUND_DAYS = 21;
+
 function isRushOrder(order: LabOrder): boolean {
-  return !!order.customDueDate;
+  if (order.status === "received") return false;
+  if (!order.customDueDate) return false;
+  // Use the date sent (or today as fallback) as the reference point
+  const refStr = order.dateSentToLab || new Date().toISOString().split("T")[0];
+  const ref = new Date(refStr + "T00:00:00");
+  ref.setHours(0, 0, 0, 0);
+  const standardDue = new Date(ref.getTime() + STANDARD_TURNAROUND_DAYS * 24 * 60 * 60 * 1000);
+  const customDue = new Date(order.customDueDate + "T00:00:00");
+  customDue.setHours(0, 0, 0, 0);
+  return customDue < standardDue;
+}
+
+function standardDueDate(order: LabOrder): Date {
+  const refStr = order.dateSentToLab || new Date().toISOString().split("T")[0];
+  const ref = new Date(refStr + "T00:00:00");
+  ref.setHours(0, 0, 0, 0);
+  return new Date(ref.getTime() + STANDARD_TURNAROUND_DAYS * 24 * 60 * 60 * 1000);
 }
 
 // ─── Edit Lab Order Dialog ─────────────────────────────────────────────────────
@@ -1114,19 +1133,26 @@ export default function LabOrders() {
     [orders, threshold]
   );
 
+  // Rush orders that are not already flagged as overdue (avoids duplication in attention section)
+  const rushAttentionOrders = useMemo(
+    () => orders.filter((o) => isRushOrder(o) && !isOrderOverdue(o, threshold)),
+    [orders, threshold]
+  );
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const overdue = isOrderOverdue(order, threshold);
       const rush = isRushOrder(order);
 
       if (filterCategory === "all") {
-        if (overdue) return false;
+        // Both overdue and rush-attention orders move to the Needs Attention section
+        if (overdue || rush) return false;
       } else if (filterCategory === "overdue") {
         if (!overdue) return false;
       } else if (filterCategory === "at_lab") {
         if (order.status !== "pending" || overdue || rush) return false;
       } else if (filterCategory === "rush") {
-        if (order.status !== "pending" || !rush) return false;
+        if (!rush) return false;
       } else if (filterCategory === "received") {
         if (order.status !== "received") return false;
       }
@@ -1177,19 +1203,21 @@ export default function LabOrders() {
         </div>
       </div>
 
-      {/* Overdue Orders Attention Section */}
-      {overdueOrders.length > 0 && filterCategory === "all" && (
+      {/* Needs Attention Section — overdue orders + rush-attention orders */}
+      {(overdueOrders.length > 0 || rushAttentionOrders.length > 0) && filterCategory === "all" && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 overflow-hidden" data-testid="section-overdue-attention">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200 dark:border-amber-800">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-              Overdue Orders That Need Attention
+              Orders That Need Attention
             </span>
             <span className="ml-1 text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-300 rounded-full px-2 py-0.5 font-medium">
-              {overdueOrders.length}
+              {overdueOrders.length + rushAttentionOrders.length}
             </span>
           </div>
           <div className="divide-y divide-amber-100 dark:divide-amber-900/40">
+
+            {/* Overdue orders */}
             {overdueOrders.map((order) => {
               const days = calcDaysAtLab(order.dateSentToLab);
               const rush = isRushOrder(order);
@@ -1238,6 +1266,58 @@ export default function LabOrders() {
                       className="h-7 text-xs"
                       onClick={() => setEditOrder(order)}
                       data-testid={`button-overdue-edit-${order.id}`}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Rush-attention orders (not yet overdue, but due earlier than the 21-day standard) */}
+            {rushAttentionOrders.map((order) => {
+              const stdDue = standardDueDate(order);
+              const stdDueStr = stdDue.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+              return (
+                <div key={order.id} className="flex items-center gap-4 px-4 py-3 flex-wrap" data-testid={`rush-attention-row-${order.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">{order.frameBrand}</span>
+                      <span className="text-sm text-muted-foreground">{order.frameModel}</span>
+                      {order.patientOwnFrame && (
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-[10px] px-1.5 py-0">POF</Badge>
+                      )}
+                      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-0 text-[10px] px-1.5 py-0 flex items-center gap-0.5" data-testid={`badge-rush-${order.id}`}>
+                        <Zap className="w-2.5 h-2.5" /> Rush
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      {order.labName && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Building2 className="w-3 h-3" /> {order.labName}
+                        </span>
+                      )}
+                      {order.labOrderNumber && (
+                        <span className="text-xs font-mono text-muted-foreground">#{order.labOrderNumber}</span>
+                      )}
+                      <span className="text-xs text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                        <Timer className="w-3 h-3" /> Requested by: {order.customDueDate}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Standard turnaround: {stdDueStr}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-0 text-xs font-medium flex items-center gap-1">
+                      <Zap className="w-3 h-3" /> Needs Attention
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setEditOrder(order)}
+                      data-testid={`button-rush-edit-${order.id}`}
                     >
                       <Pencil className="w-3 h-3 mr-1" /> Edit
                     </Button>
