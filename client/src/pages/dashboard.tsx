@@ -249,7 +249,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Total Sold"
-            value={soldByStatus}
+            value={sold}
             icon={CheckCircle}
             iconColor="text-blue-600 dark:text-blue-400"
             bgColor="bg-blue-100 dark:bg-blue-900/30"
@@ -537,7 +537,7 @@ export default function Dashboard() {
                     {[
                       { label: "On Board", count: onBoard, color: "bg-emerald-500" },
                       { label: "At Lab", count: atLab, color: "bg-amber-500" },
-                      { label: "Sold", count: soldByStatus, color: "bg-blue-500" },
+                      { label: "Sold", count: sold, color: "bg-blue-500" },
                     ].map(({ label, count, color }) => (
                       <div key={label} className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
