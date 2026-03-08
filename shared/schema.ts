@@ -152,6 +152,7 @@ export const labOrders = pgTable("lab_orders", {
   patientOwnFrame: boolean("patient_own_frame").notNull().default(false),
   frameSold: boolean("frame_sold").notNull().default(false),
   frameSoldAt: text("frame_sold_at"),
+  customDueDate: text("custom_due_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

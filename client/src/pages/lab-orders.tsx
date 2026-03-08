@@ -28,6 +28,8 @@ import {
   BadgeCheck,
   UserCheck,
   StickyNote,
+  Zap,
+  Timer,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame, type LabOrder } from "@shared/schema";
@@ -79,6 +81,7 @@ const addLabOrderSchema = z.object({
   labAccountNumber: z.string().optional().nullable(),
   trackingNumber: z.string().optional().nullable(),
   dateSentToLab: z.string().optional().nullable(),
+  customDueDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -122,6 +125,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      customDueDate: "",
       notes: "",
     },
   });
@@ -142,6 +146,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         labAccountNumber: "",
         trackingNumber: "",
         dateSentToLab: new Date().toISOString().split("T")[0],
+        customDueDate: "",
         notes: "",
       });
     }
@@ -157,6 +162,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      customDueDate: "",
       notes: "",
     });
     setStep("details");
@@ -191,6 +197,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       labAccountNumber: matchingLab?.account ?? frame.labAccountNumber ?? "",
       trackingNumber: "",
       dateSentToLab: new Date().toISOString().split("T")[0],
+      customDueDate: "",
       notes: "",
     });
     setStep("details");
@@ -205,6 +212,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         labAccountNumber: values.labAccountNumber || null,
         trackingNumber: values.trackingNumber || null,
         dateSentToLab: values.dateSentToLab || new Date().toISOString().split("T")[0],
+        customDueDate: values.customDueDate || null,
         notes: values.notes || null,
         status: "pending",
       };
@@ -526,6 +534,19 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
                 )} />
               </div>
 
+              <FormField control={form.control} name="customDueDate" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
+                    <span className="text-xs text-muted-foreground font-normal">(optional — for rush orders)</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="date" data-testid="input-custom-due-date" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-1.5">
@@ -571,16 +592,16 @@ function calcDaysAtLab(dateSentToLab: string | null | undefined): number | null 
   return diff >= 0 ? diff : 0;
 }
 
-function DaysAtLabBadge({ days }: { days: number | null }) {
+function DaysAtLabBadge({ days, threshold = 14 }: { days: number | null; threshold?: number }) {
   if (days === null) return <span className="text-muted-foreground text-xs">—</span>;
-  if (days <= 7) {
+  if (days >= threshold) {
     return (
-      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0 font-semibold tabular-nums" data-testid="badge-days-green">
+      <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-0 font-semibold tabular-nums" data-testid="badge-days-red">
         {days}d
       </Badge>
     );
   }
-  if (days <= 13) {
+  if (days >= Math.max(1, threshold - 6)) {
     return (
       <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border-0 font-semibold tabular-nums" data-testid="badge-days-yellow">
         {days}d
@@ -588,10 +609,25 @@ function DaysAtLabBadge({ days }: { days: number | null }) {
     );
   }
   return (
-    <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-0 font-semibold tabular-nums" data-testid="badge-days-red">
+    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0 font-semibold tabular-nums" data-testid="badge-days-green">
       {days}d
     </Badge>
   );
+}
+
+function isOrderOverdue(order: LabOrder, threshold: number): boolean {
+  if (order.status === "received") return false;
+  if (order.customDueDate) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date(order.customDueDate); due.setHours(0, 0, 0, 0);
+    return today > due;
+  }
+  const days = calcDaysAtLab(order.dateSentToLab);
+  return days !== null && days >= threshold;
+}
+
+function isRushOrder(order: LabOrder): boolean {
+  return !!order.customDueDate;
 }
 
 // ─── Edit Lab Order Dialog ─────────────────────────────────────────────────────
@@ -601,6 +637,7 @@ const editOrderSchema = z.object({
   labAccountNumber: z.string().optional().nullable(),
   trackingNumber: z.string().optional().nullable(),
   dateSentToLab: z.string().optional().nullable(),
+  customDueDate: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
   visionPlan: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -618,6 +655,7 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
       labAccountNumber: order.labAccountNumber ?? "",
       trackingNumber: order.trackingNumber ?? "",
       dateSentToLab: order.dateSentToLab ?? "",
+      customDueDate: order.customDueDate ?? "",
       labName: order.labName ?? "",
       visionPlan: order.visionPlan ?? "",
       notes: order.notes ?? "",
@@ -631,6 +669,7 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
         labAccountNumber: values.labAccountNumber || null,
         trackingNumber: values.trackingNumber || null,
         dateSentToLab: values.dateSentToLab || null,
+        customDueDate: values.customDueDate || null,
         labName: values.labName || null,
         visionPlan: values.visionPlan || null,
         notes: values.notes || null,
@@ -732,6 +771,18 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
                 </FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="customDueDate" render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
+                  <span className="text-xs text-muted-foreground font-normal">(optional — for rush orders)</span>
+                </FormLabel>
+                <FormControl>
+                  <Input type="date" data-testid="input-edit-custom-due-date" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
             <FormField control={form.control} name="notes" render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5">
@@ -986,8 +1037,7 @@ function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; ope
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-type DaysFilter = "all" | "0-7" | "8-13" | "14+";
-type StatusFilter = "all" | "pending" | "received";
+type CategoryFilter = "all" | "overdue" | "at_lab" | "rush" | "received";
 
 export default function LabOrders() {
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null);
@@ -997,8 +1047,7 @@ export default function LabOrders() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterLab, setFilterLab] = useState("all");
   const [filterVisionPlan, setFilterVisionPlan] = useState("all");
-  const [filterDays, setFilterDays] = useState<DaysFilter>("all");
-  const [filterStatus, setFilterStatus] = useState<StatusFilter>("pending");
+  const [filterCategory, setFilterCategory] = useState<CategoryFilter>("all");
   const [showFilters, setShowFilters] = useState(false);
   const [showAddLabOrder, setShowAddLabOrder] = useState(false);
 
@@ -1010,19 +1059,38 @@ export default function LabOrders() {
     queryKey: ["/api/labs"],
   });
 
+  const { data: settingsMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+  });
+
+  const threshold = Math.max(1, parseInt((settingsMap as Record<string, string>).labTurnaroundDays || "14"));
+
   const orders = ordersData ?? [];
+
+  const overdueOrders = useMemo(
+    () => orders.filter((o) => isOrderOverdue(o, threshold)),
+    [orders, threshold]
+  );
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      if (filterStatus !== "all" && order.status !== filterStatus) return false;
+      const overdue = isOrderOverdue(order, threshold);
+      const rush = isRushOrder(order);
+
+      if (filterCategory === "all") {
+        if (overdue) return false;
+      } else if (filterCategory === "overdue") {
+        if (!overdue) return false;
+      } else if (filterCategory === "at_lab") {
+        if (order.status !== "pending" || overdue || rush) return false;
+      } else if (filterCategory === "rush") {
+        if (order.status !== "pending" || !rush) return false;
+      } else if (filterCategory === "received") {
+        if (order.status !== "received") return false;
+      }
+
       if (filterLab !== "all" && order.labName !== filterLab) return false;
       if (filterVisionPlan !== "all" && order.visionPlan !== filterVisionPlan) return false;
-      if (filterDays !== "all") {
-        const days = calcDaysAtLab(order.dateSentToLab);
-        if (filterDays === "0-7" && (days === null || days > 7)) return false;
-        if (filterDays === "8-13" && (days === null || days < 8 || days > 13)) return false;
-        if (filterDays === "14+" && (days === null || days < 14)) return false;
-      }
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
         if (
@@ -1036,18 +1104,14 @@ export default function LabOrders() {
       }
       return true;
     });
-  }, [orders, filterStatus, filterLab, filterVisionPlan, filterDays, searchQuery]);
+  }, [orders, filterCategory, filterLab, filterVisionPlan, searchQuery, threshold]);
 
   const pendingOrders = orders.filter((o) => o.status === "pending");
-  const urgentCount = pendingOrders.filter((o) => {
-    const days = calcDaysAtLab(o.dateSentToLab);
-    return days !== null && days >= 14;
-  }).length;
 
   const uniqueLabs = [...new Set(orders.map((o) => o.labName).filter(Boolean))];
   const uniqueVisionPlans = [...new Set(orders.map((o) => o.visionPlan).filter(Boolean))];
 
-  const hasActiveFilters = filterLab !== "all" || filterVisionPlan !== "all" || filterDays !== "all" || filterStatus !== "pending";
+  const hasActiveFilters = filterLab !== "all" || filterVisionPlan !== "all" || filterCategory !== "all";
 
   return (
     <div className="p-6 space-y-6">
@@ -1061,14 +1125,6 @@ export default function LabOrders() {
         </div>
 
         <div className="flex items-center gap-3">
-          {urgentCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800" data-testid="alert-urgent-count">
-              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
-              <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                {urgentCount} overdue {urgentCount === 1 ? "order" : "orders"} (14+ days)
-              </span>
-            </div>
-          )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-lab-total">
             <FlaskConical className="w-4 h-4" />
             {isLoading ? "..." : `${pendingOrders.length} pending`}
@@ -1079,17 +1135,89 @@ export default function LabOrders() {
         </div>
       </div>
 
+      {/* Overdue Orders Attention Section */}
+      {overdueOrders.length > 0 && filterCategory === "all" && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 overflow-hidden" data-testid="section-overdue-attention">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200 dark:border-amber-800">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              Overdue Orders That Need Attention
+            </span>
+            <span className="ml-1 text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-300 rounded-full px-2 py-0.5 font-medium">
+              {overdueOrders.length}
+            </span>
+          </div>
+          <div className="divide-y divide-amber-100 dark:divide-amber-900/40">
+            {overdueOrders.map((order) => {
+              const days = calcDaysAtLab(order.dateSentToLab);
+              const rush = isRushOrder(order);
+              return (
+                <div key={order.id} className="flex items-center gap-4 px-4 py-3 flex-wrap" data-testid={`overdue-row-${order.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">{order.frameBrand}</span>
+                      <span className="text-sm text-muted-foreground">{order.frameModel}</span>
+                      {order.patientOwnFrame && (
+                        <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-[10px] px-1.5 py-0">POF</Badge>
+                      )}
+                      {rush && (
+                        <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-0 text-[10px] px-1.5 py-0 flex items-center gap-0.5" data-testid={`badge-rush-${order.id}`}>
+                          <Zap className="w-2.5 h-2.5" /> Rush
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      {order.labName && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Building2 className="w-3 h-3" /> {order.labName}
+                        </span>
+                      )}
+                      {order.labOrderNumber && (
+                        <span className="text-xs font-mono text-muted-foreground">#{order.labOrderNumber}</span>
+                      )}
+                      {rush && order.customDueDate ? (
+                        <span className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                          <Timer className="w-3 h-3" /> Due: {order.customDueDate}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-red-600 dark:text-red-400">
+                          {days !== null ? `${days} days at lab` : "Date not set"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-0 text-xs font-medium">
+                      Overdue
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setEditOrder(order)}
+                      data-testid={`button-overdue-edit-${order.id}`}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Days at lab legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
         <span className="font-medium">Days at lab:</span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /> 0–7 days
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /> 0–{Math.max(1, threshold - 7)} days
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block" /> 8–13 days
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block" /> {Math.max(2, threshold - 6)}–{threshold - 1} days
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> 14+ days (overdue)
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> {threshold}+ days (overdue)
         </span>
       </div>
 
@@ -1131,14 +1259,16 @@ export default function LabOrders() {
 
       {showFilters && (
         <div className="flex items-center gap-3 flex-wrap p-4 rounded-lg bg-muted/30 border border-border">
-          <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as StatusFilter)}>
-            <SelectTrigger className="w-36 h-8 text-sm" data-testid="select-filter-status">
+          <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v as CategoryFilter)}>
+            <SelectTrigger className="w-44 h-8 text-sm" data-testid="select-filter-category">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="received">Received</SelectItem>
+              <SelectItem value="all">All Orders</SelectItem>
+              <SelectItem value="overdue">Overdue Orders</SelectItem>
+              <SelectItem value="at_lab">At Lab (Normal)</SelectItem>
+              <SelectItem value="rush">Rush Orders</SelectItem>
+              <SelectItem value="received">Received Orders</SelectItem>
             </SelectContent>
           </Select>
 
@@ -1166,18 +1296,6 @@ export default function LabOrders() {
             </SelectContent>
           </Select>
 
-          <Select value={filterDays} onValueChange={(v) => setFilterDays(v as DaysFilter)}>
-            <SelectTrigger className="w-40 h-8 text-sm" data-testid="select-filter-days">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All durations</SelectItem>
-              <SelectItem value="0-7">0–7 days</SelectItem>
-              <SelectItem value="8-13">8–13 days</SelectItem>
-              <SelectItem value="14+">14+ days (overdue)</SelectItem>
-            </SelectContent>
-          </Select>
-
           {hasActiveFilters && (
             <Button
               variant="ghost"
@@ -1185,8 +1303,7 @@ export default function LabOrders() {
               onClick={() => {
                 setFilterLab("all");
                 setFilterVisionPlan("all");
-                setFilterDays("all");
-                setFilterStatus("pending");
+                setFilterCategory("all");
               }}
               data-testid="button-clear-filters"
             >
@@ -1238,6 +1355,8 @@ export default function LabOrders() {
               filteredOrders.map((order) => {
                 const days = calcDaysAtLab(order.dateSentToLab);
                 const isReceived = order.status === "received";
+                const overdue = isOrderOverdue(order, threshold);
+                const rush = isRushOrder(order);
                 return (
                   <TableRow key={order.id} className={isReceived ? "opacity-60" : undefined} data-testid={`row-order-${order.id}`}>
                     <TableCell>
@@ -1246,6 +1365,11 @@ export default function LabOrders() {
                         {order.patientOwnFrame && (
                           <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-0 text-[10px] px-1.5 py-0" data-testid={`badge-pof-${order.id}`}>
                             POF
+                          </Badge>
+                        )}
+                        {rush && !isReceived && (
+                          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-0 text-[10px] px-1.5 py-0 flex items-center gap-0.5" data-testid={`badge-rush-${order.id}`}>
+                            <Zap className="w-2.5 h-2.5" /> Rush
                           </Badge>
                         )}
                       </div>
@@ -1310,7 +1434,14 @@ export default function LabOrders() {
                           <span className="text-xs text-muted-foreground">{order.dateReceivedFromLab}</span>
                         </div>
                       ) : (
-                        <DaysAtLabBadge days={days} />
+                        <div className="space-y-1">
+                          <DaysAtLabBadge days={days} threshold={threshold} />
+                          {rush && order.customDueDate && (
+                            <div className="flex items-center gap-1 text-xs text-purple-700 dark:text-purple-400" data-testid={`text-due-date-${order.id}`}>
+                              <Timer className="w-3 h-3" /> Due {order.customDueDate}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -1318,6 +1449,10 @@ export default function LabOrders() {
                         {isReceived ? (
                           <Badge className="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-0 w-fit" data-testid={`badge-status-${order.id}`}>
                             Received
+                          </Badge>
+                        ) : overdue ? (
+                          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-0 w-fit" data-testid={`badge-status-${order.id}`}>
+                            <AlertTriangle className="w-3 h-3 mr-0.5" /> Overdue
                           </Badge>
                         ) : (
                           <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-0 w-fit" data-testid={`badge-status-${order.id}`}>

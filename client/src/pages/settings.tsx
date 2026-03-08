@@ -98,6 +98,9 @@ const emailSettingsSchema = z.object({
   labReminderDays: z.string().refine((v) => !v || (!isNaN(Number(v)) && Number(v) >= 1), {
     message: "Must be a number of days (1 or more)",
   }),
+  labTurnaroundDays: z.string().refine((v) => !v || (!isNaN(Number(v)) && Number(v) >= 1), {
+    message: "Must be a number of days (1 or more)",
+  }),
   defaultMultiplier: z.string().refine((v) => !v || (!isNaN(Number(v)) && Number(v) > 0), {
     message: "Must be a positive number",
   }),
@@ -114,6 +117,7 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
       reminderEmail: settingsMap.reminderEmail || "",
       emailFrom: settingsMap.emailFrom || "",
       labReminderDays: settingsMap.labReminderDays || "14",
+      labTurnaroundDays: settingsMap.labTurnaroundDays || "14",
       defaultMultiplier: settingsMap.defaultMultiplier || "",
     },
   });
@@ -193,6 +197,20 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
                       <Input {...field} type="number" min="1" placeholder="14" data-testid="input-reminder-days" />
                     </FormControl>
                     <FormDescription>Send a reminder after this many days at the lab. Default is 14.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="labTurnaroundDays"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lab Turnaround Threshold (days)</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="number" min="1" placeholder="14" data-testid="input-turnaround-days" />
+                    </FormControl>
+                    <FormDescription>Orders pending longer than this many days are marked overdue. Default is 14.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

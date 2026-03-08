@@ -1,0 +1,107 @@
+Improve the Lab Orders system to make it easier to track orders, overdue jobs, and rush orders while keeping the design consistent with the current website and avoiding the display of patient names.
+
+LAB ORDER PAGE LAYOUT
+
+Currently all lab orders appear in one list and orders past 14 days are marked as "Overdue". Update the Lab Orders page so overdue orders are clearly visible at the top while still remaining inside the same "Lab Orders" page.
+
+OVERDUE ORDERS ATTENTION SECTION
+
+At the very top of the Lab Orders page, add a section called:
+
+"Overdue Orders That Need Attention"
+
+This section should list all overdue lab orders.
+
+Design requirements:
+- The section should match the existing style of the website.
+- Do NOT make it overly flashy or disruptive.
+- Use the same layout style as the other containers/cards already used on the site.
+- A subtle visual indicator can be used (for example a light warning border, slightly tinted background, or small warning icon).
+- Maintain the same fonts, spacing, and UI style as the rest of the page.
+
+Behavior requirements:
+- Only show orders that are currently marked as overdue.
+- Each overdue order should show relevant order information such as frame, lab, order ID, and days at lab.
+- Do NOT display patient names anywhere on this page.
+- This section should only appear if overdue orders exist.
+- If there are no overdue orders, the section should either be hidden or show a simple message like "No overdue orders".
+
+NORMAL LAB ORDERS LIST
+
+Below the overdue section, display the normal Lab Orders list.
+
+This list should include:
+- Orders currently at the lab
+- Orders within the normal turnaround time
+- Orders with custom due dates that have not passed yet
+
+Orders that appear in the Overdue section should NOT appear again in the normal list to avoid duplicates.
+
+
+LAB ORDER FILTERING
+
+Add a filtering tool at the top of the Lab Orders page so staff can quickly filter which orders are shown.
+
+Filter options should include:
+- All Orders
+- Overdue Orders
+- At Lab (Normal)
+- Rush Orders (orders with Custom Due Dates)
+- Received Orders
+
+When a filter is selected, the page should only display orders matching that category.
+
+
+GLOBAL OVERDUE THRESHOLD (CLINIC SETTING)
+
+Currently the system marks orders as overdue after 14 days. Different clinics and labs have different turnaround times, so this should be customizable.
+
+Add a clinic setting called:
+
+"Lab Turnaround Threshold (Days)"
+
+Requirements:
+- Default value should be 14 days.
+- Clinics can change this number (for example 10, 14, 18, or 21 days).
+- Overdue status should be calculated based on this number.
+- If the threshold changes, existing lab orders should update automatically.
+
+
+CUSTOM DUE DATE FOR SPECIFIC ORDERS
+
+Sometimes labs are asked to rush an order or give a specific completion date. Add an optional field called:
+
+"Custom Due Date"
+
+Behavior:
+
+1. When creating or editing a lab order, staff can optionally set a Custom Due Date.
+
+2. If NO Custom Due Date is set:
+- The system uses the global Lab Turnaround Threshold to determine overdue status.
+
+3. If a Custom Due Date IS set:
+- That date overrides the normal threshold.
+- If today's date passes the Custom Due Date and the order is not marked received, the order becomes "Overdue".
+
+4. Display the Custom Due Date in the lab orders list so staff can easily see it.
+
+
+VISUAL INDICATORS
+
+Add subtle badges to help identify order types while keeping the design clean:
+
+- Normal orders → standard styling
+- Orders with Custom Due Dates (rush orders) → small badge indicator
+- Overdue orders → subtle warning badge
+
+
+GOAL
+
+Make the Lab Orders page easier to manage by allowing clinics to:
+- Instantly see overdue jobs that need attention
+- Customize when orders become overdue
+- Track rushed or deadline-based orders
+- Filter lab orders quickly for better workflow
+
+while maintaining the clean and consistent design style of the existing website and avoiding patient-identifying information.
