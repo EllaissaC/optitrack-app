@@ -75,6 +75,7 @@ export interface IStorage {
   deleteLabOrder(id: string): Promise<boolean>;
   markLabOrderFrameSold(labOrderId: string): Promise<void>;
   updateFrameStatus(frameId: string, status: string): Promise<void>;
+  syncFrameSoldCount(frameId: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -377,17 +378,8 @@ export class DbStorage implements IStorage {
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
-      const frameRows = await db.select().from(frames).where(eq(frames.id, order.frameId)).limit(1);
-      if (frameRows.length > 0) {
-        const frame = frameRows[0];
-        const updates: Record<string, unknown> = { status: "on_board" };
-        if (order.frameSold) {
-          const newCount = Math.max(0, (frame.soldCount ?? 0) - 1);
-          updates.soldCount = newCount;
-          updates.dateSold = newCount === 0 ? null : frame.dateSold;
-        }
-        await db.update(frames).set(updates).where(eq(frames.id, order.frameId));
-      }
+      await db.update(frames).set({ status: "on_board" }).where(eq(frames.id, order.frameId));
+      await this.syncFrameSoldCount(order.frameId);
     }
 
     return true;
@@ -405,17 +397,32 @@ export class DbStorage implements IStorage {
       .where(eq(labOrders.id, labOrderId));
 
     if (order.frameId) {
-      await db.update(frames)
-        .set({
-          soldCount: sql`${frames.soldCount} + 1`,
-          dateSold: today,
-        })
-        .where(eq(frames.id, order.frameId));
+      await this.syncFrameSoldCount(order.frameId);
     }
   }
 
   async updateFrameStatus(frameId: string, status: string): Promise<void> {
     await db.update(frames).set({ status }).where(eq(frames.id, frameId));
+  }
+
+  async syncFrameSoldCount(frameId: string): Promise<void> {
+    const rows = await db
+      .select({
+        count: sql<number>`cast(count(*) as int)`,
+        latestDate: sql<string | null>`max(coalesce(frame_sold_at, to_char(created_at, 'YYYY-MM-DD')))`,
+      })
+      .from(labOrders)
+      .where(and(eq(labOrders.frameId, frameId), eq(labOrders.patientOwnFrame, false)));
+
+    const count = rows[0]?.count ?? 0;
+    const latestDate = rows[0]?.latestDate ?? null;
+
+    await db.update(frames)
+      .set({
+        soldCount: count,
+        dateSold: count === 0 ? null : latestDate,
+      })
+      .where(eq(frames.id, frameId));
   }
 }
 
