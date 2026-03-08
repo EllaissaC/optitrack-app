@@ -239,8 +239,8 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg" aria-describedby={undefined}>
-        <DialogHeader>
+      <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] p-0" aria-describedby={undefined}>
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             {step === "details" && (
               <button
@@ -275,7 +275,7 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         </DialogHeader>
 
         {step === "select" && (
-          <div className="space-y-4">
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium flex items-center gap-1.5">
                 <ScanLine className="w-3.5 h-3.5 text-muted-foreground" /> Scan Barcode
@@ -384,194 +384,209 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
 
         {step === "details" && (selectedFrame || isPOF) && (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-              {isPOF ? (
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
-                  <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">Patient Own Frame</p>
-                    <p className="text-xs text-muted-foreground">Lenses only — no inventory change</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
-                    <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground truncate">{selectedFrame!.brand} — {selectedFrame!.model}</p>
-                      <p className="text-xs text-muted-foreground truncate">{selectedFrame!.color} · {selectedFrame!.manufacturer}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsPOFInventory((v) => !v)}
-                    data-testid="button-toggle-pof-inventory"
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md border transition-colors text-left ${
-                      isPOFInventory
-                        ? "border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30"
-                        : "border-dashed border-muted-foreground/30 hover:border-amber-300 dark:hover:border-amber-700 hover:bg-amber-50/40 dark:hover:bg-amber-950/10"
-                    }`}
-                  >
-                    <UserCheck className={`w-4 h-4 flex-shrink-0 ${isPOFInventory ? "text-amber-600" : "text-muted-foreground"}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium ${isPOFInventory ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
-                        POF — Patient Own Frame
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {isPOFInventory ? "Enabled — no sale or analytics impact" : "Returning patient using their own frame from inventory"}
-                      </p>
-                    </div>
-                    <div className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 ${isPOFInventory ? "bg-amber-500" : "bg-muted-foreground/25"}`}>
-                      <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${isPOFInventory ? "translate-x-4" : "translate-x-0.5"}`} />
-                    </div>
-                  </button>
-                </div>
-              )}
+            <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name="visionPlan" render={({ field }) => (
-                  <FormItem className="col-span-2">
-                    <FormLabel className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
-                    </FormLabel>
-                    <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-vision-plan">
-                          <SelectValue placeholder="Select vision plan…" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">None / Out of Pocket</SelectItem>
-                        {VISION_PLAN_OPTIONS.map((plan) => (
-                          <SelectItem key={plan} value={plan}>{plan}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                {/* Section 1: Frame & Order Info */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Frame & Order Info</p>
 
-                <FormField control={form.control} name="labName" render={({ field }) => (
-                  <FormItem className="col-span-2">
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab
-                    </FormLabel>
-                    {labsData.length > 0 ? (
-                      <Select
-                        value={field.value ?? ""}
-                        onValueChange={(v) => {
-                          field.onChange(v);
-                          const lab = labsData.find((l) => l.name === v);
-                          if (lab?.account) form.setValue("labAccountNumber", lab.account);
-                        }}
+                  {isPOF ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                      <UserCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground">Patient Own Frame</p>
+                        <p className="text-xs text-muted-foreground">Lenses only — no inventory change</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                        <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-foreground truncate">{selectedFrame!.brand} — {selectedFrame!.model}</p>
+                          <p className="text-xs text-muted-foreground truncate">{selectedFrame!.color} · {selectedFrame!.manufacturer}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsPOFInventory((v) => !v)}
+                        data-testid="button-toggle-pof-inventory"
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md border transition-colors text-left ${
+                          isPOFInventory
+                            ? "border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30"
+                            : "border-dashed border-muted-foreground/30 hover:border-amber-300 dark:hover:border-amber-700 hover:bg-amber-50/40 dark:hover:bg-amber-950/10"
+                        }`}
                       >
+                        <UserCheck className={`w-4 h-4 flex-shrink-0 ${isPOFInventory ? "text-amber-600" : "text-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-medium ${isPOFInventory ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            POF — Patient Own Frame
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {isPOFInventory ? "Enabled — no sale or analytics impact" : "Returning patient using their own frame from inventory"}
+                          </p>
+                        </div>
+                        <div className={`w-8 h-4 rounded-full transition-colors flex-shrink-0 ${isPOFInventory ? "bg-amber-500" : "bg-muted-foreground/25"}`}>
+                          <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${isPOFInventory ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="visionPlan" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
+                        </FormLabel>
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-vision-plan">
+                              <SelectValue placeholder="Select vision plan…" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">None / Out of Pocket</SelectItem>
+                            {VISION_PLAN_OPTIONS.map((plan) => (
+                              <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="labName" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab
+                        </FormLabel>
+                        {labsData.length > 0 ? (
+                          <Select
+                            value={field.value ?? ""}
+                            onValueChange={(v) => {
+                              field.onChange(v);
+                              const lab = labsData.find((l) => l.name === v);
+                              if (lab?.account) form.setValue("labAccountNumber", lab.account);
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger data-testid="select-lab-name">
+                                <SelectValue placeholder="Select lab…" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {labsData.map((lab) => (
+                                <SelectItem key={lab.id} value={lab.name}>{lab.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <FormControl>
+                            <Input placeholder="e.g. HOYA Lab" data-testid="input-lab-name" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                </div>
+
+                {/* Section 2: Order Details (2-column) */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Details</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                    <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
+                        </FormLabel>
                         <FormControl>
-                          <SelectTrigger data-testid="select-lab-name">
-                            <SelectValue placeholder="Select lab…" />
-                          </SelectTrigger>
+                          <Input placeholder="ORD-12345" data-testid="input-lab-order-number" {...field} value={field.value ?? ""} />
                         </FormControl>
-                        <SelectContent>
-                          {labsData.map((lab) => (
-                            <SelectItem key={lab.id} value={lab.name}>{lab.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="A12345" data-testid="input-lab-account-number" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="1Z999AA1…" data-testid="input-tracking-number" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="date" data-testid="input-date-sent" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField control={form.control} name="customDueDate" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
+                          <span className="text-xs text-muted-foreground font-normal">(rush)</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="date" data-testid="input-custom-due-date" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </div>
+                </div>
+
+                {/* Section 3: Notes */}
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</p>
+                  <FormField control={form.control} name="notes" render={({ field }) => (
+                    <FormItem>
                       <FormControl>
-                        <Input placeholder="e.g. HOYA Lab" data-testid="input-lab-name" {...field} value={field.value ?? ""} />
+                        <Textarea
+                          placeholder="Rush job, redo, special instructions…"
+                          rows={2}
+                          data-testid="textarea-notes"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
                       </FormControl>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="ORD-12345" data-testid="input-lab-order-number" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="A12345" data-testid="input-lab-account-number" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="trackingNumber" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="1Z999AA1…" data-testid="input-tracking-number" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-
-                <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
-                    </FormLabel>
-                    <FormControl>
-                      <Input type="date" data-testid="input-date-sent" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
               </div>
 
-              <FormField control={form.control} name="customDueDate" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
-                    <span className="text-xs text-muted-foreground font-normal">(optional — for rush orders)</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="date" data-testid="input-custom-due-date" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="notes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <StickyNote className="w-3.5 h-3.5 text-muted-foreground" /> Notes
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Rush job, redo, special instructions…"
-                      rows={3}
-                      data-testid="textarea-notes"
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <DialogFooter className="gap-2 pt-2">
+              <div className="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-background">
                 <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
                 <Button type="submit" disabled={mutation.isPending} data-testid="button-send-to-lab">
                   <FlaskConical className="w-4 h-4 mr-1.5" />
                   {mutation.isPending ? "Sending…" : "Send to Lab"}
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         )}
@@ -684,128 +699,155 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md" aria-describedby={undefined}>
-        <DialogHeader>
-          <DialogTitle>Edit Lab Order</DialogTitle>
+      <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] p-0" aria-describedby={undefined}>
+        <DialogHeader className="px-6 pt-5 pb-4 border-b border-border flex-shrink-0">
+          <DialogTitle className="flex items-center gap-2">
+            <FlaskConical className="w-4 h-4 text-primary" /> Edit Lab Order
+          </DialogTitle>
           <DialogDescription>{order.frameBrand} — {order.frameModel}</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
-            <FormField control={form.control} name="visionPlan" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
-                </FormLabel>
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger data-testid="select-edit-vision-plan">
-                      <SelectValue placeholder="Select vision plan..." />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="none">None / Out of Pocket</SelectItem>
-                    {VISION_PLAN_OPTIONS.map((plan) => (
-                      <SelectItem key={plan} value={plan}>{plan}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="labName" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab Name
-                </FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g. HOYA Lab" data-testid="input-edit-lab-name" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="ORD-12345" data-testid="input-edit-lab-order-number" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="A12345" data-testid="input-edit-lab-account-number" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
+          <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+              {/* Section 1: Frame & Order Info */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Frame & Order Info</p>
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border">
+                  <Glasses className="w-5 h-5 text-primary flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground">{order.frameBrand} — {order.frameModel}</p>
+                    <p className="text-xs text-muted-foreground">{order.frameColor} · {order.frameManufacturer}</p>
+                  </div>
+                  {order.patientOwnFrame && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 font-medium border border-amber-200 dark:border-amber-800">POF</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="visionPlan" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" /> Vision Plan
+                      </FormLabel>
+                      <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-edit-vision-plan">
+                            <SelectValue placeholder="Select vision plan..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">None / Out of Pocket</SelectItem>
+                          {VISION_PLAN_OPTIONS.map((plan) => (
+                            <SelectItem key={plan} value={plan}>{plan}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="labName" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-muted-foreground" /> Lab Name
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. HOYA Lab" data-testid="input-edit-lab-name" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
+
+              {/* Section 2: Order Details (2-column) */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Details</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                  <FormField control={form.control} name="labOrderNumber" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Order #
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="ORD-12345" data-testid="input-edit-lab-order-number" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="labAccountNumber" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Hash className="w-3.5 h-3.5 text-muted-foreground" /> Account #
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="A12345" data-testid="input-edit-lab-account-number" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="trackingNumber" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="1Z999AA1..." data-testid="input-edit-tracking-number" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
+                      </FormLabel>
+                      <FormControl>
+                        <Input type="date" data-testid="input-edit-date-sent" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="customDueDate" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
+                        <span className="text-xs text-muted-foreground font-normal">(rush)</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input type="date" data-testid="input-edit-custom-due-date" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+              </div>
+
+              {/* Section 3: Notes */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Notes</p>
+                <FormField control={form.control} name="notes" render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Rush job, redo, special instructions…"
+                        rows={2}
+                        data-testid="textarea-edit-notes"
+                        {...field}
+                        value={field.value ?? ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="trackingNumber" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-muted-foreground" /> Tracking #
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="1Z999AA1..." data-testid="input-edit-tracking-number" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="dateSentToLab" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" /> Date Sent
-                  </FormLabel>
-                  <FormControl>
-                    <Input type="date" data-testid="input-edit-date-sent" {...field} value={field.value ?? ""} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-            </div>
-            <FormField control={form.control} name="customDueDate" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-muted-foreground" /> Custom Due Date
-                  <span className="text-xs text-muted-foreground font-normal">(optional — for rush orders)</span>
-                </FormLabel>
-                <FormControl>
-                  <Input type="date" data-testid="input-edit-custom-due-date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="notes" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5">
-                  <StickyNote className="w-3.5 h-3.5 text-muted-foreground" /> Notes
-                </FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Rush job, redo, special instructions…"
-                    rows={3}
-                    data-testid="textarea-edit-notes"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <DialogFooter className="gap-2 pt-2">
+
+            <div className="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-border bg-background">
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={mutation.isPending} data-testid="button-save-lab-order">
                 {mutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
       </DialogContent>
