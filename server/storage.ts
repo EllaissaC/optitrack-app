@@ -407,7 +407,6 @@ export class DbStorage implements IStorage {
     if (order.frameId) {
       await db.update(frames)
         .set({
-          status: "sold",
           soldCount: sql`${frames.soldCount} + 1`,
           dateSold: today,
         })
