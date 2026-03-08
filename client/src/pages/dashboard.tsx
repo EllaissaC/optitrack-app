@@ -161,6 +161,7 @@ export default function Dashboard() {
 
   const onBoard = frames.filter((f) => f.status === "on_board").length;
   const atLab = frames.filter((f) => f.status === "at_lab").length;
+  const soldByStatus = frames.filter((f) => f.status === "sold").length;
   const total = frames.length;
 
   const sold = frames.reduce((acc, f) => acc + (f.soldCount ?? 0), 0);
@@ -242,7 +243,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Total Sold"
-            value={sold}
+            value={soldByStatus}
             icon={CheckCircle}
             iconColor="text-blue-600 dark:text-blue-400"
             bgColor="bg-blue-100 dark:bg-blue-900/30"
@@ -530,7 +531,7 @@ export default function Dashboard() {
                     {[
                       { label: "On Board", count: onBoard, color: "bg-emerald-500" },
                       { label: "At Lab", count: atLab, color: "bg-amber-500" },
-                      { label: "Sold", count: sold, color: "bg-blue-500" },
+                      { label: "Sold", count: soldByStatus, color: "bg-blue-500" },
                     ].map(({ label, count, color }) => (
                       <div key={label} className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">

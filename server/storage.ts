@@ -74,6 +74,7 @@ export interface IStorage {
   updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined>;
   deleteLabOrder(id: string): Promise<boolean>;
   markLabOrderFrameSold(labOrderId: string): Promise<void>;
+  updateFrameStatus(frameId: string, status: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -375,17 +376,17 @@ export class DbStorage implements IStorage {
     const result = await db.delete(labOrders).where(eq(labOrders.id, id)).returning();
     if (result.length === 0) return false;
 
-    if (order && order.frameSold && !order.patientOwnFrame && order.frameId) {
+    if (order && !order.patientOwnFrame && order.frameId) {
       const frameRows = await db.select().from(frames).where(eq(frames.id, order.frameId)).limit(1);
       if (frameRows.length > 0) {
-        const currentCount = frameRows[0].soldCount ?? 0;
-        const newCount = Math.max(0, currentCount - 1);
-        await db.update(frames)
-          .set({
-            soldCount: newCount,
-            dateSold: newCount === 0 ? null : frameRows[0].dateSold,
-          })
-          .where(eq(frames.id, order.frameId));
+        const frame = frameRows[0];
+        const updates: Record<string, unknown> = { status: "on_board" };
+        if (order.frameSold) {
+          const newCount = Math.max(0, (frame.soldCount ?? 0) - 1);
+          updates.soldCount = newCount;
+          updates.dateSold = newCount === 0 ? null : frame.dateSold;
+        }
+        await db.update(frames).set(updates).where(eq(frames.id, order.frameId));
       }
     }
 
@@ -406,11 +407,16 @@ export class DbStorage implements IStorage {
     if (order.frameId) {
       await db.update(frames)
         .set({
+          status: "sold",
           soldCount: sql`${frames.soldCount} + 1`,
           dateSold: today,
         })
         .where(eq(frames.id, order.frameId));
     }
+  }
+
+  async updateFrameStatus(frameId: string, status: string): Promise<void> {
+    await db.update(frames).set({ status }).where(eq(frames.id, frameId));
   }
 }
 

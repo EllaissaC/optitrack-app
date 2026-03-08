@@ -774,7 +774,8 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
-      toast({ title: "Order marked as received", description: "The frame remains in your inventory." });
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Order marked as received", description: "The frame has been marked as sold." });
       onClose();
     },
     onError: () => toast({ title: "Failed to update order", variant: "destructive" }),
@@ -800,7 +801,7 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
               <>
                 Confirm that the order for{" "}
                 <span className="font-semibold text-foreground">{order.frameBrand} {order.frameModel}</span>{" "}
-                has been received from the lab. Today&apos;s date will be recorded. The frame stays in your inventory.
+                has been received from the lab. Today&apos;s date will be recorded. The frame will be marked as sold.
               </>
             )}
           </div>
