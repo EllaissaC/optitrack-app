@@ -378,7 +378,6 @@ export class DbStorage implements IStorage {
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
-      await db.update(frames).set({ status: "on_board" }).where(eq(frames.id, order.frameId));
       await this.syncFrameSoldCount(order.frameId);
     }
 

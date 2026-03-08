@@ -683,7 +683,6 @@ export async function registerRoutes(
       }
       const order = await storage.createLabOrder(parsed.data);
       if (!parsed.data.patientOwnFrame && parsed.data.frameId) {
-        await storage.updateFrameStatus(parsed.data.frameId, "at_lab");
         await storage.markLabOrderFrameSold(order.id);
       }
       const finalOrder = await storage.getLabOrder(order.id);
@@ -714,7 +713,6 @@ export async function registerRoutes(
       const order = await storage.updateLabOrder(req.params.id as string, parsed.data);
       if (!order) return res.status(404).json({ message: "Lab order not found" });
       if (parsed.data.status === "received" && !order.patientOwnFrame && order.frameId) {
-        await storage.updateFrameStatus(order.frameId, "sold");
         if (!order.frameSold) {
           await storage.markLabOrderFrameSold(order.id);
         }

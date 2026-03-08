@@ -775,7 +775,7 @@ function MarkReceivedDialog({ order, open, onClose }: { order: LabOrder | null; 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Order marked as received", description: "The frame has been marked as sold." });
+      toast({ title: "Order marked as received" });
       onClose();
     },
     onError: () => toast({ title: "Failed to update order", variant: "destructive" }),
