@@ -414,13 +414,14 @@ export class DbStorage implements IStorage {
       .from(labOrders)
       .where(and(eq(labOrders.frameId, frameId), eq(labOrders.patientOwnFrame, false)));
 
-    const count = rows[0]?.count ?? 0;
+    const rawCount = rows[0]?.count ?? 0;
+    const soldCount = rawCount > 0 ? 1 : 0;
     const latestDate = rows[0]?.latestDate ?? null;
 
     await db.update(frames)
       .set({
-        soldCount: count,
-        dateSold: count === 0 ? null : latestDate,
+        soldCount,
+        dateSold: soldCount === 0 ? null : latestDate,
       })
       .where(eq(frames.id, frameId));
   }
