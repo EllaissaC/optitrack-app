@@ -389,7 +389,7 @@ export default function Dashboard() {
                           <Badge
                             variant="outline"
                             className="border-amber-400 text-amber-700 dark:text-amber-400 dark:border-amber-600 font-semibold"
-                            data-testid={`text-days-at-lab-${frame.id}`}
+                            data-testid={`text-days-at-lab-${order.id}`}
                           >
                             {days} days
                           </Badge>
