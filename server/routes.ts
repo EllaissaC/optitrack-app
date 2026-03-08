@@ -701,6 +701,7 @@ export async function registerRoutes(
     trackingNumber: z.string().nullable().optional(),
     dateSentToLab: z.string().nullable().optional(),
     dateReceivedFromLab: z.string().nullable().optional(),
+    customDueDate: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
   });
 
