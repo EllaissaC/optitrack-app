@@ -401,7 +401,7 @@ export class DbStorage implements IStorage {
   }
 
   async updateFrameStatus(frameId: string, status: string): Promise<void> {
-    await db.update(frames).set({ status }).where(eq(frames.id, frameId));
+    await db.update(frames).set({ status: status as "on_board" | "off_board" | "at_lab" | "sold" }).where(eq(frames.id, frameId));
   }
 
   async syncFrameSoldCount(frameId: string): Promise<void> {

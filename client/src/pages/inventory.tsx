@@ -25,6 +25,7 @@ import {
   Loader2,
   Trash,
   FileText,
+  Archive,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
@@ -125,6 +126,12 @@ const STATUS_CONFIG = {
     className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     dot: "bg-emerald-500",
   },
+  off_board: {
+    label: "Off Board",
+    icon: Archive,
+    className: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+    dot: "bg-slate-400",
+  },
   at_lab: {
     label: "At Lab",
     icon: FlaskConical,
@@ -169,6 +176,7 @@ function FrameFoundCard({
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       const labels: Record<string, string> = {
         at_lab: "Sent to lab",
+        off_board: "Marked as Off Board",
         sold: "Marked as sold",
         on_board: "Returned to board",
       };
@@ -190,6 +198,13 @@ function FrameFoundCard({
       icon: FlaskConical,
       className: "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
       show: frame.status !== "at_lab",
+    },
+    {
+      key: "off_board",
+      label: "Mark Off Board",
+      icon: Archive,
+      className: "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400",
+      show: frame.status !== "off_board",
     },
     {
       key: "sold",
@@ -451,7 +466,7 @@ function FrameFormDialog({
               templeLength: editFrame.templeLength,
               cost: String(editFrame.cost),
               retailPrice: String(editFrame.retailPrice),
-              status: editFrame.status as "on_board" | "at_lab" | "sold",
+              status: editFrame.status as "on_board" | "off_board" | "at_lab" | "sold",
               barcode: editFrame.barcode ?? "",
               quantity: editFrame.quantity ?? 1,
               multiplier: editFrame.multiplier ? String(editFrame.multiplier) : "",
@@ -909,6 +924,7 @@ function FrameFormDialog({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="on_board">On Board</SelectItem>
+                        <SelectItem value="off_board">Off Board</SelectItem>
                         <SelectItem value="at_lab">At Lab</SelectItem>
                         <SelectItem value="sold">Sold</SelectItem>
                       </SelectContent>
@@ -1882,7 +1898,7 @@ export default function Inventory() {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {(["all", "on_board", "at_lab", "sold"] as const).map((s) => (
+          {(["all", "on_board", "off_board", "at_lab", "sold"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -1893,7 +1909,7 @@ export default function Inventory() {
                   : "bg-muted text-muted-foreground"
               }`}
             >
-              {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "at_lab" ? "At Lab" : "Sold"}
+              {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "off_board" ? "Off Board" : s === "at_lab" ? "At Lab" : "Sold"}
             </button>
           ))}
         </div>

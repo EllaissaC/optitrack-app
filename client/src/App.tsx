@@ -178,6 +178,7 @@ function AppShell() {
               <Route path="/" component={Dashboard} />
               <Route path="/home" component={Home} />
               <Route path="/dashboard" component={Dashboard} />
+              <Route path="/frame-analytics" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />
               <Route path="/weekly-metrics" component={WeeklyMetrics} />

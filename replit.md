@@ -4,7 +4,7 @@
 A web dashboard for tracking optical frame inventory for opticians and eyewear professionals, with user authentication, lab workflow management, and email reminders.
 
 ## Features
-- **Dashboard**: Inventory overview stats (total, on board, at lab, sold) + Sales Performance cards (total revenue, wholesale cost, profit, profit margin) + monthly stats + Top 5 Brands/Manufacturers/Models analytics + overdue lab alert + recent frames list
+- **Frame Analytics** (formerly Dashboard): Inventory overview stats (total, on board, off board, at lab, sold) + Sales Performance cards + monthly stats + Top Sellers (brands/manufacturers/models, expandable) + overdue lab alert + recent frames list + **Frame Aging Report** (On Board Frames + No Longer On Board subsections, 120+ day highlights) + **Reorder Suggestions** (dismissible alerts for off-board/at-lab frames, persisted in localStorage)
 - **Inventory**: Full CRUD table with search and status filtering; Profit column (retail − wholesale); barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation
 - **Lab Orders**: Dedicated page with overdue attention section at top, category filters (All, Overdue, At Lab Normal, Rush, Received), custom due date for rush orders, dynamic turnaround threshold. Visual badges: Rush (purple), Overdue (red). Overdue logic: customDueDate override or days >= labTurnaroundDays threshold. No patient names displayed.
 - **Weekly Metrics**: Staff enter DAILY numbers (Mon–Sun) for Comp Exams, Optical Orders, and Follow Ups/Next Year in a grid table. Totals auto-calculate from daily entries. Live Scheduling Rate and Capture Rate preview. History table shows weekly totals with expandable chevron to see per-day breakdown. Color-coded badges (≥80% green, 60-79% yellow, <60% red). Summary stat cards. `dailyData` stored as JSON text in DB.
@@ -41,7 +41,9 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `client/src/components/app-sidebar.tsx` - Navigation sidebar
 
 ## Navigation
-- `/` - Dashboard
+- `/` - Frame Analytics (formerly Dashboard)
+- `/frame-analytics` - Frame Analytics (primary route)
+- `/dashboard` - Frame Analytics (legacy redirect)
 - `/inventory` - Frame inventory
 - `/lab-orders` - Lab orders (at-lab frames)
 - `/weekly-metrics` - Weekly optical performance metrics

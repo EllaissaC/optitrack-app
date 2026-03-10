@@ -19,7 +19,7 @@ import { useAuth, useLogout } from "@/hooks/use-auth";
 
 const navItems = [
   { title: "Home", url: "/home", icon: Home },
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Frame Analytics", url: "/frame-analytics", icon: LayoutDashboard },
   { title: "Inventory", url: "/inventory", icon: Package },
   { title: "Lab Orders", url: "/lab-orders", icon: FlaskConical },
   { title: "Weekly Metrics", url: "/weekly-metrics", icon: BarChart2 },

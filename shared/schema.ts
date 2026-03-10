@@ -30,7 +30,7 @@ export const frames = pgTable("frames", {
   cost: numeric("cost", { precision: 10, scale: 2 }).notNull(),
   multiplier: numeric("multiplier", { precision: 10, scale: 4 }),
   retailPrice: numeric("retail_price", { precision: 10, scale: 2 }).notNull(),
-  status: text("status", { enum: ["on_board", "at_lab", "sold"] }).notNull().default("on_board"),
+  status: text("status", { enum: ["on_board", "off_board", "at_lab", "sold"] }).notNull().default("on_board"),
   quantity: integer("quantity").notNull().default(1),
   soldCount: integer("sold_count").notNull().default(0),
   barcode: text("barcode"),

@@ -17,11 +17,11 @@ import { useAuth, useLogout } from "@/hooks/use-auth";
 
 const navCards = [
   {
-    title: "Dashboard",
+    title: "Frame Analytics",
     description: "Overview & analytics",
-    url: "/dashboard",
+    url: "/frame-analytics",
     icon: LayoutDashboard,
-    testId: "nav-card-dashboard",
+    testId: "nav-card-frame-analytics",
   },
   {
     title: "Inventory",

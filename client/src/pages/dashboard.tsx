@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
   AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays, RefreshCw,
-  ChevronDown, ChevronUp,
+  ChevronDown, ChevronUp, Clock, X, RotateCcw, BellOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,26 @@ import { queryClient, getQueryFn } from "@/lib/queryClient";
 
 const STATUS_CONFIG = {
   on_board: { label: "On Board", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400", dot: "bg-emerald-500" },
+  off_board: { label: "Off Board", color: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400", dot: "bg-slate-400" },
   at_lab: { label: "At Lab", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400", dot: "bg-amber-500" },
   sold: { label: "Sold", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400", dot: "bg-blue-500" },
 };
+
+const AGING_THRESHOLD_DAYS = 120;
+const ALERTS_STORAGE_KEY = "optitrack_dismissed_alerts";
+
+function agingDays(createdAt: string | Date): number {
+  return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function loadDismissedAlerts(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(ALERTS_STORAGE_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function saveDismissedAlerts(map: Record<string, string>) {
+  localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(map));
+}
 
 function StatCard({
   title, value, icon: Icon, iconColor, bgColor, description, loading, valueClass,
@@ -182,13 +199,35 @@ export default function Dashboard() {
     queryKey: ["/api/lab-orders"],
   });
 
+  const [dismissedAlerts, setDismissedAlerts] = useState<Record<string, string>>(loadDismissedAlerts);
+  const [agingOffBoardExpanded, setAgingOffBoardExpanded] = useState(false);
+
   const reminderDays = parseInt(settingsMap.labReminderDays || "14");
 
   const onBoard = frames.filter((f) => f.status === "on_board").length;
+  const offBoard = frames.filter((f) => f.status === "off_board").length;
   const activeLabOrders = labOrders.filter((o) => o.status === "pending" && !o.patientOwnFrame);
   const atLab = activeLabOrders.length;
-  const soldByStatus = frames.filter((f) => f.status === "sold").length;
   const total = frames.length;
+
+  const reorderAlerts = frames.filter(
+    (f) => (f.status === "off_board" || f.status === "at_lab") &&
+      (!dismissedAlerts[f.id] || dismissedAlerts[f.id] !== f.status)
+  );
+
+  const onBoardFramesSorted = frames
+    .filter((f) => f.status === "on_board")
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  const offBoardFramesSorted = frames
+    .filter((f) => f.status !== "on_board")
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  function handleDismissAlert(frameId: string, status: string) {
+    const updated = { ...dismissedAlerts, [frameId]: status };
+    setDismissedAlerts(updated);
+    saveDismissedAlerts(updated);
+  }
 
   const sold = frames.reduce((acc, f) => acc + (f.soldCount ?? 0), 0);
 
@@ -225,7 +264,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">Frame Analytics</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Frame Inventory & Lab Order Management</p>
         </div>
         <Button
@@ -243,7 +282,7 @@ export default function Dashboard() {
       {/* Row 1: Inventory status stats */}
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory Overview</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <StatCard
             title="Total Frames"
             value={total}
@@ -259,6 +298,15 @@ export default function Dashboard() {
             iconColor="text-emerald-600 dark:text-emerald-400"
             bgColor="bg-emerald-100 dark:bg-emerald-900/30"
             loading={isLoading}
+          />
+          <StatCard
+            title="Off Board"
+            value={offBoard}
+            icon={BellOff}
+            iconColor="text-slate-500 dark:text-slate-400"
+            bgColor="bg-slate-100 dark:bg-slate-800/50"
+            loading={isLoading}
+            description="Not on display board"
           />
           <StatCard
             title="At Lab"
@@ -557,6 +605,7 @@ export default function Dashboard() {
                     <p className="text-xs text-muted-foreground">Status Breakdown</p>
                     {[
                       { label: "On Board", count: onBoard, color: "bg-emerald-500" },
+                      { label: "Off Board", count: offBoard, color: "bg-slate-400" },
                       { label: "At Lab", count: atLab, color: "bg-amber-500" },
                       { label: "Sold", count: sold, color: "bg-blue-500" },
                     ].map(({ label, count, color }) => (
@@ -579,6 +628,221 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reorder / Low Stock Alerts */}
+      {!isLoading && reorderAlerts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            <RotateCcw className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+            Reorder Suggestions
+          </p>
+          <div className="space-y-2">
+            {reorderAlerts.map((frame) => {
+              const cfg = STATUS_CONFIG[frame.status as keyof typeof STATUS_CONFIG];
+              const days = agingDays(frame.createdAt);
+              return (
+                <div
+                  key={frame.id}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-950/20"
+                  data-testid={`alert-reorder-${frame.id}`}
+                >
+                  <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40 flex-shrink-0">
+                    <AlertTriangle className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {frame.brand} {frame.model}
+                      <span className={`ml-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${cfg?.color ?? ""}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${cfg?.dot ?? ""}`} />
+                        {cfg?.label ?? frame.status}
+                      </span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength} · {days} days since added
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+                      This frame is no longer on the display board — consider ordering a replacement.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button variant="outline" size="sm" asChild className="text-xs border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400">
+                      <Link href="/inventory" data-testid={`link-reorder-${frame.id}`}>
+                        View Frame
+                      </Link>
+                    </Button>
+                    <button
+                      onClick={() => handleDismissAlert(frame.id, frame.status)}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                      title="Dismiss alert"
+                      data-testid={`button-dismiss-alert-${frame.id}`}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Frame Aging Report */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <Clock className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+          Frame Aging Report
+        </p>
+        <div className="space-y-4">
+          {/* On Board Frames */}
+          <Card className="border-card-border">
+            <CardHeader className="pb-2 px-6 pt-5">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Package className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                On Board Frames
+                <Badge variant="secondary" className="ml-1 text-xs">{onBoardFramesSorted.length}</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-6 pb-5">
+              {isLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              ) : onBoardFramesSorted.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No frames currently on the board</p>
+              ) : (
+                <div className="rounded-md overflow-hidden border border-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/60 border-b border-border">
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Frame</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Color / Size</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Days on Board</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {onBoardFramesSorted.map((frame) => {
+                        const days = agingDays(frame.createdAt);
+                        const isOld = days >= AGING_THRESHOLD_DAYS;
+                        return (
+                          <tr
+                            key={frame.id}
+                            className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
+                            data-testid={`row-aging-onboard-${frame.id}`}
+                          >
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-foreground">{frame.brand} {frame.model}</p>
+                              <p className="text-xs text-muted-foreground">{frame.manufacturer}</p>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
+                              {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Badge
+                                variant="outline"
+                                className={isOld
+                                  ? "border-red-400 text-red-700 dark:text-red-400 dark:border-red-600 font-semibold"
+                                  : "border-emerald-400 text-emerald-700 dark:text-emerald-400 dark:border-emerald-600"
+                                }
+                                data-testid={`text-aging-days-${frame.id}`}
+                              >
+                                {days} days{isOld ? " ⚠" : ""}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* No Longer On Board */}
+          <Card className="border-card-border">
+            <CardHeader className="pb-2 px-6 pt-5">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <BellOff className="w-4 h-4 text-muted-foreground" />
+                  No Longer On Board
+                  <Badge variant="secondary" className="ml-1 text-xs">{offBoardFramesSorted.length}</Badge>
+                </CardTitle>
+                {offBoardFramesSorted.length > 0 && (
+                  <button
+                    onClick={() => setAgingOffBoardExpanded(e => !e)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="button-aging-offboard-toggle"
+                  >
+                    {agingOffBoardExpanded ? <><ChevronUp className="w-3.5 h-3.5" /> Collapse</> : <><ChevronDown className="w-3.5 h-3.5" /> Expand</>}
+                  </button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="px-6 pb-5">
+              {isLoading ? (
+                <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              ) : offBoardFramesSorted.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">All frames are currently on the board</p>
+              ) : !agingOffBoardExpanded ? (
+                <p className="text-xs text-muted-foreground text-center py-3">
+                  {offBoardFramesSorted.length} frame{offBoardFramesSorted.length !== 1 ? "s" : ""} off board —{" "}
+                  <button onClick={() => setAgingOffBoardExpanded(true)} className="underline hover:text-foreground transition-colors">expand to view</button>
+                </p>
+              ) : (
+                <div className="rounded-md overflow-hidden border border-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/60 border-b border-border">
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Frame</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">Color / Size</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden md:table-cell">Status</th>
+                        <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden md:table-cell">Sold</th>
+                        <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground">Days Since Added</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {offBoardFramesSorted.map((frame) => {
+                        const days = agingDays(frame.createdAt);
+                        const cfg = STATUS_CONFIG[frame.status as keyof typeof STATUS_CONFIG];
+                        return (
+                          <tr
+                            key={frame.id}
+                            className="border-b border-border/60 last:border-0 hover:bg-muted/30 transition-colors"
+                            data-testid={`row-aging-offboard-${frame.id}`}
+                          >
+                            <td className="px-4 py-3">
+                              <p className="font-medium text-foreground">{frame.brand} {frame.model}</p>
+                              <p className="text-xs text-muted-foreground">{frame.manufacturer}</p>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground hidden sm:table-cell">
+                              {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              {cfg && (
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                  {cfg.label}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">
+                              {frame.soldCount ?? 0} sold
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <Badge variant="outline" className="text-muted-foreground" data-testid={`text-aging-days-off-${frame.id}`}>
+                                {days} days
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
     </div>
   );
 }

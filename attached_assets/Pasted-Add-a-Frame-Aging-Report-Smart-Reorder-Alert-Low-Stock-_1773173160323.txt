@@ -1,0 +1,98 @@
+Add a **Frame Aging Report**, **Smart Reorder Alert**, **Low Stock Alert**, and **Frame Variant Support** system.
+
+Global Rename:
+Rename **"Dashboard"** to **"Frame Analytics"** everywhere in the application.
+This includes:
+
+* Page titles
+* Navigation menus
+* Buttons
+* Internal references
+* Routes/URLs
+* Any UI labels that currently say "Dashboard"
+
+The system should consistently display **Frame Analytics** instead of **Dashboard** across the entire website.
+
+Important inventory rule:
+Frames should **NEVER be removed from inventory when sold**. Instead, they should simply be marked as **OFF BOARD**.
+
+Optical workflow explanation:
+We usually keep **ONE frame in stock on the board for display**. When a patient orders that frame, the **board frame is sent to the lab**.
+
+When a lab order is created:
+
+* Mark the frame as **1 SOLD** in analytics.
+* Mark the frame status as **OFF BOARD / AT LAB**.
+* **Do NOT remove the frame from inventory.**
+* The frame should **still exist in inventory and remain selectable for future lab orders.**
+
+Inventory status logic:
+
+* Frames can have statuses like **ON BOARD**, **OFF BOARD**, or **AT LAB**.
+* Even if a frame is **OFF BOARD or AT LAB**, it should still remain in the inventory system and be usable for lab orders.
+
+Frame Aging Report:
+Create a **Frame Aging section inside the "Frame Analytics" page**.
+
+This report should:
+
+* Track how long each frame has been **on the board**.
+* Show the **number of days since the frame was added to inventory**.
+* Highlight frames that have been on the board too long (example: **120+ days**).
+
+Inside the **Frame Analytics page**, the Frame Aging area should have **two subsections**:
+
+**On Board Frames**
+
+* Frames currently displayed on the board
+* Show aging days for each frame
+
+**No Longer On Board**
+
+* Frames that are marked **OFF BOARD** or **AT LAB**
+* These frames should automatically appear in this section
+* This section should still exist **within the Frame Analytics page**, not as a separate page
+* The system should still track their history and sales
+
+Smart Reorder Alert:
+
+* Since we usually keep **only one frame on the board**, when the frame is sent to the lab and becomes **OFF BOARD**, the system should **recommend ordering a replacement**.
+* The reorder suggestion should appear until a replacement frame is added and marked **ON BOARD**.
+
+Low Stock Alert:
+
+* If the system detects that the available stock of a frame is **low or currently OFF BOARD**, generate an alert suggesting we **check the order status or reorder the frame**.
+* The alert should allow the user to:
+
+  * **Ignore the alert**
+  * **Dismiss/remove the alert manually**
+* Alerts should not reappear if the user chooses to dismiss them unless the inventory status changes again.
+
+Analytics:
+
+* Continue tracking **total frames sold**.
+* Reordering the same frame should **not reset the sales history**.
+
+Current Orders Update:
+
+* This system must **also apply to any existing lab orders already in the system**.
+* Any frame currently in a lab order should automatically be marked **OFF BOARD / AT LAB** if it came from the board.
+* Inventory should remain unchanged and the frame should **still exist in the inventory list**.
+
+Frame Variant Support (Colors and Sizes):
+When adding a new frame to inventory, allow the user to **specify additional colors or sizes that the frame comes in**.
+
+Example:
+A frame model may have:
+
+* Multiple **colors**
+* Multiple **sizes**
+
+This should allow us to:
+
+* Track the **same frame model** while supporting **different color or size variants**
+* Place lab orders for **specific variants**
+* Prevent the system from treating each color or size as completely separate frames
+
+Example use case:
+We may order the **same frame model twice**, but one might be **black size 52** and another might be **tortoise size 54**. The system should support this while still linking them to the same frame model.
