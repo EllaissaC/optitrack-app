@@ -76,6 +76,7 @@ export interface IStorage {
   markLabOrderFrameSold(labOrderId: string): Promise<void>;
   updateFrameStatus(frameId: string, status: string): Promise<void>;
   syncFrameSoldCount(frameId: string): Promise<void>;
+  syncAllFramesFromLabOrders(): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -423,6 +424,43 @@ export class DbStorage implements IStorage {
         dateSold: soldCount === 0 ? null : latestDate,
       })
       .where(eq(frames.id, frameId));
+  }
+
+  async syncAllFramesFromLabOrders(): Promise<void> {
+    const rows = await db
+      .select({
+        frameId: labOrders.frameId,
+        totalOrders: sql<number>`cast(count(*) as int)`,
+        activeOrders: sql<number>`cast(count(*) filter (where ${labOrders.status} != 'received') as int)`,
+        latestDate: sql<string | null>`max(coalesce(${labOrders.frameSoldAt}, to_char(${labOrders.createdAt}, 'YYYY-MM-DD')))`,
+      })
+      .from(labOrders)
+      .where(and(
+        sql`${labOrders.frameId} is not null`,
+        eq(labOrders.patientOwnFrame, false)
+      ))
+      .groupBy(labOrders.frameId);
+
+    for (const row of rows) {
+      if (!row.frameId) continue;
+
+      const soldCount = row.totalOrders > 0 ? 1 : 0;
+
+      await db.update(frames)
+        .set({
+          soldCount,
+          dateSold: soldCount === 0 ? null : row.latestDate,
+        })
+        .where(eq(frames.id, row.frameId));
+
+      if (row.activeOrders > 0) {
+        await db.update(frames)
+          .set({ status: "at_lab" })
+          .where(eq(frames.id, row.frameId));
+      }
+    }
+
+    console.log(`[sync] Synced ${rows.length} frames from lab orders`);
   }
 }
 

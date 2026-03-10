@@ -6,6 +6,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import "./auth";
+import { storage } from "./storage";
 
 declare module "express-session" {
   interface SessionData {
@@ -118,6 +119,12 @@ app.use((req, res, next) => {
     await seedDatabase();
   } catch (e) {
     console.error("Seed error:", e);
+  }
+
+  try {
+    await storage.syncAllFramesFromLabOrders();
+  } catch (e) {
+    console.error("Frame sync error:", e);
   }
 
   await registerRoutes(httpServer, app);
