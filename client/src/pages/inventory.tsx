@@ -100,7 +100,7 @@ const formSchema = insertFrameSchema.extend({
     .string()
     .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
   barcode: z.string().optional().nullable(),
-  quantity: z.coerce.number().min(0).optional().nullable(),
+  quantity: z.coerce.number().int().min(1).optional().nullable(),
   labOrderNumber: z.string().optional().nullable(),
   labName: z.string().optional().nullable(),
   labAccountNumber: z.string().optional().nullable(),
@@ -652,12 +652,17 @@ function FrameFormDialog({
                       <FormControl>
                         <Input
                           type="number"
-                          min={0}
+                          min={1}
+                          step={1}
                           placeholder="1"
                           data-testid="input-quantity"
                           {...field}
                           value={field.value ?? 1}
-                          onChange={(e) => field.onChange(e.target.value === "" ? 1 : parseInt(e.target.value))}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            field.onChange(isNaN(val) || val < 1 ? 1 : val);
+                          }}
+                          onFocus={(e) => e.target.select()}
                         />
                       </FormControl>
                       <FormMessage />
