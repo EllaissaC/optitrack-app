@@ -734,6 +734,7 @@ function EditLabOrderDialog({ order, open, onClose }: { order: LabOrder; open: b
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       toast({ title: "Lab order updated" });
       onClose();
     },
