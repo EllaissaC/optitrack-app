@@ -684,6 +684,7 @@ export async function registerRoutes(
       const order = await storage.createLabOrder(parsed.data);
       if (!parsed.data.patientOwnFrame && parsed.data.frameId) {
         await storage.markLabOrderFrameSold(order.id);
+        await storage.updateFrameStatus(parsed.data.frameId, "at_lab");
       }
       const finalOrder = await storage.getLabOrder(order.id);
       res.status(201).json(finalOrder ?? order);
