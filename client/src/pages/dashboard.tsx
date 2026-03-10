@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
   AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays, RefreshCw,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +55,8 @@ function StatCard({
   );
 }
 
+const TOP_LIST_DEFAULT = 3;
+
 function TopList({
   title, icon: Icon, items, loading, valueLabel,
 }: {
@@ -62,7 +66,11 @@ function TopList({
   loading: boolean;
   valueLabel?: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const maxCount = items[0]?.count ?? 1;
+  const visible = expanded ? items : items.slice(0, TOP_LIST_DEFAULT);
+  const hasMore = items.length > TOP_LIST_DEFAULT;
+
   return (
     <Card className="border-card-border">
       <CardHeader className="pb-3 px-5 pt-5">
@@ -79,30 +87,45 @@ function TopList({
         ) : items.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-4">No sales data yet</p>
         ) : (
-          <div className="space-y-2.5">
-            {items.map((item, i) => (
-              <div key={item.name} className="space-y-1" data-testid={`row-top-${valueLabel?.toLowerCase() ?? "item"}-${i}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-bold text-muted-foreground w-4 flex-shrink-0">{i + 1}</span>
-                    <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+          <>
+            <div className="space-y-2.5">
+              {visible.map((item, i) => (
+                <div key={item.name} className="space-y-1" data-testid={`row-top-${valueLabel?.toLowerCase() ?? "item"}-${i}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-muted-foreground w-4 flex-shrink-0">{i + 1}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-muted-foreground">{item.count} sold</span>
+                      <Badge variant="secondary" className="text-xs font-semibold">
+                        ${item.revenue.toFixed(0)}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground">{item.count} sold</span>
-                    <Badge variant="secondary" className="text-xs font-semibold">
-                      ${item.revenue.toFixed(0)}
-                    </Badge>
+                  <div className="h-1.5 rounded-full bg-muted overflow-hidden ml-6">
+                    <div
+                      className="h-full rounded-full bg-primary/60"
+                      style={{ width: `${(item.count / maxCount) * 100}%` }}
+                    />
                   </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden ml-6">
-                  <div
-                    className="h-full rounded-full bg-primary/60"
-                    style={{ width: `${(item.count / maxCount) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            {hasMore && (
+              <button
+                onClick={() => setExpanded((e) => !e)}
+                className="mt-3 w-full flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 rounded-md hover:bg-muted/50"
+                data-testid={`button-top-${valueLabel?.toLowerCase() ?? "item"}-toggle`}
+              >
+                {expanded ? (
+                  <><ChevronUp className="w-3.5 h-3.5" /> Show Less</>
+                ) : (
+                  <><ChevronDown className="w-3.5 h-3.5" /> View More ({items.length - TOP_LIST_DEFAULT} more)</>
+                )}
+              </button>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -129,7 +152,6 @@ function fmt(n: number): string {
 function topN(
   frames: Frame[],
   key: keyof Frame,
-  n = 5
 ): { name: string; count: number; revenue: number }[] {
   const map = new Map<string, { count: number; revenue: number }>();
   for (const f of frames) {
@@ -143,8 +165,7 @@ function topN(
   }
   return [...map.entries()]
     .map(([name, v]) => ({ name, ...v }))
-    .sort((a, b) => b.count - a.count || b.revenue - a.revenue)
-    .slice(0, n);
+    .sort((a, b) => b.count - a.count || b.revenue - a.revenue);
 }
 
 export default function Dashboard() {
