@@ -1988,7 +1988,7 @@ export default function Inventory() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [manufacturerFilter, setManufacturerFilter] = useState<string>("all");
-  const [showRecent, setShowRecent] = useState(true);
+  const [showRecent, setShowRecent] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [prefillBarcode, setPrefillBarcode] = useState<string>("");
@@ -2292,6 +2292,8 @@ export default function Inventory() {
                       <th className="text-left font-medium px-4 py-2">Manufacturer</th>
                       <th className="text-left font-medium px-4 py-2">Color</th>
                       <th className="text-right font-medium px-4 py-2">Qty</th>
+                      <th className="text-right font-medium px-4 py-2">Cost</th>
+                      <th className="text-right font-medium px-4 py-2">Retail</th>
                       <th className="text-right font-medium px-4 py-2">Added</th>
                     </tr>
                   </thead>
@@ -2310,6 +2312,12 @@ export default function Inventory() {
                         <td className="px-4 py-2.5 text-muted-foreground">{frame.manufacturer}</td>
                         <td className="px-4 py-2.5 text-muted-foreground">{frame.color}</td>
                         <td className="px-4 py-2.5 text-right font-medium text-foreground">{frame.quantity}</td>
+                        <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
+                          {frame.cost ? `$${parseFloat(frame.cost).toFixed(0)}` : "—"}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
+                          {frame.retailPrice ? `$${parseFloat(frame.retailPrice).toFixed(0)}` : "—"}
+                        </td>
                         <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
                           {formatRelativeDate(frame.createdAt)}
                         </td>
