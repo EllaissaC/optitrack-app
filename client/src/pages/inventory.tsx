@@ -2297,22 +2297,24 @@ export default function Inventory() {
                 value={recentTab || recentManufacturers[0] || ""}
                 onValueChange={setRecentTab}
               >
-                <div className="px-4 pt-3 pb-1 border-b border-emerald-100 dark:border-emerald-900">
-                  <TabsList className="bg-emerald-100/60 dark:bg-emerald-900/40 h-8 gap-0.5">
-                    {recentManufacturers.map((mfg) => (
-                      <TabsTrigger
-                        key={mfg}
-                        value={mfg}
-                        className="text-xs px-3 h-6 data-[state=active]:bg-white dark:data-[state=active]:bg-emerald-950 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300"
-                        data-testid={`tab-recent-${mfg}`}
-                      >
-                        {mfg}
-                        <span className="ml-1.5 text-[10px] opacity-60">
-                          ({recentlyAdded.filter((f) => f.manufacturer === mfg).length})
-                        </span>
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                <div className="border-b border-emerald-100 dark:border-emerald-900">
+                  <div className="overflow-x-auto px-4 pt-3 pb-1">
+                    <TabsList className="bg-emerald-100/60 dark:bg-emerald-900/40 h-8 gap-0.5 w-max flex-nowrap">
+                      {recentManufacturers.map((mfg) => (
+                        <TabsTrigger
+                          key={mfg}
+                          value={mfg}
+                          className="text-xs px-3 h-6 shrink-0 data-[state=active]:bg-white dark:data-[state=active]:bg-emerald-950 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300"
+                          data-testid={`tab-recent-${mfg}`}
+                        >
+                          {mfg}
+                          <span className="ml-1.5 text-[10px] opacity-60">
+                            ({recentlyAdded.filter((f) => f.manufacturer === mfg).length})
+                          </span>
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
                 </div>
                 {recentManufacturers.map((mfg) => (
                   <TabsContent key={mfg} value={mfg} className="mt-0">
