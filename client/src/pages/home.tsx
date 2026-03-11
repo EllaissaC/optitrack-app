@@ -120,6 +120,9 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-foreground tracking-tight" data-testid="text-home-title">
               OptiTrack
             </h1>
+            <p className="text-xs text-muted-foreground/60 font-normal -mt-1 tracking-wide">
+              by OptiCore
+            </p>
             <p className="text-base text-muted-foreground">
               Frame Inventory &amp; Lab Order Management
             </p>
