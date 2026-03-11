@@ -66,7 +66,7 @@ export interface IStorage {
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
 
-  findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; clinicId?: string | null }): Promise<Frame | null>;
+  findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null>;
   replaceFrame(oldFrameId: string, newFrameData: InsertFrame): Promise<Frame>;
 
   getLabOrders(clinicId?: string | null): Promise<LabOrder[]>;
@@ -122,7 +122,7 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  async findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; code?: string | null; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null> {
+  async findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null> {
     if (params.barcode) {
       const conds = [eq(frames.barcode, params.barcode)];
       if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
@@ -130,17 +130,13 @@ export class DbStorage implements IStorage {
       return frame ?? null;
     }
     const conds = [
-      eq(frames.brand, params.brand),
-      eq(frames.model, params.model),
+      sql`LOWER(TRIM(${frames.brand})) = LOWER(TRIM(${params.brand}))`,
+      sql`LOWER(TRIM(${frames.model})) = LOWER(TRIM(${params.model}))`,
+      sql`LOWER(TRIM(${frames.color})) = LOWER(TRIM(${params.color}))`,
       eq(frames.eyeSize, params.eyeSize),
       eq(frames.bridge, params.bridge),
       eq(frames.templeLength, params.templeLength),
     ];
-    if (params.code) {
-      conds.push(eq(frames.code, params.code));
-    } else {
-      conds.push(sql`(${frames.code} IS NULL OR ${frames.code} = '')`);
-    }
     if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
     const [frame] = await db.select().from(frames).where(and(...conds));
     return frame ?? null;
