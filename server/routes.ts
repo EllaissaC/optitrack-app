@@ -763,15 +763,16 @@ export async function registerRoutes(
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = [
-        "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf",
-        "text/csv", "application/csv",
+      const allowedMimes = [
+        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+        "application/pdf",
+        "text/csv", "application/csv", "application/octet-stream",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       ];
       const ext = file.originalname.split(".").pop()?.toLowerCase();
       const allowedExts = ["jpg", "jpeg", "png", "webp", "gif", "pdf", "csv", "xls", "xlsx"];
-      if (allowed.includes(file.mimetype) || allowedExts.includes(ext ?? "")) {
+      if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext ?? "")) {
         cb(null, true);
       } else {
         cb(new Error("Only PDF, image (JPEG, PNG, WebP), and spreadsheet (CSV, XLS, XLSX) files are supported."));
@@ -779,7 +780,14 @@ export async function registerRoutes(
     },
   });
 
-  app.post("/api/invoice/parse", requireAuth, invoiceUpload.single("file"), async (req, res) => {
+  app.post("/api/invoice/parse", requireAuth, (req, res, next) => {
+    invoiceUpload.single("file")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ message: err.message || "File upload failed." });
+      }
+      next();
+    });
+  }, async (req, res) => {
     try {
       const file = req.file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });

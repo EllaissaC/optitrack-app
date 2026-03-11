@@ -1577,7 +1577,7 @@ function InvoiceImportDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.xlsx,.xls,image/jpeg,image/png,image/webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.xlsx,.xls"
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
                 data-testid="input-invoice-file"
