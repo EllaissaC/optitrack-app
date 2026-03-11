@@ -1541,25 +1541,31 @@ function InvoiceImportDialog({
       const total = data.totalDetected ?? data.frames.length;
       setDetectedCount(total);
 
-      // Auto-detect the primary manufacturer from extracted frames
-      const mfgCounts = new Map<string, number>();
-      (data.frames as ExtractedFrame[]).forEach((f) => {
-        const m = f.manufacturer?.trim();
-        if (m) mfgCounts.set(m, (mfgCounts.get(m) ?? 0) + 1);
-      });
-      let detectedMfg = "";
-      let bestCount = 0;
-      mfgCounts.forEach((count, mfg) => {
-        if (count > bestCount) { detectedMfg = mfg; bestCount = count; }
-      });
-      // Prefer an exact match against known manufacturers (fixes AI casing/spelling)
-      const knownMfg = mfgList.find((m) => m.name.toLowerCase() === detectedMfg.toLowerCase());
-      const finalMfg = knownMfg?.name || detectedMfg;
-      if (finalMfg) {
-        setGlobalManufacturer(finalMfg);
-        setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: finalMfg })));
+      // If the user already chose a manufacturer before extracting, respect it and apply to all rows.
+      // Only auto-detect if the user hasn't made a selection yet.
+      if (globalManufacturer.trim()) {
+        setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: globalManufacturer.trim() })));
       } else {
-        setRows(data.frames);
+        // Auto-detect the primary manufacturer from extracted frames
+        const mfgCounts = new Map<string, number>();
+        (data.frames as ExtractedFrame[]).forEach((f) => {
+          const m = f.manufacturer?.trim();
+          if (m) mfgCounts.set(m, (mfgCounts.get(m) ?? 0) + 1);
+        });
+        let detectedMfg = "";
+        let bestCount = 0;
+        mfgCounts.forEach((count, mfg) => {
+          if (count > bestCount) { detectedMfg = mfg; bestCount = count; }
+        });
+        // Prefer an exact match against known manufacturers (normalises AI casing/spelling)
+        const knownMfg = mfgList.find((m) => m.name.toLowerCase() === detectedMfg.toLowerCase());
+        const finalMfg = knownMfg?.name || detectedMfg;
+        if (finalMfg) {
+          setGlobalManufacturer(finalMfg);
+          setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: finalMfg })));
+        } else {
+          setRows(data.frames);
+        }
       }
 
       if (data.truncated) {

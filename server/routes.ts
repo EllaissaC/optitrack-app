@@ -571,9 +571,13 @@ export async function registerRoutes(
       });
       if (duplicate) {
         const addQty = parsed.data.quantity ?? 1;
+        const manufacturerUpdate = parsed.data.manufacturer && parsed.data.manufacturer !== duplicate.manufacturer
+          ? { manufacturer: parsed.data.manufacturer }
+          : {};
         const updated = await storage.updateFrame(duplicate.id, {
           quantity: (duplicate.quantity ?? 1) + addQty,
           reorderCount: (duplicate.reorderCount ?? 0) + 1,
+          ...manufacturerUpdate,
         });
         return res.status(200).json({ ...updated, _reorder: true });
       }
