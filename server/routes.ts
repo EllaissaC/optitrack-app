@@ -568,12 +568,12 @@ export async function registerRoutes(
         clinicId: parsed.data.clinicId,
       });
       if (duplicate) {
-        return res.status(409).json({
-          existingFrameId: duplicate.id,
-          existingBrand: duplicate.brand,
-          existingModel: duplicate.model,
-          existingColor: duplicate.color,
+        const addQty = parsed.data.quantity ?? 1;
+        const updated = await storage.updateFrame(duplicate.id, {
+          quantity: (duplicate.quantity ?? 1) + addQty,
+          reorderCount: (duplicate.reorderCount ?? 0) + 1,
         });
+        return res.status(200).json({ ...updated, _reorder: true });
       }
       const frame = await storage.createFrame(parsed.data);
       res.status(201).json(frame);
@@ -615,6 +615,17 @@ export async function registerRoutes(
       res.json(frame);
     } catch {
       res.status(500).json({ message: "Failed to update frame" });
+    }
+  });
+
+  app.post("/api/frames/:id/reorder", requireAuth, async (req, res) => {
+    try {
+      const qty = Math.max(1, parseInt(req.body.qty ?? "1") || 1);
+      const frame = await storage.reorderFrame(req.params.id as string, qty);
+      res.json(frame);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to reorder frame";
+      res.status(500).json({ message: msg });
     }
   });
 
@@ -684,7 +695,7 @@ export async function registerRoutes(
       const order = await storage.createLabOrder(parsed.data);
       if (!parsed.data.patientOwnFrame && parsed.data.frameId) {
         await storage.markLabOrderFrameSold(order.id);
-        await storage.updateFrameStatus(parsed.data.frameId, "at_lab");
+        await storage.adjustFrameInventory(parsed.data.frameId, -1, 1);
       }
       const finalOrder = await storage.getLabOrder(order.id);
       res.status(201).json(finalOrder ?? order);

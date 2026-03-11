@@ -1,0 +1,129 @@
+Update the OptiTrack system with the following improvements to inventory logic, reordering workflow, analytics syncing, dashboard organization, reporting, and frame entry options.
+
+1. Frame Reorder Recognition
+When a frame that previously existed in the system is reordered, the system should recognize it as an existing frame model instead of creating a duplicate entry.
+
+If the same frame (same brand, model, color, and size or same unique SKU/ID) is added again:
+- Increase the "On Board" quantity instead of creating a new frame entry.
+- Preserve all existing analytics (sales count, reorder history, aging data, etc.).
+- Record the reorder in the frame’s reorder history.
+- Keep the frame recognized as a frame that has existed on the board before.
+
+2. Reorder Alert Button
+In the Smart Reorder Alert system, add a button labeled "Mark as Reordered".
+
+When this button is clicked:
+- Allow the user to optionally enter the reorder quantity.
+- Increase the frame’s "On Board" quantity by that amount.
+- Record the reorder in the frame’s reorder history.
+- Remove the frame from the reorder alert list.
+- Preserve all existing analytics tied to that frame.
+- Ensure the system recognizes it as the same frame model and does not create duplicate entries.
+
+3. Lab Order Inventory Behavior
+When a frame from the board is used in a lab order:
+
+- Decrease the "On Board" quantity by 1.
+- Increase the "Not On Board" quantity by 1.
+- Do NOT classify the frame as "At Lab".
+
+The "Not On Board" status represents that the physical display frame is no longer on the board because it was used for a patient order.
+
+4. Frame Model Availability
+Even if the "On Board" quantity becomes 0, the frame model should remain available in the system.
+
+- The frame should remain visible and selectable in inventory.
+- The system should not hide or remove the frame model.
+- Availability should depend on the frame existing in the database, not the board quantity.
+
+5. Automatic Analytics Updates
+Whenever any of the following actions happen:
+- Frames reordered
+- Frames used in lab orders
+- Inventory quantities updated
+- Frames marked reordered from alerts
+- Frames added or removed
+
+All analytics across the entire system should automatically update.
+
+This includes:
+- Off-board tracking
+- Reorder alerts
+- Inventory totals
+- Frame aging reports
+- Frames sold metrics
+- Revenue analytics
+
+6. Dashboard Organization Update
+Currently, the following sections are inside the "Frame Analytics" tab:
+- Frame Reorder Suggestions
+- Frame Aging Report
+- No Longer On Board
+
+Move these sections into the "Inventory" tab instead since they relate directly to inventory management.
+
+Inside the Inventory tab, create a section called "Inventory Insights" and place the following there:
+- Frame Reorder Suggestions
+- Frame Aging Report
+- No Longer On Board
+
+These tools should continue functioning exactly the same, only their location in the interface should change.
+
+7. Frame Analytics Tab Improvements
+After moving those inventory-related sections, the "Frame Analytics" tab should focus only on performance and sales metrics such as:
+- Revenue analytics
+- Frames sold metrics
+- Other sales-related insights.
+
+8. Monthly Report Export Feature
+Add an "Export PDF" button in the Frame Analytics tab.
+
+This button should generate and download a monthly report as a PDF.
+
+The PDF report should include:
+- The month and year at the top
+- Revenue for this month
+- Total frames sold this month
+
+The report should be formatted cleanly like a simple analytics summary and should always reflect the current analytics data from the system.
+
+9. Add Frame – Multiple Color and Size Options
+When adding a new frame in the "Add Frame" section of inventory, allow the user to add multiple variations of the same frame model.
+
+Add an option called "Add Additional Color + Size".
+
+This should allow the user to:
+- Add the same frame model with different colors and/or sizes without creating an entirely separate model entry.
+- Store each variation as its own selectable option (color + size combination).
+- Keep all variations grouped under the same frame model for organization and analytics.
+
+Example:
+Frame Model: Ray-Ban RB5228
+
+Variations:
+- Black / 53
+- Black / 55
+- Havana / 53
+- Blue / 55
+
+Each variation should maintain its own inventory quantities (On Board, Not On Board, etc.) while still belonging to the same frame model.
+
+10. Update Existing Data
+After implementing these changes, update all existing inventory frames and all current lab orders in the system so that their statuses, quantities, and analytics follow the new logic.
+
+Ensure that:
+- Existing frames reflect correct "On Board" and "Not On Board" quantities.
+- Current lab orders correctly update frame inventory counts.
+- All analytics recalculate based on the updated system rules.
+
+11. Analytics Sync When Lab Orders Are Deleted
+If a lab order is deleted from the system, the analytics and inventory should automatically update.
+
+This includes updating:
+- Frames sold metrics
+- Revenue totals
+- Inventory counts
+- Off-board counts
+- Any related analytics or reports.
+
+Deleting a lab order should reverse any analytics or inventory changes that were created by that order.

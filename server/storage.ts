@@ -75,6 +75,8 @@ export interface IStorage {
   deleteLabOrder(id: string): Promise<boolean>;
   markLabOrderFrameSold(labOrderId: string): Promise<void>;
   updateFrameStatus(frameId: string, status: string): Promise<void>;
+  adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void>;
+  reorderFrame(frameId: string, qty: number): Promise<Frame>;
   syncFrameSoldCount(frameId: string): Promise<void>;
   syncAllFramesFromLabOrders(): Promise<void>;
 }
@@ -379,6 +381,7 @@ export class DbStorage implements IStorage {
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
+      await this.adjustFrameInventory(order.frameId, 1, -1);
       await this.syncFrameSoldCount(order.frameId);
     }
 
@@ -403,6 +406,25 @@ export class DbStorage implements IStorage {
 
   async updateFrameStatus(frameId: string, status: string): Promise<void> {
     await db.update(frames).set({ status: status as "on_board" | "off_board" | "at_lab" | "sold" }).where(eq(frames.id, frameId));
+  }
+
+  async adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void> {
+    const [frame] = await db.select({ quantity: frames.quantity, offBoardQty: frames.offBoardQty }).from(frames).where(eq(frames.id, frameId));
+    if (!frame) return;
+    const newQty = Math.max(0, (frame.quantity ?? 1) + onBoardDelta);
+    const newOffBoard = Math.max(0, (frame.offBoardQty ?? 0) + offBoardDelta);
+    await db.update(frames).set({ quantity: newQty, offBoardQty: newOffBoard }).where(eq(frames.id, frameId));
+  }
+
+  async reorderFrame(frameId: string, qty: number): Promise<Frame> {
+    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
+    if (!frame) throw new Error("Frame not found");
+    const reduceQty = Math.max(1, qty);
+    const [updated] = await db.update(frames).set({
+      offBoardQty: Math.max(0, (frame.offBoardQty ?? 0) - reduceQty),
+      reorderCount: (frame.reorderCount ?? 0) + 1,
+    }).where(eq(frames.id, frameId)).returning();
+    return updated;
   }
 
   async syncFrameSoldCount(frameId: string): Promise<void> {
@@ -445,19 +467,18 @@ export class DbStorage implements IStorage {
       if (!row.frameId) continue;
 
       const soldCount = row.totalOrders > 0 ? 1 : 0;
+      const offBoardQty = row.activeOrders > 0 ? 1 : 0;
+      const onBoardQty = offBoardQty > 0 ? 0 : 1;
 
       await db.update(frames)
         .set({
           soldCount,
           dateSold: soldCount === 0 ? null : row.latestDate,
+          quantity: onBoardQty,
+          offBoardQty,
+          status: "on_board",
         })
         .where(eq(frames.id, row.frameId));
-
-      if (row.activeOrders > 0) {
-        await db.update(frames)
-          .set({ status: "at_lab" })
-          .where(eq(frames.id, row.frameId));
-      }
     }
 
     console.log(`[sync] Synced ${rows.length} frames from lab orders`);

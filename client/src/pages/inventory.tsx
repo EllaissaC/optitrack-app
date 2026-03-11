@@ -351,6 +351,8 @@ function FrameFormDialog({
   const [newBrandMfgId, setNewBrandMfgId] = useState<string>("");
   const [duplicateInfo, setDuplicateInfo] = useState<{ existingFrameId: string; existingBrand: string; existingModel: string; existingColor: string } | null>(null);
   const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
+  type Variant = { color: string; eyeSize: number; bridge: number; templeLength: number; barcode: string; quantity: number };
+  const [variants, setVariants] = useState<Variant[]>([]);
 
   const addMfgMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -499,6 +501,7 @@ function FrameFormDialog({
               visionPlan: "",
             }
       );
+      setVariants([]);
     }
   }, [open, editFrame, prefillBarcode]);
 
@@ -525,25 +528,17 @@ function FrameFormDialog({
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (res.status === 409) {
-        const json = await res.json();
-        return { duplicate: true as const, ...json };
-      }
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-      return { duplicate: false as const, frame: await res.json() };
+      const json = await res.json();
+      return json as { _reorder?: boolean } & Record<string, unknown>;
     },
     onSuccess: (result) => {
-      if (result.duplicate) {
-        setDuplicateInfo({
-          existingFrameId: result.existingFrameId,
-          existingBrand: result.existingBrand,
-          existingModel: result.existingModel,
-          existingColor: result.existingColor,
-        });
-        return;
-      }
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame added", description: "The frame has been added to inventory." });
+      if (result._reorder) {
+        toast({ title: "Quantity updated", description: "Matching frame found — quantity has been incremented." });
+      } else {
+        toast({ title: "Frame added", description: "The frame has been added to inventory." });
+      }
       onClose();
     },
     onError: () => {
@@ -597,7 +592,36 @@ function FrameFormDialog({
       updateMutation.mutate(payload);
     } else {
       setPendingPayload(payload);
-      createMutation.mutate(payload);
+      if (variants.length > 0) {
+        const allPayloads = [payload, ...variants.map((v) => ({
+          ...payload,
+          color: v.color,
+          eyeSize: v.eyeSize,
+          bridge: v.bridge,
+          templeLength: v.templeLength,
+          barcode: v.barcode || null,
+          quantity: v.quantity,
+        }))];
+        Promise.all(
+          allPayloads.map((p) =>
+            fetch("/api/frames", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(p),
+              credentials: "include",
+            })
+          )
+        ).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+          toast({ title: "Frames added", description: `${allPayloads.length} frame variant${allPayloads.length !== 1 ? "s" : ""} added to inventory.` });
+          setVariants([]);
+          onClose();
+        }).catch(() => {
+          toast({ title: "Error", description: "Some variants may not have been added.", variant: "destructive" });
+        });
+      } else {
+        createMutation.mutate(payload);
+      }
     }
   }
 
@@ -862,6 +886,102 @@ function FrameFormDialog({
                   )}
                 />
               </div>
+
+              {/* Additional Variants — only shown when adding a new frame */}
+              {!isEdit && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      <PlusCircle className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+                      Additional Color/Size Variants
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => setVariants((prev) => [...prev, { color: "", eyeSize: 52, bridge: 18, templeLength: 145, barcode: "", quantity: 1 }])}
+                      data-testid="button-add-variant"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Variant
+                    </Button>
+                  </div>
+                  {variants.length > 0 && (
+                    <div className="space-y-2">
+                      {variants.map((v, idx) => (
+                        <div key={idx} className="grid grid-cols-6 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border">
+                          <div className="col-span-2">
+                            <p className="text-xs text-muted-foreground mb-1">Color</p>
+                            <Input
+                              placeholder="Color"
+                              value={v.color}
+                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, color: e.target.value } : x))}
+                              data-testid={`input-variant-color-${idx}`}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Eye</p>
+                            <Input
+                              type="number"
+                              min={1} max={99}
+                              value={v.eyeSize}
+                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, eyeSize: parseInt(e.target.value) || 52 } : x))}
+                              data-testid={`input-variant-eye-${idx}`}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Bridge</p>
+                            <Input
+                              type="number"
+                              min={1} max={99}
+                              value={v.bridge}
+                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, bridge: parseInt(e.target.value) || 18 } : x))}
+                              data-testid={`input-variant-bridge-${idx}`}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Temple</p>
+                            <Input
+                              type="number"
+                              min={1} max={999}
+                              value={v.templeLength}
+                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, templeLength: parseInt(e.target.value) || 145 } : x))}
+                              data-testid={`input-variant-temple-${idx}`}
+                            />
+                          </div>
+                          <div className="flex items-end gap-1">
+                            <div className="flex-1">
+                              <p className="text-xs text-muted-foreground mb-1">Qty</p>
+                              <Input
+                                type="number"
+                                min={1} step={1}
+                                value={v.quantity}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, quantity: parseInt(e.target.value) || 1 } : x))}
+                                data-testid={`input-variant-qty-${idx}`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors mb-0.5"
+                              onClick={() => setVariants((prev) => prev.filter((_, i) => i !== idx))}
+                              data-testid={`button-remove-variant-${idx}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {variants.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2 bg-muted/20 rounded border border-dashed border-border">
+                      Click "Add Variant" to add additional color/size combinations for the same model.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Pricing */}
               <div className="grid grid-cols-3 gap-4">
@@ -1698,6 +1818,19 @@ export default function Inventory() {
     },
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("POST", `/api/frames/${id}/reorder`, { qty: 1 }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Reorder marked", description: "Frame has been marked as reordered." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to mark as reordered.", variant: "destructive" });
+    },
+  });
+
+  const reorderAlerts = frames.filter((f) => (f.offBoardQty ?? 0) > 0);
+
   const filtered = frames.filter((frame) => {
     const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
     const q = search.toLowerCase();
@@ -1878,6 +2011,67 @@ export default function Inventory() {
           onDismiss={dismissFoundCard}
           onEdit={openEditFromFound}
         />
+      )}
+
+      {/* Inventory Insights — Reorder Alerts */}
+      {!isLoading && reorderAlerts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
+            Inventory Insights — {reorderAlerts.length} frame{reorderAlerts.length !== 1 ? "s" : ""} need reordering
+          </p>
+          <div className="space-y-2">
+            {reorderAlerts.map((frame) => (
+              <div
+                key={frame.id}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-950/20"
+                data-testid={`alert-reorder-${frame.id}`}
+              >
+                <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40 flex-shrink-0">
+                  <RotateCcw className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {frame.brand} {frame.model}
+                    {(frame.reorderCount ?? 0) > 0 && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        (reordered {frame.reorderCount}×)
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+                    <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
+                      {frame.offBoardQty} unit{(frame.offBoardQty ?? 0) !== 1 ? "s" : ""} not on board
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => openEdit(frame)}
+                    data-testid={`button-edit-alert-${frame.id}`}
+                  >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-0"
+                    onClick={() => reorderMutation.mutate(frame.id)}
+                    disabled={reorderMutation.isPending}
+                    data-testid={`button-mark-reordered-${frame.id}`}
+                  >
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Mark as Reordered
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Search + filter */}
