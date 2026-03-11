@@ -86,6 +86,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { VISION_PLAN_OPTIONS } from "@/lib/constants";
 
@@ -2049,6 +2050,13 @@ export default function Inventory() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [frames]);
 
+  const recentManufacturers = useMemo(
+    () => [...new Set(recentlyAdded.map((f) => f.manufacturer).filter(Boolean))].sort(),
+    [recentlyAdded]
+  );
+
+  const [recentTab, setRecentTab] = useState<string>("");
+
   function formatRelativeDate(dateStr: string | Date) {
     const date = new Date(dateStr);
     const diffDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
@@ -2284,48 +2292,74 @@ export default function Inventory() {
           </button>
           {showRecent && (
             <div className="border-t border-emerald-200 dark:border-emerald-800">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-xs text-muted-foreground border-b border-emerald-100 dark:border-emerald-900">
-                      <th className="text-left font-medium px-4 py-2">Brand / Model</th>
-                      <th className="text-left font-medium px-4 py-2">Manufacturer</th>
-                      <th className="text-left font-medium px-4 py-2">Color</th>
-                      <th className="text-right font-medium px-4 py-2">Qty</th>
-                      <th className="text-right font-medium px-4 py-2">Cost</th>
-                      <th className="text-right font-medium px-4 py-2">Retail</th>
-                      <th className="text-right font-medium px-4 py-2">Added</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/60">
-                    {recentlyAdded.map((frame) => (
-                      <tr
-                        key={frame.id}
-                        className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-colors"
-                        onClick={() => { setEditFrame(frame); setDialogOpen(true); }}
-                        data-testid={`row-recently-added-${frame.id}`}
+              <Tabs
+                value={recentTab || recentManufacturers[0] || ""}
+                onValueChange={setRecentTab}
+              >
+                <div className="px-4 pt-3 pb-1 border-b border-emerald-100 dark:border-emerald-900">
+                  <TabsList className="bg-emerald-100/60 dark:bg-emerald-900/40 h-8 gap-0.5">
+                    {recentManufacturers.map((mfg) => (
+                      <TabsTrigger
+                        key={mfg}
+                        value={mfg}
+                        className="text-xs px-3 h-6 data-[state=active]:bg-white dark:data-[state=active]:bg-emerald-950 data-[state=active]:text-emerald-700 dark:data-[state=active]:text-emerald-300"
+                        data-testid={`tab-recent-${mfg}`}
                       >
-                        <td className="px-4 py-2.5">
-                          <p className="font-medium text-foreground">{frame.brand}</p>
-                          <p className="text-xs text-muted-foreground">{frame.model}</p>
-                        </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{frame.manufacturer}</td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{frame.color}</td>
-                        <td className="px-4 py-2.5 text-right font-medium text-foreground">{frame.quantity}</td>
-                        <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
-                          {frame.cost ? `$${parseFloat(frame.cost).toFixed(0)}` : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
-                          {frame.retailPrice ? `$${parseFloat(frame.retailPrice).toFixed(0)}` : "—"}
-                        </td>
-                        <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
-                          {formatRelativeDate(frame.createdAt)}
-                        </td>
-                      </tr>
+                        {mfg}
+                        <span className="ml-1.5 text-[10px] opacity-60">
+                          ({recentlyAdded.filter((f) => f.manufacturer === mfg).length})
+                        </span>
+                      </TabsTrigger>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TabsList>
+                </div>
+                {recentManufacturers.map((mfg) => (
+                  <TabsContent key={mfg} value={mfg} className="mt-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-muted-foreground border-b border-emerald-100 dark:border-emerald-900">
+                            <th className="text-left font-medium px-4 py-2">Brand / Model</th>
+                            <th className="text-left font-medium px-4 py-2">Color</th>
+                            <th className="text-right font-medium px-4 py-2">Qty</th>
+                            <th className="text-right font-medium px-4 py-2">Cost</th>
+                            <th className="text-right font-medium px-4 py-2">Retail</th>
+                            <th className="text-right font-medium px-4 py-2">Added</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/60">
+                          {recentlyAdded
+                            .filter((f) => f.manufacturer === mfg)
+                            .map((frame) => (
+                              <tr
+                                key={frame.id}
+                                className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-colors"
+                                onClick={() => { setEditFrame(frame); setDialogOpen(true); }}
+                                data-testid={`row-recently-added-${frame.id}`}
+                              >
+                                <td className="px-4 py-2.5">
+                                  <p className="font-medium text-foreground">{frame.brand}</p>
+                                  <p className="text-xs text-muted-foreground">{frame.model}</p>
+                                </td>
+                                <td className="px-4 py-2.5 text-muted-foreground">{frame.color}</td>
+                                <td className="px-4 py-2.5 text-right font-medium text-foreground">{frame.quantity}</td>
+                                <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
+                                  {frame.cost ? `$${parseFloat(frame.cost).toFixed(0)}` : "—"}
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
+                                  {frame.retailPrice ? `$${parseFloat(frame.retailPrice).toFixed(0)}` : "—"}
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
+                                  {formatRelativeDate(frame.createdAt)}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TabsContent>
+                ))}
+              </Tabs>
             </div>
           )}
         </div>
