@@ -10,6 +10,7 @@ import {
   brands, type Brand, type InsertBrand,
   weeklyMetrics, type WeeklyMetric, type InsertWeeklyMetric,
   labOrders, type LabOrder, type InsertLabOrder,
+  frameHolds, type FrameHold, type InsertFrameHold,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -80,6 +81,15 @@ export interface IStorage {
   backOnBoard(frameId: string): Promise<Frame>;
   syncFrameSoldCount(frameId: string): Promise<void>;
   syncAllFramesFromLabOrders(): Promise<void>;
+
+  getFrameHolds(clinicId?: string | null): Promise<FrameHold[]>;
+  getFrameHold(id: string): Promise<FrameHold | undefined>;
+  createFrameHold(data: InsertFrameHold): Promise<FrameHold>;
+  updateFrameHold(id: string, data: Partial<InsertFrameHold>): Promise<FrameHold | undefined>;
+  deleteFrameHold(id: string): Promise<boolean>;
+  releaseFrameHold(id: string): Promise<{ hold: FrameHold; frame: Frame | null }>;
+  extendFrameHold(id: string, newExpirationDate: string): Promise<FrameHold | undefined>;
+  autoExpireHolds(clinicId?: string | null): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -505,6 +515,75 @@ export class DbStorage implements IStorage {
     }
 
     console.log(`[sync] Synced ${rows.length} frames from lab orders`);
+  }
+
+  async getFrameHolds(clinicId?: string | null): Promise<FrameHold[]> {
+    if (clinicId) {
+      return db.select().from(frameHolds).where(eq(frameHolds.clinicId, clinicId)).orderBy(desc(frameHolds.createdAt));
+    }
+    return db.select().from(frameHolds).orderBy(desc(frameHolds.createdAt));
+  }
+
+  async getFrameHold(id: string): Promise<FrameHold | undefined> {
+    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
+    return hold;
+  }
+
+  async createFrameHold(data: InsertFrameHold): Promise<FrameHold> {
+    const [hold] = await db.insert(frameHolds).values(data).returning();
+    if (data.frameId) {
+      const [frame] = await db.select().from(frames).where(eq(frames.id, data.frameId));
+      if (frame) {
+        await db.update(frames).set({ quantity: Math.max(0, (frame.quantity ?? 1) - 1) }).where(eq(frames.id, data.frameId));
+      }
+    }
+    return hold;
+  }
+
+  async updateFrameHold(id: string, data: Partial<InsertFrameHold>): Promise<FrameHold | undefined> {
+    const [updated] = await db.update(frameHolds).set(data).where(eq(frameHolds.id, id)).returning();
+    return updated;
+  }
+
+  async deleteFrameHold(id: string): Promise<boolean> {
+    const result = await db.delete(frameHolds).where(eq(frameHolds.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async releaseFrameHold(id: string): Promise<{ hold: FrameHold; frame: Frame | null }> {
+    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
+    if (!hold) throw new Error("Hold not found");
+    const [updatedHold] = await db.update(frameHolds).set({ status: "released" }).where(eq(frameHolds.id, id)).returning();
+    let updatedFrame: Frame | null = null;
+    if (hold.frameId) {
+      const [frame] = await db.select().from(frames).where(eq(frames.id, hold.frameId));
+      if (frame) {
+        const [f] = await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, hold.frameId)).returning();
+        updatedFrame = f ?? null;
+      }
+    }
+    return { hold: updatedHold, frame: updatedFrame };
+  }
+
+  async extendFrameHold(id: string, newExpirationDate: string): Promise<FrameHold | undefined> {
+    const [updated] = await db.update(frameHolds)
+      .set({ holdExpirationDate: newExpirationDate, status: "active" })
+      .where(eq(frameHolds.id, id))
+      .returning();
+    return updated;
+  }
+
+  async autoExpireHolds(clinicId?: string | null): Promise<void> {
+    const today = new Date().toISOString().split("T")[0];
+    const condition = clinicId
+      ? and(eq(frameHolds.status, "active"), eq(frameHolds.clinicId, clinicId))
+      : eq(frameHolds.status, "active");
+    const activeHolds = await db.select().from(frameHolds).where(condition);
+    for (const hold of activeHolds) {
+      if (hold.holdExpirationDate < today) {
+        await db.update(frameHolds).set({ status: "expired" }).where(eq(frameHolds.id, hold.id));
+      }
+    }
   }
 }
 

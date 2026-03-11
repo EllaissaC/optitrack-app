@@ -5,7 +5,9 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 
 ## Features
 - **Frame Analytics** (formerly Dashboard): Inventory overview stats (total, on board, off board, at lab, sold) + Sales Performance cards + monthly stats + Top Sellers (brands/manufacturers/models, expandable) + overdue lab alert + recent frames list + **Frame Aging Report** (On Board Frames + No Longer On Board subsections, 120+ day highlights) + **Reorder Suggestions** (dismissible alerts for off-board/at-lab frames, persisted in localStorage)
-- **Inventory**: Full CRUD table with search and status filtering; Profit column (retail − wholesale); barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation; **Code field** (manufacturer color code/SKU variant, e.g. "8356") shown alongside Color in form, card, and table; frame variants share Brand+Model parent — duplicate detection uses Brand+Model+Code+Size+Bridge+Temple; invoice import extracts `code` from spreadsheet color-code columns and AI extraction; **Reorder workflow**: "Frames Need Reordered" (orange, frames with offBoardQty>0) → "Mark as Reordered" moves units to `reorderedQty` and the frame appears in "Frames Reordered" (blue, awaiting delivery) → "Back on Board" restores `quantity += reorderedQty`, resets `reorderedQty=0`, status=on_board
+- **Inventory**: Full CRUD table with search and status filtering; Profit column (retail − wholesale); barcode scanning (USB scanner-compatible); manufacturer→brand dependent dropdowns (DB-backed); wholesale cost + multiplier → retail price auto-calculation; **Code field** (manufacturer color code/SKU variant, e.g. "8356") shown alongside Color in form, card, and table; frame variants share Brand+Model parent — duplicate detection uses Brand+Model+Code+Size+Bridge+Temple; invoice import extracts `code` from spreadsheet color-code columns and AI extraction; **"On Hold" badge** shown next to brand name in table rows for frames with active holds
+- **Frame Reorders** (`/frame-reorders`): Dedicated page for reorder workflow — stat cards + "Frames Need Reordered" (orange, `offBoardQty>0`) + "Frames Reordered — Awaiting Delivery" (blue, `reorderedQty>0`); "Mark as Reordered" moves units to `reorderedQty`; "Back on Board" restores quantity
+- **Frame Holds** (`/frame-holds`): Hold frames temporarily for patients without creating a lab order; auto-decrements frame quantity on hold creation; `releaseFrameHold` restores quantity; `autoExpireHolds` runs on every GET; convert-to-lab-order action; stat cards (Active/Expired/Total Holds)
 - **Lab Orders**: Dedicated page with overdue attention section at top, category filters (All, Overdue, At Lab Normal, Rush, Received), custom due date for rush orders, dynamic turnaround threshold. Visual badges: Rush (purple), Overdue (red). Overdue logic: customDueDate override or days >= labTurnaroundDays threshold. No patient names displayed.
 - **Weekly Metrics**: Staff enter DAILY numbers (Mon–Sun) for Comp Exams, Optical Orders, and Follow Ups/Next Year in a grid table. Totals auto-calculate from daily entries. Live Scheduling Rate and Capture Rate preview. History table shows weekly totals with expandable chevron to see per-day breakdown. Color-coded badges (≥80% green, 60-79% yellow, <60% red). Summary stat cards. `dailyData` stored as JSON text in DB.
 - **Authentication**: Passport-local auth (email + password) with bcryptjs, session management, three roles (admin/optician/staff), invite-by-email with 7-day expiry tokens, first-run admin setup flow
@@ -41,16 +43,31 @@ A web dashboard for tracking optical frame inventory for opticians and eyewear p
 - `client/src/components/app-sidebar.tsx` - Navigation sidebar
 
 ## Navigation
+- `/home` - Home page (standalone navigation hub, now WITH sidebar)
 - `/` - Frame Analytics (formerly Dashboard)
 - `/frame-analytics` - Frame Analytics (primary route)
 - `/dashboard` - Frame Analytics (legacy redirect)
-- `/inventory` - Frame inventory
+- `/inventory` - Frame inventory (with "On Hold" badge indicator)
+- `/frame-reorders` - Frame Reorders (dedicated reorder workflow page)
 - `/lab-orders` - Lab orders (at-lab frames)
+- `/frame-holds` - Frame Holds (temporary patient holds)
 - `/weekly-metrics` - Weekly optical performance metrics
 - `/settings` - Admin settings
 - `/login` - Login
 - `/setup` - First-run admin setup
 - `/invite` - Accept invite
+
+## Sidebar Navigation Structure
+- Home (direct link)
+- Frame Analytics (direct link)
+- Inventory ▼ (dropdown)
+  - Frame Inventory → /inventory
+  - Frame Reorders → /frame-reorders
+- Orders ▼ (dropdown)
+  - Lab Orders → /lab-orders
+  - Frame Holds → /frame-holds
+- Weekly Metrics (direct link)
+- Settings (direct link)
 
 ## API Endpoints
 - `GET/POST /api/frames` - List/create frames

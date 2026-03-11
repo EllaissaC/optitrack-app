@@ -835,5 +835,106 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Frame Holds ────────────────────────────────────────────────────────────
+
+  app.get("/api/frame-holds", requireAuth, async (req, res) => {
+    try {
+      const clinicId = (req.user as any)?.clinicId ?? null;
+      await storage.autoExpireHolds(clinicId);
+      const holds = await storage.getFrameHolds(clinicId);
+      res.json(holds);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to fetch frame holds" });
+    }
+  });
+
+  app.post("/api/frame-holds", requireAuth, async (req, res) => {
+    try {
+      const clinicId = (req.user as any)?.clinicId ?? null;
+      const data = { ...req.body, clinicId };
+      const hold = await storage.createFrameHold(data);
+      res.json(hold);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create frame hold";
+      res.status(500).json({ message: msg });
+    }
+  });
+
+  app.patch("/api/frame-holds/:id", requireAuth, async (req, res) => {
+    try {
+      const hold = await storage.updateFrameHold(req.params.id, req.body);
+      if (!hold) return res.status(404).json({ message: "Hold not found" });
+      res.json(hold);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to update frame hold" });
+    }
+  });
+
+  app.delete("/api/frame-holds/:id", requireAuth, async (req, res) => {
+    try {
+      const deleted = await storage.deleteFrameHold(req.params.id);
+      res.json({ success: deleted });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to delete frame hold" });
+    }
+  });
+
+  app.post("/api/frame-holds/:id/release", requireAuth, async (req, res) => {
+    try {
+      const result = await storage.releaseFrameHold(req.params.id);
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to release frame hold";
+      res.status(500).json({ message: msg });
+    }
+  });
+
+  app.post("/api/frame-holds/:id/extend", requireAuth, async (req, res) => {
+    try {
+      const { newExpirationDate } = req.body;
+      if (!newExpirationDate) return res.status(400).json({ message: "newExpirationDate required" });
+      const hold = await storage.extendFrameHold(req.params.id, newExpirationDate);
+      if (!hold) return res.status(404).json({ message: "Hold not found" });
+      res.json(hold);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to extend frame hold" });
+    }
+  });
+
+  app.post("/api/frame-holds/:id/convert-to-lab-order", requireAuth, async (req, res) => {
+    try {
+      const clinicId = (req.user as any)?.clinicId ?? null;
+      const hold = await storage.getFrameHold(req.params.id);
+      if (!hold) return res.status(404).json({ message: "Hold not found" });
+      const labOrderData = {
+        clinicId,
+        frameId: hold.frameId ?? null,
+        frameBrand: hold.brand,
+        frameModel: hold.frameName,
+        frameColor: req.body.frameColor ?? "",
+        frameManufacturer: req.body.frameManufacturer ?? hold.brand,
+        visionPlan: req.body.visionPlan ?? null,
+        labName: req.body.labName ?? null,
+        labOrderNumber: req.body.labOrderNumber ?? null,
+        labAccountNumber: req.body.labAccountNumber ?? null,
+        trackingNumber: null,
+        dateSentToLab: req.body.dateSentToLab ?? null,
+        dateReceivedFromLab: null,
+        notes: req.body.notes ?? hold.notes ?? null,
+        status: "pending",
+        patientOwnFrame: false,
+        frameSold: false,
+        frameSoldAt: null,
+        customDueDate: null,
+      };
+      const labOrder = await storage.createLabOrder(labOrderData as any);
+      await storage.updateFrameHold(hold.id, { status: "released" });
+      res.json({ labOrder, hold: { ...hold, status: "released" } });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to convert hold to lab order";
+      res.status(500).json({ message: msg });
+    }
+  });
+
   return httpServer;
 }

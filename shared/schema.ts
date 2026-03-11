@@ -164,3 +164,21 @@ export const labOrders = pgTable("lab_orders", {
 export const insertLabOrderSchema = createInsertSchema(labOrders).omit({ id: true, createdAt: true });
 export type InsertLabOrder = z.infer<typeof insertLabOrderSchema>;
 export type LabOrder = typeof labOrders.$inferSelect;
+
+export const frameHolds = pgTable("frame_holds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+  frameId: varchar("frame_id").references(() => frames.id, { onDelete: "set null" }),
+  frameName: text("frame_name").notNull(),
+  brand: text("brand").notNull(),
+  accountNumber: text("account_number").notNull(),
+  holdStartDate: text("hold_start_date").notNull(),
+  holdExpirationDate: text("hold_expiration_date").notNull(),
+  status: text("status", { enum: ["active", "expired", "released"] }).notNull().default("active"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFrameHoldSchema = createInsertSchema(frameHolds).omit({ id: true, createdAt: true });
+export type InsertFrameHold = z.infer<typeof insertFrameHoldSchema>;
+export type FrameHold = typeof frameHolds.$inferSelect;

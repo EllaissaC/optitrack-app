@@ -1,4 +1,17 @@
-import { LayoutDashboard, Package, FlaskConical, Settings, LogOut, User, BarChart2, Home } from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  LayoutDashboard,
+  Package,
+  FlaskConical,
+  Settings,
+  LogOut,
+  User,
+  BarChart2,
+  Home,
+  RotateCcw,
+  Clock,
+  ChevronDown,
+} from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -17,18 +30,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 
-const navItems = [
-  { title: "Home", url: "/home", icon: Home },
-  { title: "Frame Analytics", url: "/frame-analytics", icon: LayoutDashboard },
-  { title: "Inventory", url: "/inventory", icon: Package },
-  { title: "Lab Orders", url: "/lab-orders", icon: FlaskConical },
-  { title: "Weekly Metrics", url: "/weekly-metrics", icon: BarChart2 },
-];
-
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, isAdmin } = useAuth();
   const logout = useLogout();
+
+  const isInventoryPath = location === "/inventory" || location === "/frame-reorders";
+  const isOrdersPath = location === "/lab-orders" || location === "/frame-holds";
+
+  const [inventoryOpen, setInventoryOpen] = useState(isInventoryPath);
+  const [ordersOpen, setOrdersOpen] = useState(isOrdersPath);
+
+  useEffect(() => {
+    if (isInventoryPath) setInventoryOpen(true);
+    if (isOrdersPath) setOrdersOpen(true);
+  }, [isInventoryPath, isOrdersPath]);
+
+  const isActive = (path: string) => location === path;
+
+  const activeClass = "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground";
 
   return (
     <Sidebar>
@@ -43,28 +63,103 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = location === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      data-active={isActive}
-                      className="data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
+
+              {/* Home */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-active={isActive("/home")} className={activeClass}>
+                  <Link href="/home" data-testid="link-home">
+                    <Home className="w-4 h-4" />
+                    <span>Home</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Frame Analytics */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-active={isActive("/frame-analytics")} className={activeClass}>
+                  <Link href="/frame-analytics" data-testid="link-frame-analytics">
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>Frame Analytics</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {/* Inventory Dropdown */}
+              <SidebarMenuItem>
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isInventoryPath ? "bg-sidebar-accent/60 text-sidebar-accent-foreground" : "text-sidebar-foreground"}`}
+                  onClick={() => setInventoryOpen((v) => !v)}
+                  data-testid="button-toggle-inventory-dropdown"
+                >
+                  <Package className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">Inventory</span>
+                  <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${inventoryOpen ? "rotate-180" : ""}`} />
+                </button>
+                {inventoryOpen && (
+                  <div className="ml-5 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+                    <SidebarMenuButton asChild data-active={isActive("/inventory")} className={activeClass}>
+                      <Link href="/inventory" data-testid="link-frame-inventory">
+                        <Package className="w-3.5 h-3.5" />
+                        <span className="text-sm">Frame Inventory</span>
                       </Link>
                     </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                    <SidebarMenuButton asChild data-active={isActive("/frame-reorders")} className={activeClass}>
+                      <Link href="/frame-reorders" data-testid="link-frame-reorders">
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span className="text-sm">Frame Reorders</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </div>
+                )}
+              </SidebarMenuItem>
+
+              {/* Orders Dropdown */}
+              <SidebarMenuItem>
+                <button
+                  type="button"
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${isOrdersPath ? "bg-sidebar-accent/60 text-sidebar-accent-foreground" : "text-sidebar-foreground"}`}
+                  onClick={() => setOrdersOpen((v) => !v)}
+                  data-testid="button-toggle-orders-dropdown"
+                >
+                  <FlaskConical className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 text-left">Orders</span>
+                  <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${ordersOpen ? "rotate-180" : ""}`} />
+                </button>
+                {ordersOpen && (
+                  <div className="ml-5 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
+                    <SidebarMenuButton asChild data-active={isActive("/lab-orders")} className={activeClass}>
+                      <Link href="/lab-orders" data-testid="link-lab-orders">
+                        <FlaskConical className="w-3.5 h-3.5" />
+                        <span className="text-sm">Lab Orders</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    <SidebarMenuButton asChild data-active={isActive("/frame-holds")} className={activeClass}>
+                      <Link href="/frame-holds" data-testid="link-frame-holds">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span className="text-sm">Frame Holds</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </div>
+                )}
+              </SidebarMenuItem>
+
+              {/* Weekly Metrics */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild data-active={isActive("/weekly-metrics")} className={activeClass}>
+                  <Link href="/weekly-metrics" data-testid="link-weekly-metrics">
+                    <BarChart2 className="w-4 h-4" />
+                    <span>Weekly Metrics</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -78,7 +173,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     data-active={location === "/settings"}
-                    className="data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                    className={activeClass}
                   >
                     <Link href="/settings" data-testid="link-settings">
                       <Settings className="w-4 h-4" />

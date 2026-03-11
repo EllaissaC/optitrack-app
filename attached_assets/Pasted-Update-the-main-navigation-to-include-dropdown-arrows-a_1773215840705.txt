@@ -1,0 +1,107 @@
+Update the main navigation to include dropdown arrows and add the new Frame Holds feature.
+
+Navigation layout should be:
+
+Home
+Frame Analytics
+Inventory ▼
+Orders ▼
+Weekly Metrics
+
+Dropdown structure:
+
+Inventory ▼
+- Frame Inventory
+- Frame Reorders
+
+Orders ▼
+- Lab Orders
+- Frame Holds
+
+
+Navigation requirements:
+
+1. Add a dropdown arrow icon next to "Inventory".
+2. When clicked, it should expand to show:
+   - Frame Inventory
+   - Frame Reorders
+
+3. Add a dropdown arrow icon next to "Orders".
+4. When clicked, it should expand to show:
+   - Lab Orders
+   - Frame Holds
+
+5. Move the existing Lab Orders page so it appears under the "Orders" dropdown.
+
+6. Create new pages for:
+   - Frame Reorders
+   - Frame Holds
+
+7. Ensure dropdown arrows expand and collapse smoothly and work on desktop and mobile.
+
+8. Do not break existing functionality for:
+   - Frame Inventory
+   - Lab Orders
+   - Frame Analytics
+   - Weekly Metrics
+
+
+
+FRAME HOLDS FEATURE
+
+Create a system for temporarily holding frames for patients.
+
+When a frame is placed on hold, it is typically pulled from the board but it is NOT sold and it is NOT a lab order.
+
+Fields required for a Frame Hold:
+
+- Frame Name
+- Brand
+- Account Number (used instead of patient name)
+- Hold Start Date
+- Hold Expiration Date (default should automatically be 14 days after the hold start date)
+- Status (Active, Expired, Released)
+- Notes (optional)
+
+
+Frame Hold functionality rules:
+
+1. When a frame is placed on hold, decrease the "On Board" quantity by 1 because the frame is physically pulled from the board.
+
+2. This change SHOULD update the "On Board" inventory analytics accordingly.
+
+3. A frame on hold should NOT:
+   - Count as a sale
+   - Affect revenue analytics
+   - Affect profit analytics
+   - Be counted as a lab order
+
+4. The frame should display a clear "On Hold" indicator when viewing that frame inside Frame Inventory so staff know it is reserved.
+
+5. Frame Holds should appear in the new "Frame Holds" page under the Orders dropdown.
+
+6. Holds should automatically expire after the expiration date and automatically change the status to "Expired".
+
+7. When staff open the "Frame Holds" page, display a section at the top called "Expired Frame Holds".
+
+8. The expired holds section should list:
+   - Frame Name
+   - Brand
+   - Account Number
+   - Hold Expiration Date
+
+9. Each expired hold should have quick action buttons:
+   - Return Frame to Board
+   - Extend Hold
+   - Convert to Lab Order
+
+10. If "Return Frame to Board" is selected:
+   - Increase the "On Board" quantity by 1
+   - Change the hold status to "Released"
+   - Remove the "On Hold" indicator from the frame in inventory.
+
+11. If the hold is converted into a Lab Order:
+   - The frame should remain off the board
+   - The hold should transition into the Lab Order workflow.
+
+12. Expired holds should remain visible in the Frame Holds section until staff resolve them.

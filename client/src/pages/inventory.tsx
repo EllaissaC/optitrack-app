@@ -27,6 +27,7 @@ import {
   Trash,
   FileText,
   Archive,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
@@ -1934,6 +1935,14 @@ export default function Inventory() {
     queryKey: ["/api/frames"],
   });
 
+  const { data: frameHoldsData = [] } = useQuery<{ frameId: string | null; status: string }[]>({
+    queryKey: ["/api/frame-holds"],
+  });
+
+  const activeHoldFrameIds = new Set(
+    frameHoldsData.filter((h) => h.status === "active").map((h) => h.frameId).filter(Boolean)
+  );
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/frames/${id}`),
     onSuccess: () => {
@@ -1946,33 +1955,6 @@ export default function Inventory() {
     },
   });
 
-  const reorderMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("POST", `/api/frames/${id}/reorder`, { qty: 1 }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Reorder placed", description: "Frame moved to 'Frames Reordered' — awaiting delivery." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to mark as reordered.", variant: "destructive" });
-    },
-  });
-
-  const backOnBoardMutation = useMutation({
-    mutationFn: (id: string) => apiRequest("POST", `/api/frames/${id}/back-on-board`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Back on board", description: "Frame quantity restored and status set to On Board." });
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to mark frame back on board.", variant: "destructive" });
-    },
-  });
-
-  const [reorderExpanded, setReorderExpanded] = useState(false);
-  const [reorderedExpanded, setReorderedExpanded] = useState(false);
-
-  const reorderAlerts = frames.filter((f) => (f.offBoardQty ?? 0) > 0);
-  const reorderedFrames = frames.filter((f) => (f.reorderedQty ?? 0) > 0);
 
   const filtered = frames.filter((frame) => {
     const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
@@ -2156,174 +2138,6 @@ export default function Inventory() {
         />
       )}
 
-      {/* Frames Need Reordered — collapsible */}
-      {!isLoading && (
-        <div className="rounded-lg border border-orange-200 dark:border-orange-800 overflow-hidden">
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-4 py-3 bg-orange-50/60 dark:bg-orange-950/20 hover:bg-orange-100/60 dark:hover:bg-orange-950/30 transition-colors"
-            onClick={() => setReorderExpanded((v) => !v)}
-            data-testid="button-toggle-reorder-section"
-          >
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-              <span className="text-sm font-semibold text-orange-800 dark:text-orange-300">
-                Frames Need Reordered
-              </span>
-              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-300">
-                {reorderAlerts.length}
-              </span>
-            </div>
-            <ChevronDown
-              className={`w-4 h-4 text-orange-600 dark:text-orange-400 transition-transform duration-200 ${reorderExpanded ? "rotate-180" : ""}`}
-            />
-          </button>
-
-          {reorderExpanded && (
-            <div className="px-4 py-3 space-y-2 bg-background border-t border-orange-200 dark:border-orange-800">
-              {reorderAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  No frames currently need to be reordered.
-                </p>
-              ) : (
-                reorderAlerts.map((frame) => (
-                  <div
-                    key={frame.id}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-950/10"
-                    data-testid={`alert-reorder-${frame.id}`}
-                  >
-                    <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40 flex-shrink-0">
-                      <RotateCcw className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {frame.brand} {frame.model}
-                        {(frame.reorderCount ?? 0) > 0 && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            (reordered {frame.reorderCount}×)
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
-                        <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
-                          {frame.offBoardQty} unit{(frame.offBoardQty ?? 0) !== 1 ? "s" : ""} not on board
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => openEdit(frame)}
-                        data-testid={`button-edit-alert-${frame.id}`}
-                      >
-                        <Pencil className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-0"
-                        onClick={() => reorderMutation.mutate(frame.id)}
-                        disabled={reorderMutation.isPending}
-                        data-testid={`button-mark-reordered-${frame.id}`}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Mark as Reordered
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Frames Reordered — collapsible */}
-      {!isLoading && (
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-4 py-3 bg-blue-50/60 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-950/30 transition-colors"
-            onClick={() => setReorderedExpanded((v) => !v)}
-            data-testid="button-toggle-reordered-section"
-          >
-            <div className="flex items-center gap-2">
-              <Truck className="w-4 h-4 text-blue-500 flex-shrink-0" />
-              <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
-                Frames Reordered
-              </span>
-              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-200 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
-                {reorderedFrames.length}
-              </span>
-            </div>
-            <ChevronDown
-              className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform duration-200 ${reorderedExpanded ? "rotate-180" : ""}`}
-            />
-          </button>
-
-          {reorderedExpanded && (
-            <div className="px-4 py-3 space-y-2 bg-background border-t border-blue-200 dark:border-blue-800">
-              {reorderedFrames.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  No frames are currently awaiting delivery.
-                </p>
-              ) : (
-                reorderedFrames.map((frame) => (
-                  <div
-                    key={frame.id}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/40 dark:bg-blue-950/10"
-                    data-testid={`alert-reordered-${frame.id}`}
-                  >
-                    <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/40 flex-shrink-0">
-                      <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {frame.brand} {frame.model}
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          (reordered {frame.reorderCount}×)
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
-                        <span className="ml-2 font-medium text-blue-700 dark:text-blue-400">
-                          {frame.reorderedQty} unit{(frame.reorderedQty ?? 0) !== 1 ? "s" : ""} awaiting delivery
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => openEdit(frame)}
-                        data-testid={`button-edit-reordered-${frame.id}`}
-                      >
-                        <Pencil className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-0"
-                        onClick={() => backOnBoardMutation.mutate(frame.id)}
-                        disabled={backOnBoardMutation.isPending}
-                        data-testid={`button-back-on-board-${frame.id}`}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Back on Board
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Search + filter */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-56">
@@ -2424,7 +2238,15 @@ export default function Inventory() {
                       >
                         <TableCell className="pl-6 py-3.5">
                           <div>
-                            <p className="font-semibold text-foreground text-sm">{frame.brand}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-semibold text-foreground text-sm">{frame.brand}</p>
+                              {activeHoldFrameIds.has(frame.id) && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 flex-shrink-0">
+                                  <Clock className="w-2.5 h-2.5" />
+                                  On Hold
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">{frame.model}</p>
                           </div>
                         </TableCell>

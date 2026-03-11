@@ -15,6 +15,8 @@ import Setup from "@/pages/setup";
 import Invite from "@/pages/invite";
 import WeeklyMetrics from "@/pages/weekly-metrics";
 import Home from "@/pages/home";
+import FrameReorders from "@/pages/frame-reorders";
+import FrameHolds from "@/pages/frame-holds";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
@@ -141,10 +143,6 @@ function AppShell() {
     );
   }
 
-  if (location === "/home") {
-    return <Home />;
-  }
-
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -181,6 +179,8 @@ function AppShell() {
               <Route path="/frame-analytics" component={Dashboard} />
               <Route path="/inventory" component={Inventory} />
               <Route path="/lab-orders" component={LabOrders} />
+              <Route path="/frame-reorders" component={FrameReorders} />
+              <Route path="/frame-holds" component={FrameHolds} />
               <Route path="/weekly-metrics" component={WeeklyMetrics} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />
