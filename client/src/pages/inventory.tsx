@@ -2323,6 +2323,7 @@ export default function Inventory() {
                             <th className="text-left font-medium px-4 py-2">Color</th>
                             <th className="text-right font-medium px-4 py-2">Qty</th>
                             <th className="text-right font-medium px-4 py-2">Size</th>
+                            <th className="text-right font-medium px-4 py-2">Code</th>
                             <th className="text-right font-medium px-4 py-2">Cost</th>
                             <th className="text-right font-medium px-4 py-2">Retail</th>
                             <th className="text-right font-medium px-4 py-2">Added</th>
@@ -2348,6 +2349,9 @@ export default function Inventory() {
                                   {frame.eyeSize && frame.bridge && frame.templeLength
                                     ? `${frame.eyeSize}-${frame.bridge}-${frame.templeLength}`
                                     : "N/A"}
+                                </td>
+                                <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap font-mono text-xs">
+                                  {frame.code ?? "N/A"}
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
                                   {frame.cost ? `$${parseFloat(frame.cost).toFixed(0)}` : "—"}
