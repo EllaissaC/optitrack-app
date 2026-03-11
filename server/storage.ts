@@ -81,6 +81,7 @@ export interface IStorage {
   backOnBoard(frameId: string): Promise<Frame>;
   syncFrameSoldCount(frameId: string): Promise<void>;
   syncAllFramesFromLabOrders(): Promise<void>;
+  fixManufacturerData(): Promise<void>;
 
   getFrameHolds(clinicId?: string | null): Promise<FrameHold[]>;
   getFrameHold(id: string): Promise<FrameHold | undefined>;
@@ -594,6 +595,40 @@ export class DbStorage implements IStorage {
         await db.update(frameHolds).set({ status: "expired" }).where(eq(frameHolds.id, hold.id));
       }
     }
+  }
+
+  async fixManufacturerData(): Promise<void> {
+    // Pass 1: Update frames whose brand exactly matches (case-insensitive) an entry in the brands table
+    await db.execute(sql`
+      UPDATE frames f
+      SET manufacturer = m.name
+      FROM brands b
+      JOIN manufacturers m ON m.id = b.manufacturer_id
+      WHERE LOWER(TRIM(f.brand)) = LOWER(TRIM(b.name))
+        AND f.manufacturer != m.name
+    `);
+
+    // Pass 2: Known spelling variants not in brands table
+    await db.execute(sql`
+      UPDATE frames SET manufacturer = 'Luxottica'
+      WHERE LOWER(TRIM(brand)) = 'ray ban' AND manufacturer != 'Luxottica'
+    `);
+    await db.execute(sql`
+      UPDATE frames SET manufacturer = 'Luxottica'
+      WHERE LOWER(TRIM(brand)) = 'tiffany & co.' AND manufacturer != 'Luxottica'
+    `);
+    await db.execute(sql`
+      UPDATE frames SET manufacturer = 'Luxottica'
+      WHERE LOWER(TRIM(brand)) = 'tiffany & co' AND manufacturer != 'Luxottica'
+    `);
+    await db.execute(sql`
+      UPDATE frames SET manufacturer = 'Vision Source Smart'
+      WHERE LOWER(TRIM(brand)) = 'vision source' AND manufacturer != 'Vision Source Smart'
+    `);
+    await db.execute(sql`
+      UPDATE frames SET manufacturer = 'Marchon'
+      WHERE LOWER(TRIM(brand)) = 'nike flexon' AND manufacturer != 'Marchon'
+    `);
   }
 }
 

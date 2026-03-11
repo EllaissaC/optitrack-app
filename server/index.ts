@@ -127,6 +127,12 @@ app.use((req, res, next) => {
     console.error("Frame sync error:", e);
   }
 
+  try {
+    await storage.fixManufacturerData();
+  } catch (e) {
+    console.error("Manufacturer fix error:", e);
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
