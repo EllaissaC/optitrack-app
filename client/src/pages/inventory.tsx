@@ -1419,13 +1419,15 @@ function InvoiceImportDialog({
   const [parsing, setParsing] = useState(false);
   const [rows, setRows] = useState<ExtractedFrame[]>([]);
   const [importing, setImporting] = useState(false);
-  const [importSummary, setImportSummary] = useState<{ added: number; skipped: number } | null>(null);
+  const [detectedCount, setDetectedCount] = useState(0);
+  const [importSummary, setImportSummary] = useState<{ added: number; skipped: number; detected: number } | null>(null);
 
   function resetState() {
     setSelectedFile(null);
     setRows([]);
     setParsing(false);
     setImporting(false);
+    setDetectedCount(0);
     setImportSummary(null);
   }
 
@@ -1472,6 +1474,7 @@ function InvoiceImportDialog({
         toast({ title: "No frames found", description: "No optical frame products could be identified in this file.", variant: "destructive" });
         return;
       }
+      setDetectedCount(data.frames.length);
       setRows(data.frames);
     } catch (err) {
       toast({
@@ -1535,12 +1538,12 @@ function InvoiceImportDialog({
 
     queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
     setImporting(false);
-    setImportSummary({ added, skipped });
-    const parts = [`${added} frame${added !== 1 ? "s" : ""} added`];
+    setImportSummary({ added, skipped, detected: detectedCount });
+    const parts: string[] = [];
     if (skipped > 0) parts.push(`${skipped} skipped (already exist)`);
     toast({
       title: "Import complete",
-      description: parts.join(", ") + ".",
+      description: `Detected ${detectedCount} frame${detectedCount !== 1 ? "s" : ""} in invoice. Imported ${added} frame${added !== 1 ? "s" : ""}${parts.length ? ", " + parts.join(", ") : ""}.`,
     });
   }
 
@@ -1596,7 +1599,7 @@ function InvoiceImportDialog({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {rows.length} frame{rows.length !== 1 ? "s" : ""} extracted — review and edit before importing.
+                  Detected <strong>{detectedCount}</strong> frame{detectedCount !== 1 ? "s" : ""} in invoice — review and edit before importing.
                 </p>
                 <Button
                   variant="ghost"
@@ -1724,7 +1727,8 @@ function InvoiceImportDialog({
                 <div className="rounded-md bg-muted/50 border px-4 py-3 text-sm flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Import complete: <strong>{importSummary.added}</strong> frame{importSummary.added !== 1 ? "s" : ""} added
+                    Detected <strong>{importSummary.detected}</strong> frame{importSummary.detected !== 1 ? "s" : ""} in invoice.
+                    {" "}Imported <strong>{importSummary.added}</strong> frame{importSummary.added !== 1 ? "s" : ""}
                     {importSummary.skipped > 0 && <>, <strong>{importSummary.skipped}</strong> skipped (already exist)</>}.
                   </span>
                 </div>
