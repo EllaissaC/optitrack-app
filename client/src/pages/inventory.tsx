@@ -1474,8 +1474,16 @@ function InvoiceImportDialog({
         toast({ title: "No frames found", description: "No optical frame products could be identified in this file.", variant: "destructive" });
         return;
       }
-      setDetectedCount(data.frames.length);
+      const total = data.totalDetected ?? data.frames.length;
+      setDetectedCount(total);
       setRows(data.frames);
+      if (data.truncated) {
+        toast({
+          title: "Large invoice detected",
+          description: `Detected ${total} frames in invoice. Showing the first 100 for import. Split large invoices into batches of 100 for best results.`,
+          variant: "destructive",
+        });
+      }
     } catch (err) {
       toast({
         title: "Parse failed",

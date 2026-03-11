@@ -22,7 +22,9 @@ export interface ExtractedFrame {
   quantity: number;
 }
 
-const SYSTEM_PROMPT = `You are an optical frame inventory specialist. Extract eyeglass/spectacle frame line items from invoices.
+const SYSTEM_PROMPT = `You are an optical frame inventory specialist. Your job is to extract EVERY eyeglass/spectacle frame line item from an invoice.
+
+CRITICAL: You MUST extract ALL frame entries. Do not stop early. Do not limit to any number. Do not summarize. If the invoice has 90 frame rows, return all 90. If it has 5, return 5. Extract every single frame row present in the document.
 
 For each frame product found, output a JSON object with these fields:
 - manufacturer: the company that manufactures or distributes the frames (e.g. "Marchon", "Safilo", "Luxottica", "Silhouette"). This is usually the invoice sender or vendor name. If unclear, use the same value as brand.
@@ -36,9 +38,10 @@ For each frame product found, output a JSON object with these fields:
 - quantity: integer quantity ordered. Default 1 if not shown.
 
 Rules:
+- Extract ALL frame line items — do not truncate, do not stop at any limit.
 - Skip non-frame products (cases, cloths, tools, shipping fees, taxes).
 - If the same model appears in multiple colors/sizes, include each as a separate entry.
-- Return ONLY a valid JSON array. No markdown, no explanation.`;
+- Return ONLY a valid JSON array. No markdown, no explanation, no text before or after the array.`;
 
 function cleanJsonResponse(raw: string): string {
   const stripped = raw
@@ -79,6 +82,7 @@ export async function parseInvoiceFromImage(
       },
     ],
     max_tokens: 16000,
+    temperature: 0,
   });
 
   const content = response.choices[0]?.message?.content ?? "[]";
@@ -105,6 +109,7 @@ export async function parseInvoiceFromPdf(
       },
     ],
     max_tokens: 16000,
+    temperature: 0,
   });
 
   const content = response.choices[0]?.message?.content ?? "[]";

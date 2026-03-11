@@ -810,7 +810,12 @@ export async function registerRoutes(
         frames = await parseInvoiceFromImage(base64, file.mimetype);
       }
 
-      res.json({ frames });
+      const MAX_FRAMES = 100;
+      const totalDetected = frames.length;
+      const truncated = totalDetected > MAX_FRAMES;
+      if (truncated) frames = frames.slice(0, MAX_FRAMES);
+
+      res.json({ frames, totalDetected, truncated });
     } catch (err) {
       console.error("[invoice/parse] Error:", err);
       const msg = err instanceof Error ? err.message : "Unable to detect frame data from this file format.";
