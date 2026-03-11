@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -1433,6 +1434,7 @@ interface ExtractedFrame {
   brand: string;
   model: string;
   color: string;
+  code?: string;
   eyeSize: number;
   bridge: number;
   templeLength: number;
@@ -1456,6 +1458,29 @@ function InvoiceImportDialog({
   const [importing, setImporting] = useState(false);
   const [detectedCount, setDetectedCount] = useState(0);
   const [importSummary, setImportSummary] = useState<{ added: number; skipped: number; detected: number } | null>(null);
+
+  const { data: existingFrames = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, { key: string; brand: string; model: string; manufacturer: string; indices: number[] }>();
+    rows.forEach((row, idx) => {
+      const key = `${row.brand.trim().toLowerCase()}|||${row.model.trim().toLowerCase()}`;
+      if (!groups.has(key)) {
+        groups.set(key, { key, brand: row.brand, model: row.model, manufacturer: row.manufacturer, indices: [] });
+      }
+      groups.get(key)!.indices.push(idx);
+    });
+    return Array.from(groups.values());
+  }, [rows]);
+
+  function updateGroupField(groupKey: string, field: "brand" | "model" | "manufacturer", value: string) {
+    setRows((prev) =>
+      prev.map((row) => {
+        const key = `${row.brand.trim().toLowerCase()}|||${row.model.trim().toLowerCase()}`;
+        return key === groupKey ? { ...row, [field]: value } : row;
+      })
+    );
+  }
 
   function resetState() {
     setSelectedFile(null);
@@ -1643,7 +1668,8 @@ function InvoiceImportDialog({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Detected <strong>{detectedCount}</strong> frame{detectedCount !== 1 ? "s" : ""} in invoice — review and edit before importing.
+                  Detected <strong>{detectedCount}</strong> frame{detectedCount !== 1 ? "s" : ""} in invoice —{" "}
+                  <span className="text-foreground font-medium">{grouped.length} model{grouped.length !== 1 ? "s" : ""}, {rows.length} variant{rows.length !== 1 ? "s" : ""}</span>. Review before importing.
                 </p>
                 <Button
                   variant="ghost"
@@ -1655,125 +1681,175 @@ function InvoiceImportDialog({
                   Clear
                 </Button>
               </div>
-              <div className="rounded-md border overflow-auto max-h-[360px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Manufacturer</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Color</TableHead>
-                      <TableHead className="w-16">Eye</TableHead>
-                      <TableHead className="w-16">Bridge</TableHead>
-                      <TableHead className="w-20">Temple</TableHead>
-                      <TableHead className="w-24">Cost ($)</TableHead>
-                      <TableHead className="w-16">Qty</TableHead>
-                      <TableHead className="w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row, idx) => (
-                      <TableRow key={idx} data-testid={`row-invoice-frame-${idx}`}>
-                        <TableCell>
+
+              {/* Legend */}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                  New — will be added
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+                  Exists — quantity will update
+                </span>
+              </div>
+
+              {/* Grouped cards */}
+              <div className="space-y-2 overflow-y-auto max-h-[420px] pr-1">
+                {grouped.map((group) => (
+                  <div key={group.key} className="rounded-lg border border-border overflow-hidden" data-testid={`group-${group.key}`}>
+                    {/* Group header — editable brand/model/manufacturer */}
+                    <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center gap-2">
+                      <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
+                        <input
+                          className="font-semibold text-sm bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
+                          value={group.brand}
+                          onChange={(e) => updateGroupField(group.key, "brand", e.target.value)}
+                          data-testid={`input-group-brand-${group.key}`}
+                        />
+                        <input
+                          className="font-semibold text-sm bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
+                          value={group.model}
+                          onChange={(e) => updateGroupField(group.key, "model", e.target.value)}
+                          data-testid={`input-group-model-${group.key}`}
+                        />
+                        <span className="text-muted-foreground/40 text-xs">·</span>
+                        <input
+                          className="text-xs text-muted-foreground bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
+                          value={group.manufacturer}
+                          onChange={(e) => updateGroupField(group.key, "manufacturer", e.target.value)}
+                          data-testid={`input-group-manufacturer-${group.key}`}
+                        />
+                      </div>
+                      <Badge variant="secondary" className="text-xs flex-shrink-0">
+                        {group.indices.length} variant{group.indices.length !== 1 ? "s" : ""}
+                      </Badge>
+                    </div>
+
+                    {/* Variant rows */}
+                    {group.indices.map((rowIdx, vIdx) => {
+                      const row = rows[rowIdx];
+                      const isLast = vIdx === group.indices.length - 1;
+                      const isExactDuplicate = existingFrames.some((f) =>
+                        f.brand.toLowerCase() === row.brand.trim().toLowerCase() &&
+                        f.model.toLowerCase() === row.model.trim().toLowerCase() &&
+                        (f.code ?? "") === (row.code?.trim() ?? "") &&
+                        f.eyeSize === Number(row.eyeSize) &&
+                        f.bridge === Number(row.bridge) &&
+                        f.templeLength === Number(row.templeLength)
+                      );
+                      return (
+                        <div
+                          key={rowIdx}
+                          className={`px-3 py-2 flex items-center gap-1.5 hover:bg-muted/20 transition-colors ${!isLast ? "border-b border-border/50" : ""}`}
+                          data-testid={`row-invoice-frame-${rowIdx}`}
+                        >
+                          <span className="text-muted-foreground/30 text-xs w-3 flex-shrink-0 font-mono">{isLast ? "└" : "├"}</span>
+
+                          {/* Code */}
                           <input
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            value={row.manufacturer ?? ""}
-                            onChange={(e) => updateRow(idx, "manufacturer", e.target.value)}
-                            data-testid={`input-invoice-manufacturer-${idx}`}
+                            className="w-14 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 font-mono text-muted-foreground placeholder:text-muted-foreground/30 flex-shrink-0"
+                            placeholder="Code"
+                            value={row.code ?? ""}
+                            onChange={(e) => updateRow(rowIdx, "code", e.target.value)}
+                            data-testid={`input-invoice-code-${rowIdx}`}
                           />
-                        </TableCell>
-                        <TableCell>
+
+                          {/* Color */}
                           <input
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            value={row.brand}
-                            onChange={(e) => updateRow(idx, "brand", e.target.value)}
-                            data-testid={`input-invoice-brand-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            value={row.model}
-                            onChange={(e) => updateRow(idx, "model", e.target.value)}
-                            data-testid={`input-invoice-model-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-full bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
+                            className="flex-1 min-w-0 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-foreground placeholder:text-muted-foreground/30"
+                            placeholder="Color"
                             value={row.color}
-                            onChange={(e) => updateRow(idx, "color", e.target.value)}
-                            data-testid={`input-invoice-color-${idx}`}
+                            onChange={(e) => updateRow(rowIdx, "color", e.target.value)}
+                            data-testid={`input-invoice-color-${rowIdx}`}
                           />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            type="number"
-                            value={row.eyeSize}
-                            onChange={(e) => updateRow(idx, "eyeSize", Number(e.target.value))}
-                            data-testid={`input-invoice-eyesize-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            type="number"
-                            value={row.bridge}
-                            onChange={(e) => updateRow(idx, "bridge", Number(e.target.value))}
-                            data-testid={`input-invoice-bridge-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-20 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            type="number"
-                            value={row.templeLength}
-                            onChange={(e) => updateRow(idx, "templeLength", Number(e.target.value))}
-                            data-testid={`input-invoice-temple-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-24 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            value={row.cost}
-                            onChange={(e) => updateRow(idx, "cost", e.target.value)}
-                            data-testid={`input-invoice-cost-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <input
-                            className="w-16 bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-sm"
-                            type="number"
-                            min={1}
-                            value={row.quantity}
-                            onChange={(e) => updateRow(idx, "quantity", Number(e.target.value))}
-                            data-testid={`input-invoice-qty-${idx}`}
-                          />
-                        </TableCell>
-                        <TableCell>
+
+                          {/* Size: Eye - Bridge - Temple */}
+                          <div className="flex items-center gap-0.5 text-xs font-mono flex-shrink-0">
+                            <input
+                              type="number"
+                              className="w-9 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
+                              value={row.eyeSize}
+                              onChange={(e) => updateRow(rowIdx, "eyeSize", Number(e.target.value))}
+                              data-testid={`input-invoice-eyesize-${rowIdx}`}
+                            />
+                            <span className="text-muted-foreground/40">-</span>
+                            <input
+                              type="number"
+                              className="w-9 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
+                              value={row.bridge}
+                              onChange={(e) => updateRow(rowIdx, "bridge", Number(e.target.value))}
+                              data-testid={`input-invoice-bridge-${rowIdx}`}
+                            />
+                            <span className="text-muted-foreground/40">-</span>
+                            <input
+                              type="number"
+                              className="w-11 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
+                              value={row.templeLength}
+                              onChange={(e) => updateRow(rowIdx, "templeLength", Number(e.target.value))}
+                              data-testid={`input-invoice-temple-${rowIdx}`}
+                            />
+                          </div>
+
+                          {/* Cost */}
+                          <div className="flex items-center flex-shrink-0">
+                            <span className="text-xs text-muted-foreground/60">$</span>
+                            <input
+                              className="w-16 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-right text-muted-foreground"
+                              value={row.cost}
+                              onChange={(e) => updateRow(rowIdx, "cost", e.target.value)}
+                              data-testid={`input-invoice-cost-${rowIdx}`}
+                            />
+                          </div>
+
+                          {/* Qty */}
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <span className="text-xs text-muted-foreground/60">×</span>
+                            <input
+                              type="number"
+                              min={1}
+                              className="w-9 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-center text-muted-foreground"
+                              value={row.quantity}
+                              onChange={(e) => updateRow(rowIdx, "quantity", Number(e.target.value))}
+                              data-testid={`input-invoice-qty-${rowIdx}`}
+                            />
+                          </div>
+
+                          {/* Status badge */}
+                          {isExactDuplicate ? (
+                            <Badge variant="outline" className="text-xs flex-shrink-0 border-amber-400/60 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0">
+                              Update Qty
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs flex-shrink-0 border-emerald-400/60 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0">
+                              New
+                            </Badge>
+                          )}
+
+                          {/* Remove */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeRow(idx)}
-                            data-testid={`button-remove-row-${idx}`}
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive flex-shrink-0"
+                            onClick={() => removeRow(rowIdx)}
+                            data-testid={`button-remove-row-${rowIdx}`}
                           >
-                            <Trash className="w-3.5 h-3.5" />
+                            <Trash className="w-3 h-3" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
+
               {importSummary && (
                 <div className="rounded-md bg-muted/50 border px-4 py-3 text-sm flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                   <span>
                     Detected <strong>{importSummary.detected}</strong> frame{importSummary.detected !== 1 ? "s" : ""} in invoice.
                     {" "}Imported <strong>{importSummary.added}</strong> frame{importSummary.added !== 1 ? "s" : ""}
-                    {importSummary.skipped > 0 && <>, <strong>{importSummary.skipped}</strong> skipped (already exist)</>}.
+                    {importSummary.skipped > 0 && <>, <strong>{importSummary.skipped}</strong> quantity updated (already exist)</>}.
                   </span>
                 </div>
               )}
@@ -1823,8 +1899,8 @@ function InvoiceImportDialog({
                     </>
                   ) : (
                     <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Import {rows.length} Frame{rows.length !== 1 ? "s" : ""}
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Confirm Import ({rows.length} variant{rows.length !== 1 ? "s" : ""} across {grouped.length} model{grouped.length !== 1 ? "s" : ""})
                     </>
                   )}
                 </Button>
