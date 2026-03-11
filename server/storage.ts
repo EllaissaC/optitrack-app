@@ -77,6 +77,7 @@ export interface IStorage {
   updateFrameStatus(frameId: string, status: string): Promise<void>;
   adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void>;
   reorderFrame(frameId: string, qty: number): Promise<Frame>;
+  backOnBoard(frameId: string): Promise<Frame>;
   syncFrameSoldCount(frameId: string): Promise<void>;
   syncAllFramesFromLabOrders(): Promise<void>;
 }
@@ -425,10 +426,26 @@ export class DbStorage implements IStorage {
   async reorderFrame(frameId: string, qty: number): Promise<Frame> {
     const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
     if (!frame) throw new Error("Frame not found");
-    const reduceQty = Math.max(1, qty);
+    const offQty = frame.offBoardQty ?? 0;
+    const moveQty = offQty > 0 ? offQty : Math.max(1, qty);
     const [updated] = await db.update(frames).set({
-      offBoardQty: Math.max(0, (frame.offBoardQty ?? 0) - reduceQty),
+      offBoardQty: 0,
+      reorderedQty: (frame.reorderedQty ?? 0) + moveQty,
       reorderCount: (frame.reorderCount ?? 0) + 1,
+    }).where(eq(frames.id, frameId)).returning();
+    return updated;
+  }
+
+  async backOnBoard(frameId: string): Promise<Frame> {
+    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
+    if (!frame) throw new Error("Frame not found");
+    const reorderedQty = frame.reorderedQty ?? 0;
+    const restoreQty = reorderedQty > 0 ? reorderedQty : 1;
+    const [updated] = await db.update(frames).set({
+      quantity: (frame.quantity ?? 0) + restoreQty,
+      reorderedQty: 0,
+      offBoardQty: 0,
+      status: "on_board",
     }).where(eq(frames.id, frameId)).returning();
     return updated;
   }

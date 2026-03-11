@@ -187,7 +187,7 @@ export default function Dashboard() {
   const reminderDays = parseInt(settingsMap.labReminderDays || "14");
 
   const onBoard = frames.reduce((acc, f) => acc + Math.max(0, f.quantity ?? 0), 0);
-  const offBoard = frames.reduce((acc, f) => acc + (f.offBoardQty ?? 0), 0);
+  const offBoard = frames.reduce((acc, f) => acc + (f.offBoardQty ?? 0) + (f.reorderedQty ?? 0), 0);
   const activeLabOrders = labOrders.filter((o) => o.status === "pending" && !o.patientOwnFrame);
   const atLab = activeLabOrders.length;
   const total = frames.length;

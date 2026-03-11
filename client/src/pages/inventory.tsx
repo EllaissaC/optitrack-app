@@ -1950,16 +1950,29 @@ export default function Inventory() {
     mutationFn: (id: string) => apiRequest("POST", `/api/frames/${id}/reorder`, { qty: 1 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Reorder marked", description: "Frame has been marked as reordered." });
+      toast({ title: "Reorder placed", description: "Frame moved to 'Frames Reordered' — awaiting delivery." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to mark as reordered.", variant: "destructive" });
     },
   });
 
+  const backOnBoardMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("POST", `/api/frames/${id}/back-on-board`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+      toast({ title: "Back on board", description: "Frame quantity restored and status set to On Board." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to mark frame back on board.", variant: "destructive" });
+    },
+  });
+
   const [reorderExpanded, setReorderExpanded] = useState(false);
+  const [reorderedExpanded, setReorderedExpanded] = useState(false);
 
   const reorderAlerts = frames.filter((f) => (f.offBoardQty ?? 0) > 0);
+  const reorderedFrames = frames.filter((f) => (f.reorderedQty ?? 0) > 0);
 
   const filtered = frames.filter((frame) => {
     const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
@@ -2218,6 +2231,89 @@ export default function Inventory() {
                       >
                         <CheckCircle className="w-3 h-3 mr-1" />
                         Mark as Reordered
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Frames Reordered — collapsible */}
+      {!isLoading && (
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 bg-blue-50/60 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-950/30 transition-colors"
+            onClick={() => setReorderedExpanded((v) => !v)}
+            data-testid="button-toggle-reordered-section"
+          >
+            <div className="flex items-center gap-2">
+              <Truck className="w-4 h-4 text-blue-500 flex-shrink-0" />
+              <span className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                Frames Reordered
+              </span>
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-200 dark:bg-blue-900 text-blue-800 dark:text-blue-300">
+                {reorderedFrames.length}
+              </span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-blue-600 dark:text-blue-400 transition-transform duration-200 ${reorderedExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {reorderedExpanded && (
+            <div className="px-4 py-3 space-y-2 bg-background border-t border-blue-200 dark:border-blue-800">
+              {reorderedFrames.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  No frames are currently awaiting delivery.
+                </p>
+              ) : (
+                reorderedFrames.map((frame) => (
+                  <div
+                    key={frame.id}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50/40 dark:bg-blue-950/10"
+                    data-testid={`alert-reordered-${frame.id}`}
+                  >
+                    <div className="p-1.5 rounded-md bg-blue-100 dark:bg-blue-900/40 flex-shrink-0">
+                      <Truck className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        {frame.brand} {frame.model}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (reordered {frame.reorderCount}×)
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+                        <span className="ml-2 font-medium text-blue-700 dark:text-blue-400">
+                          {frame.reorderedQty} unit{(frame.reorderedQty ?? 0) !== 1 ? "s" : ""} awaiting delivery
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => openEdit(frame)}
+                        data-testid={`button-edit-reordered-${frame.id}`}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="text-xs bg-blue-600 hover:bg-blue-700 text-white border-0"
+                        onClick={() => backOnBoardMutation.mutate(frame.id)}
+                        disabled={backOnBoardMutation.isPending}
+                        data-testid={`button-back-on-board-${frame.id}`}
+                      >
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Back on Board
                       </Button>
                     </div>
                   </div>

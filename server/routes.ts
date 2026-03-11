@@ -631,6 +631,16 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/frames/:id/back-on-board", requireAuth, async (req, res) => {
+    try {
+      const frame = await storage.backOnBoard(req.params.id as string);
+      res.json(frame);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to mark frame back on board";
+      res.status(500).json({ message: msg });
+    }
+  });
+
   app.delete("/api/frames/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteFrame(req.params.id as string);
