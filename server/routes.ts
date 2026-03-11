@@ -563,8 +563,10 @@ export async function registerRoutes(
         barcode: parsed.data.barcode,
         brand: parsed.data.brand,
         model: parsed.data.model,
-        color: parsed.data.color,
+        code: parsed.data.code,
         eyeSize: parsed.data.eyeSize,
+        bridge: parsed.data.bridge,
+        templeLength: parsed.data.templeLength,
         clinicId: parsed.data.clinicId,
       });
       if (duplicate) {

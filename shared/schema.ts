@@ -24,6 +24,7 @@ export const frames = pgTable("frames", {
   brand: text("brand").notNull(),
   model: text("model").notNull(),
   color: text("color").notNull(),
+  code: text("code"),
   eyeSize: integer("eye_size").notNull(),
   bridge: integer("bridge").notNull(),
   templeLength: integer("temple_length").notNull(),

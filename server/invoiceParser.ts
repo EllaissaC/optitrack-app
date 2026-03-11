@@ -15,6 +15,7 @@ export interface ExtractedFrame {
   brand: string;
   model: string;
   color: string;
+  code: string;
   eyeSize: number;
   bridge: number;
   templeLength: number;
@@ -30,7 +31,8 @@ For each frame product found, output a JSON object with these fields:
 - manufacturer: the company that manufactures or distributes the frames (e.g. "Marchon", "Safilo", "Luxottica", "Silhouette"). This is usually the invoice sender or vendor name. If unclear, use the same value as brand.
 - brand: the specific label or brand name on the frame (e.g. "Ray-Ban", "Dragon", "Oakley", "Boss", "Gucci"). If the manufacturer sells directly under their own name, use the same value as manufacturer.
 - model: model name or SKU (e.g. "RX5228", "M-2037", "GG0396O")
-- color: color or finish (e.g. "Black", "Tortoise Brown", "Shiny Gold")
+- color: full color description or finish name (e.g. "Black", "Tortoise Brown", "Shiny Gold")
+- code: manufacturer color code or variant code (e.g. "8356", "3005", "C1"). Use empty string "" if not present. This is a short numeric or alphanumeric code that identifies the color variant, distinct from the color name.
 - eyeSize: eye lens width as integer mm (from size like "53-17-140" → 53, or "53□17" → 53). Default 52 if unknown.
 - bridge: bridge width as integer mm (from size → 17). Default 18 if unknown.
 - templeLength: temple arm length as integer mm (from size → 140). Default 145 if unknown.
@@ -183,7 +185,8 @@ export function parseInvoiceFromSpreadsheet(fileBuffer: Buffer, mimetype: string
       "productcode", "code", "framemodel", "description",
       "productname", "product", "item", "itemdescription",
     );
-    const color = getField("color", "colour", "colorname", "finish", "colorway", "colorcode", "framecolor");
+    const color = getField("color", "colour", "colorname", "finish", "colorway", "framecolor");
+    const code = getField("colorcode", "colourcode", "color_code", "colour_code", "colorid", "colornumber", "colorno", "colornum", "framecolorcode", "variantcode");
 
     if (!brand && !model) continue;
 
@@ -210,6 +213,7 @@ export function parseInvoiceFromSpreadsheet(fileBuffer: Buffer, mimetype: string
       brand: brand || manufacturer || "Unknown",
       model: model || "",
       color: color || "",
+      code: code || "",
       eyeSize,
       bridge,
       templeLength,

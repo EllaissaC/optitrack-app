@@ -255,10 +255,16 @@ function FrameFoundCard({
               {frame.brand} {frame.model}
             </p>
             <p className="text-sm text-muted-foreground">
-              {frame.manufacturer} · {frame.color}
+              {frame.manufacturer} · {frame.color}{frame.code ? ` · ${frame.code}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+            {frame.code && (
+              <div>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">Code</span>
+                <p className="font-mono font-medium text-foreground">{frame.code}</p>
+              </div>
+            )}
             <div>
               <span className="text-muted-foreground text-xs uppercase tracking-wide">Size</span>
               <p className="font-mono font-medium text-foreground">
@@ -352,7 +358,7 @@ function FrameFormDialog({
   const [newBrandMfgId, setNewBrandMfgId] = useState<string>("");
   const [duplicateInfo, setDuplicateInfo] = useState<{ existingFrameId: string; existingBrand: string; existingModel: string; existingColor: string } | null>(null);
   const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
-  type Variant = { color: string; eyeSize: number; bridge: number; templeLength: number; barcode: string; quantity: number };
+  type Variant = { code: string; color: string; eyeSize: number; bridge: number; templeLength: number; barcode: string; quantity: number };
   const [variants, setVariants] = useState<Variant[]>([]);
 
   const addMfgMutation = useMutation({
@@ -411,6 +417,7 @@ function FrameFormDialog({
       brand: "",
       model: "",
       color: "",
+      code: "",
       eyeSize: 52,
       bridge: 18,
       templeLength: 145,
@@ -464,6 +471,7 @@ function FrameFormDialog({
               brand: editFrame.brand,
               model: editFrame.model,
               color: editFrame.color,
+              code: editFrame.code ?? "",
               eyeSize: editFrame.eyeSize,
               bridge: editFrame.bridge,
               templeLength: editFrame.templeLength,
@@ -485,6 +493,7 @@ function FrameFormDialog({
               brand: "",
               model: "",
               color: "",
+              code: "",
               eyeSize: 52,
               bridge: 18,
               templeLength: 145,
@@ -580,6 +589,7 @@ function FrameFormDialog({
   function onSubmit(values: FormValues) {
     const payload = {
       ...values,
+      code: values.code || null,
       barcode: values.barcode || null,
       multiplier: values.multiplier || null,
       labOrderNumber: values.labOrderNumber || null,
@@ -596,6 +606,7 @@ function FrameFormDialog({
       if (variants.length > 0) {
         const allPayloads = [payload, ...variants.map((v) => ({
           ...payload,
+          code: v.code || null,
           color: v.color,
           eyeSize: v.eyeSize,
           bridge: v.bridge,
@@ -815,21 +826,23 @@ function FrameFormDialog({
                 />
               </div>
 
-              {/* Model + Color */}
+              {/* Model */}
+              <FormField
+                control={form.control}
+                name="model"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Model</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Color + Code */}
               <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="model"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Model</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
                 <FormField
                   control={form.control}
                   name="color"
@@ -838,6 +851,19 @@ function FrameFormDialog({
                       <FormLabel>Color</FormLabel>
                       <FormControl>
                         <Input placeholder="e.g. Matte Black" data-testid="input-color" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Code <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. 8356" data-testid="input-code" {...field} value={field.value ?? ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -901,7 +927,7 @@ function FrameFormDialog({
                       variant="outline"
                       size="sm"
                       className="text-xs h-7"
-                      onClick={() => setVariants((prev) => [...prev, { color: "", eyeSize: 52, bridge: 18, templeLength: 145, barcode: "", quantity: 1 }])}
+                      onClick={() => setVariants((prev) => [...prev, { code: "", color: "", eyeSize: 52, bridge: 18, templeLength: 145, barcode: "", quantity: 1 }])}
                       data-testid="button-add-variant"
                     >
                       <Plus className="w-3 h-3 mr-1" />
@@ -911,7 +937,16 @@ function FrameFormDialog({
                   {variants.length > 0 && (
                     <div className="space-y-2">
                       {variants.map((v, idx) => (
-                        <div key={idx} className="grid grid-cols-6 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border">
+                        <div key={idx} className="grid grid-cols-7 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border">
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Code</p>
+                            <Input
+                              placeholder="e.g. 8356"
+                              value={v.code}
+                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, code: e.target.value } : x))}
+                              data-testid={`input-variant-code-${idx}`}
+                            />
+                          </div>
                           <div className="col-span-2">
                             <p className="text-xs text-muted-foreground mb-1">Color</p>
                             <Input
@@ -1513,6 +1548,7 @@ function InvoiceImportDialog({
           brand,
           model: row.model,
           color: row.color,
+          code: row.code?.trim() || null,
           eyeSize: Number(row.eyeSize) || 52,
           bridge: Number(row.bridge) || 18,
           templeLength: Number(row.templeLength) || 145,
@@ -2187,6 +2223,7 @@ export default function Inventory() {
                     <TableHead className="pl-6">Brand / Model</TableHead>
                     <TableHead>Manufacturer</TableHead>
                     <TableHead>Color</TableHead>
+                    <TableHead>Code</TableHead>
                     <TableHead className="text-center">Size</TableHead>
                     <TableHead>
                       <span className="flex items-center gap-1">
@@ -2224,6 +2261,13 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground py-3.5">
                           {frame.color}
+                        </TableCell>
+                        <TableCell className="text-sm py-3.5">
+                          {frame.code ? (
+                            <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded text-foreground">{frame.code}</span>
+                          ) : (
+                            <span className="text-muted-foreground/40 text-xs italic">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center py-3.5">
                           <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded text-muted-foreground">
