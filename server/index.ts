@@ -133,6 +133,12 @@ app.use((req, res, next) => {
     console.error("Manufacturer fix error:", e);
   }
 
+  try {
+    await storage.recalculateRetailPrices();
+  } catch (e) {
+    console.error("Retail price recalculation error:", e);
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

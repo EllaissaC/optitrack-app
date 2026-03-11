@@ -503,7 +503,7 @@ function FrameFormDialog({
               bridge: 18,
               templeLength: 145,
               cost: "",
-              multiplier: settingsData.defaultMultiplier || "",
+              multiplier: settingsData.defaultMultiplier || "3",
               retailPrice: "",
               status: "on_board",
               barcode: prefillBarcode ?? "",
@@ -1598,7 +1598,8 @@ function InvoiceImportDialog({
     for (const row of rows) {
       try {
         const costNum = parseFloat(row.cost) || 0;
-        const retailNum = Math.round(costNum * 2.5);
+        const importMultiplier = parseFloat(settingsData.defaultMultiplier || "3") || 3;
+        const retailNum = Math.round(costNum * importMultiplier);
         const manufacturer = (globalManufacturer?.trim() || row.manufacturer?.trim() || row.brand?.trim() || "Unknown");
         const brand = row.brand?.trim() || manufacturer;
 

@@ -82,6 +82,7 @@ export interface IStorage {
   syncFrameSoldCount(frameId: string): Promise<void>;
   syncAllFramesFromLabOrders(): Promise<void>;
   fixManufacturerData(): Promise<void>;
+  recalculateRetailPrices(): Promise<void>;
 
   getFrameHolds(clinicId?: string | null): Promise<FrameHold[]>;
   getFrameHold(id: string): Promise<FrameHold | undefined>;
@@ -595,6 +596,25 @@ export class DbStorage implements IStorage {
         await db.update(frameHolds).set({ status: "expired" }).where(eq(frameHolds.id, hold.id));
       }
     }
+  }
+
+  async recalculateRetailPrices(): Promise<void> {
+    const alreadyRun = await this.getSetting("retailPricesMigratedV3");
+    if (alreadyRun === "true") return;
+
+    const multiplierStr = await this.getSetting("defaultMultiplier");
+    const multiplier = multiplierStr && !isNaN(Number(multiplierStr)) && Number(multiplierStr) > 0
+      ? Number(multiplierStr)
+      : 3;
+
+    await db.execute(sql`
+      UPDATE frames
+      SET retail_price = ROUND(cost::numeric * ${multiplier})
+      WHERE cost IS NOT NULL AND cost::numeric > 0
+    `);
+
+    await this.setSetting("retailPricesMigratedV3", "true");
+    console.log(`[startup] Retail prices recalculated using multiplier ${multiplier}`);
   }
 
   async fixManufacturerData(): Promise<void> {

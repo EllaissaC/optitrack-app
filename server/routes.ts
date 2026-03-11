@@ -5,6 +5,8 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import multer from "multer";
 import { storage } from "./storage";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema, insertLabOrderSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
@@ -301,6 +303,23 @@ export async function registerRoutes(
       res.json({ message: "Settings saved" });
     } catch {
       res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  app.post("/api/frames/recalculate-prices", requireAdmin, async (_req, res) => {
+    try {
+      const multiplierStr = await storage.getSetting("defaultMultiplier");
+      const multiplier = multiplierStr && !isNaN(Number(multiplierStr)) && Number(multiplierStr) > 0
+        ? Number(multiplierStr)
+        : 3;
+      await db.execute(sql`
+        UPDATE frames
+        SET retail_price = ROUND(cost::numeric * ${multiplier})
+        WHERE cost IS NOT NULL AND cost::numeric > 0
+      `);
+      res.json({ success: true, multiplier });
+    } catch {
+      res.status(500).json({ message: "Failed to recalculate prices" });
     }
   });
 

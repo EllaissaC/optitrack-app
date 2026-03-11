@@ -118,16 +118,20 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
       emailFrom: settingsMap.emailFrom || "",
       labReminderDays: settingsMap.labReminderDays || "14",
       labTurnaroundDays: settingsMap.labTurnaroundDays || "14",
-      defaultMultiplier: settingsMap.defaultMultiplier || "",
+      defaultMultiplier: settingsMap.defaultMultiplier || "3",
     },
   });
 
   const save = useMutation({
     mutationFn: async (data: EmailSettingsValues) => {
       await apiRequest("PUT", "/api/settings", data);
+      if (data.defaultMultiplier) {
+        await apiRequest("POST", "/api/frames/recalculate-prices");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       toast({ title: "Settings saved" });
     },
     onError: () => toast({ title: "Failed to save settings", variant: "destructive" }),
@@ -221,11 +225,11 @@ function GeneralSettingsTab({ settingsMap }: { settingsMap: Record<string, strin
                 name="defaultMultiplier"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Default Price Multiplier</FormLabel>
+                    <FormLabel>Frame Retail Multiplier</FormLabel>
                     <FormControl>
-                      <Input {...field} type="number" step="0.01" min="0.01" placeholder="e.g. 2.5" data-testid="input-default-multiplier" />
+                      <Input {...field} type="number" step="0.01" min="0.01" placeholder="e.g. 3" data-testid="input-default-multiplier" />
                     </FormControl>
-                    <FormDescription>Pre-fills the multiplier field when adding a new frame.</FormDescription>
+                    <FormDescription>Retail Price = Wholesale Cost × Multiplier. Default is 3. Applied when adding frames manually or via invoice import.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
