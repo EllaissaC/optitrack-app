@@ -17,6 +17,7 @@ import {
   AlertCircle,
   RotateCcw,
   ChevronsUpDown,
+  ChevronDown,
   Hash,
   Truck,
   Building2,
@@ -1829,6 +1830,8 @@ export default function Inventory() {
     },
   });
 
+  const [reorderExpanded, setReorderExpanded] = useState(false);
+
   const reorderAlerts = frames.filter((f) => (f.offBoardQty ?? 0) > 0);
 
   const filtered = frames.filter((frame) => {
@@ -2013,64 +2016,88 @@ export default function Inventory() {
         />
       )}
 
-      {/* Inventory Insights — Reorder Alerts */}
-      {!isLoading && reorderAlerts.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
-            Inventory Insights — {reorderAlerts.length} frame{reorderAlerts.length !== 1 ? "s" : ""} need reordering
-          </p>
-          <div className="space-y-2">
-            {reorderAlerts.map((frame) => (
-              <div
-                key={frame.id}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/60 dark:bg-orange-950/20"
-                data-testid={`alert-reorder-${frame.id}`}
-              >
-                <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40 flex-shrink-0">
-                  <RotateCcw className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {frame.brand} {frame.model}
-                    {(frame.reorderCount ?? 0) > 0 && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        (reordered {frame.reorderCount}×)
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
-                    <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
-                      {frame.offBoardQty} unit{(frame.offBoardQty ?? 0) !== 1 ? "s" : ""} not on board
-                    </span>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={() => openEdit(frame)}
-                    data-testid={`button-edit-alert-${frame.id}`}
+      {/* Frames Need Reordered — collapsible */}
+      {!isLoading && (
+        <div className="rounded-lg border border-orange-200 dark:border-orange-800 overflow-hidden">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-3 bg-orange-50/60 dark:bg-orange-950/20 hover:bg-orange-100/60 dark:hover:bg-orange-950/30 transition-colors"
+            onClick={() => setReorderExpanded((v) => !v)}
+            data-testid="button-toggle-reorder-section"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+              <span className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+                Frames Need Reordered
+              </span>
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-300">
+                {reorderAlerts.length}
+              </span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-orange-600 dark:text-orange-400 transition-transform duration-200 ${reorderExpanded ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {reorderExpanded && (
+            <div className="px-4 py-3 space-y-2 bg-background border-t border-orange-200 dark:border-orange-800">
+              {reorderAlerts.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  No frames currently need to be reordered.
+                </p>
+              ) : (
+                reorderAlerts.map((frame) => (
+                  <div
+                    key={frame.id}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/40 dark:bg-orange-950/10"
+                    data-testid={`alert-reorder-${frame.id}`}
                   >
-                    <Pencil className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-0"
-                    onClick={() => reorderMutation.mutate(frame.id)}
-                    disabled={reorderMutation.isPending}
-                    data-testid={`button-mark-reordered-${frame.id}`}
-                  >
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Mark as Reordered
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
+                    <div className="p-1.5 rounded-md bg-orange-100 dark:bg-orange-900/40 flex-shrink-0">
+                      <RotateCcw className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground">
+                        {frame.brand} {frame.model}
+                        {(frame.reorderCount ?? 0) > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            (reordered {frame.reorderCount}×)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {frame.manufacturer} · {frame.color} · {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
+                        <span className="ml-2 font-medium text-orange-700 dark:text-orange-400">
+                          {frame.offBoardQty} unit{(frame.offBoardQty ?? 0) !== 1 ? "s" : ""} not on board
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => openEdit(frame)}
+                        data-testid={`button-edit-alert-${frame.id}`}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="text-xs bg-orange-600 hover:bg-orange-700 text-white border-0"
+                        onClick={() => reorderMutation.mutate(frame.id)}
+                        disabled={reorderMutation.isPending}
+                        data-testid={`button-mark-reordered-${frame.id}`}
+                      >
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Mark as Reordered
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
