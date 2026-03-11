@@ -41,10 +41,17 @@ Rules:
 - Return ONLY a valid JSON array. No markdown, no explanation.`;
 
 function cleanJsonResponse(raw: string): string {
-  return raw
+  const stripped = raw
     .replace(/```json\s*/gi, "")
     .replace(/```\s*/g, "")
     .trim();
+
+  const start = stripped.indexOf("[");
+  const end = stripped.lastIndexOf("]");
+  if (start !== -1 && end !== -1 && end > start) {
+    return stripped.slice(start, end + 1);
+  }
+  return stripped;
 }
 
 export async function parseInvoiceFromImage(
@@ -134,8 +141,14 @@ export function parseInvoiceFromSpreadsheet(fileBuffer: Buffer, mimetype: string
   const sampleHeaders = Object.keys(rawRows[0]).map(normalizeHeader);
   const hasAny = (...candidates: string[]) => sampleHeaders.some((h) => matchesAny(h, candidates));
 
-  const hasFrameColumns = hasAny("brand", "model", "sku", "style", "frame") ||
-    hasAny("manufacturer", "vendor", "supplier");
+  const hasFrameColumns =
+    hasAny("brand", "brandname", "label", "eyewear") ||
+    hasAny("model", "modelno", "modelnumber", "modename") ||
+    hasAny("sku", "style", "stylenumber", "styleno", "itemnumber", "itemno", "partnumber", "partno", "productcode", "code") ||
+    hasAny("frame", "framename", "framedescription", "framemodel") ||
+    hasAny("manufacturer", "mfg", "vendor", "supplier", "company", "distributor", "maker") ||
+    hasAny("description", "productname", "product", "item", "itemdescription") ||
+    (hasAny("qty", "quantity", "units") && hasAny("cost", "price", "unitprice", "wholesale", "amount"));
 
   if (!hasFrameColumns) {
     throw new Error("Unable to detect frame data from this file format.");
@@ -156,10 +169,16 @@ export function parseInvoiceFromSpreadsheet(fileBuffer: Buffer, mimetype: string
       return "";
     };
 
-    const brand = getField("brand", "brandname", "label");
-    const manufacturer = getField("manufacturer", "mfg", "vendor", "supplier", "company", "distributor") || brand;
-    const model = getField("model", "modelno", "modelnumber", "sku", "style", "stylenumber", "item", "itemno", "partnumber");
-    const color = getField("color", "colour", "colorname", "finish", "colorway", "colorcode");
+    const brand = getField("brand", "brandname", "label", "eyewear", "framebrand");
+    const manufacturer = getField("manufacturer", "mfg", "vendor", "supplier", "company", "distributor", "maker") || brand;
+    const model = getField(
+      "model", "modelno", "modelnumber", "modename",
+      "sku", "style", "stylenumber", "styleno",
+      "itemnumber", "itemno", "partnumber", "partno",
+      "productcode", "code", "framemodel", "description",
+      "productname", "product", "item", "itemdescription",
+    );
+    const color = getField("color", "colour", "colorname", "finish", "colorway", "colorcode", "framecolor");
 
     if (!brand && !model) continue;
 
