@@ -29,6 +29,7 @@ import {
   Archive,
   Clock,
   Filter,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
@@ -1987,6 +1988,7 @@ export default function Inventory() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [manufacturerFilter, setManufacturerFilter] = useState<string>("all");
+  const [showRecent, setShowRecent] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [prefillBarcode, setPrefillBarcode] = useState<string>("");
@@ -2037,6 +2039,23 @@ export default function Inventory() {
       : frames;
     return [...new Set(source.map((f) => f.brand).filter(Boolean))].sort();
   }, [frames, manufacturerFilter]);
+
+  const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+
+  const recentlyAdded = useMemo(() => {
+    const cutoff = Date.now() - FIVE_DAYS_MS;
+    return [...frames]
+      .filter((f) => new Date(f.createdAt).getTime() >= cutoff)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [frames]);
+
+  function formatRelativeDate(dateStr: string | Date) {
+    const date = new Date(dateStr);
+    const diffDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    return `${diffDays} days ago`;
+  }
 
   const hasActiveFilters = search !== "" || brandFilter !== "all" || manufacturerFilter !== "all" || statusFilter !== "all";
 
@@ -2241,6 +2260,67 @@ export default function Inventory() {
           onDismiss={dismissFoundCard}
           onEdit={openEditFromFound}
         />
+      )}
+
+      {/* Recently Added */}
+      {recentlyAdded.length > 0 && (
+        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20" data-testid="section-recently-added">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+            onClick={() => setShowRecent(!showRecent)}
+            data-testid="button-toggle-recently-added"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span className="font-semibold text-sm text-foreground">Recently Added</span>
+              <Badge className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-0 text-xs px-2">
+                {recentlyAdded.length}
+              </Badge>
+              <span className="text-xs text-muted-foreground">· within the last 5 days</span>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0 ${showRecent ? "" : "-rotate-90"}`}
+            />
+          </button>
+          {showRecent && (
+            <div className="border-t border-emerald-200 dark:border-emerald-800">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-muted-foreground border-b border-emerald-100 dark:border-emerald-900">
+                      <th className="text-left font-medium px-4 py-2">Brand / Model</th>
+                      <th className="text-left font-medium px-4 py-2">Manufacturer</th>
+                      <th className="text-left font-medium px-4 py-2">Color</th>
+                      <th className="text-right font-medium px-4 py-2">Qty</th>
+                      <th className="text-right font-medium px-4 py-2">Added</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/60">
+                    {recentlyAdded.map((frame) => (
+                      <tr
+                        key={frame.id}
+                        className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-colors"
+                        onClick={() => { setEditFrame(frame); setDialogOpen(true); }}
+                        data-testid={`row-recently-added-${frame.id}`}
+                      >
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-foreground">{frame.brand}</p>
+                          <p className="text-xs text-muted-foreground">{frame.model}</p>
+                        </td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{frame.manufacturer}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{frame.color}</td>
+                        <td className="px-4 py-2.5 text-right font-medium text-foreground">{frame.quantity}</td>
+                        <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
+                          {formatRelativeDate(frame.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Search + filter */}
