@@ -398,7 +398,10 @@ export class DbStorage implements IStorage {
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
-      await this.adjustFrameInventory(order.frameId, 1, -1);
+      const [frame] = await db.select({ quantity: frames.quantity }).from(frames).where(eq(frames.id, order.frameId));
+      if (frame) {
+        await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, order.frameId));
+      }
       await this.syncFrameSoldCount(order.frameId);
     }
 
@@ -467,7 +470,11 @@ export class DbStorage implements IStorage {
         latestDate: sql<string | null>`max(coalesce(frame_sold_at, to_char(created_at, 'YYYY-MM-DD')))`,
       })
       .from(labOrders)
-      .where(and(eq(labOrders.frameId, frameId), eq(labOrders.patientOwnFrame, false)));
+      .where(and(
+        eq(labOrders.frameId, frameId),
+        eq(labOrders.patientOwnFrame, false),
+        eq(labOrders.frameSold, true),
+      ));
 
     const rawCount = rows[0]?.count ?? 0;
     const soldCount = rawCount > 0 ? 1 : 0;
@@ -485,9 +492,8 @@ export class DbStorage implements IStorage {
     const rows = await db
       .select({
         frameId: labOrders.frameId,
-        totalOrders: sql<number>`cast(count(*) as int)`,
-        activeOrders: sql<number>`cast(count(*) filter (where ${labOrders.status} != 'received') as int)`,
-        latestDate: sql<string | null>`max(coalesce(${labOrders.frameSoldAt}, to_char(${labOrders.createdAt}, 'YYYY-MM-DD')))`,
+        soldOrders: sql<number>`cast(count(*) filter (where ${labOrders.frameSold} = true) as int)`,
+        latestDate: sql<string | null>`max(case when ${labOrders.frameSold} = true then coalesce(${labOrders.frameSoldAt}, to_char(${labOrders.createdAt}, 'YYYY-MM-DD')) end)`,
       })
       .from(labOrders)
       .where(and(
@@ -499,17 +505,12 @@ export class DbStorage implements IStorage {
     for (const row of rows) {
       if (!row.frameId) continue;
 
-      const soldCount = row.totalOrders > 0 ? 1 : 0;
-      const offBoardQty = row.activeOrders > 0 ? 1 : 0;
-      const onBoardQty = offBoardQty > 0 ? 0 : 1;
+      const soldCount = (row.soldOrders ?? 0) > 0 ? 1 : 0;
 
       await db.update(frames)
         .set({
           soldCount,
           dateSold: soldCount === 0 ? null : row.latestDate,
-          quantity: onBoardQty,
-          offBoardQty,
-          status: "on_board",
         })
         .where(eq(frames.id, row.frameId));
     }
@@ -546,8 +547,17 @@ export class DbStorage implements IStorage {
   }
 
   async deleteFrameHold(id: string): Promise<boolean> {
+    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
     const result = await db.delete(frameHolds).where(eq(frameHolds.id, id));
-    return (result.rowCount ?? 0) > 0;
+    if ((result.rowCount ?? 0) === 0) return false;
+
+    if (hold && hold.status === "active" && hold.frameId) {
+      const [frame] = await db.select({ quantity: frames.quantity }).from(frames).where(eq(frames.id, hold.frameId));
+      if (frame) {
+        await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, hold.frameId));
+      }
+    }
+    return true;
   }
 
   async releaseFrameHold(id: string): Promise<{ hold: FrameHold; frame: Frame | null }> {

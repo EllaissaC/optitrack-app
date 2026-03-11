@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Frame, LabOrder } from "@shared/schema";
+import type { Frame, LabOrder, FrameHold } from "@shared/schema";
 import { queryClient, getQueryFn } from "@/lib/queryClient";
 
 const STATUS_CONFIG = {
@@ -184,12 +184,17 @@ export default function Dashboard() {
     queryKey: ["/api/lab-orders"],
   });
 
+  const { data: frameHolds = [] } = useQuery<FrameHold[]>({
+    queryKey: ["/api/frame-holds"],
+  });
+
   const reminderDays = parseInt(settingsMap.labReminderDays || "14");
 
   const onBoard = frames.reduce((acc, f) => acc + Math.max(0, f.quantity ?? 0), 0);
   const offBoard = frames.reduce((acc, f) => acc + (f.offBoardQty ?? 0) + (f.reorderedQty ?? 0), 0);
   const activeLabOrders = labOrders.filter((o) => o.status === "pending" && !o.patientOwnFrame);
   const atLab = activeLabOrders.length;
+  const onHold = frameHolds.filter((h) => h.status === "active").length;
   const total = frames.length;
 
   const sold = frames.reduce((acc, f) => acc + (f.soldCount ?? 0), 0);
@@ -220,6 +225,7 @@ export default function Dashboard() {
     await queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
     await queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
     await queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
+    await queryClient.invalidateQueries({ queryKey: ["/api/frame-holds"] });
     refetch();
   }
 
@@ -262,6 +268,7 @@ export default function Dashboard() {
   <div class="grid">
     <div class="card"><div class="label">Total Frame Models</div><div class="value">${total}</div></div>
     <div class="card"><div class="label">On Board</div><div class="value">${onBoard}</div></div>
+    <div class="card"><div class="label">On Hold</div><div class="value">${onHold}</div></div>
     <div class="card"><div class="label">Not On Board</div><div class="value">${offBoard}</div></div>
     <div class="card"><div class="label">Active Lab Orders</div><div class="value">${atLab}</div></div>
   </div>
@@ -310,7 +317,7 @@ export default function Dashboard() {
       {/* Row 1: Inventory status stats */}
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Inventory Overview</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard
             title="Total Frames"
             value={total}
@@ -326,6 +333,15 @@ export default function Dashboard() {
             iconColor="text-emerald-600 dark:text-emerald-400"
             bgColor="bg-emerald-100 dark:bg-emerald-900/30"
             loading={isLoading}
+          />
+          <StatCard
+            title="On Hold"
+            value={onHold}
+            icon={CalendarDays}
+            iconColor="text-orange-600 dark:text-orange-400"
+            bgColor="bg-orange-100 dark:bg-orange-900/30"
+            loading={isLoading}
+            description="Active frame holds"
           />
           <StatCard
             title="Off Board"
@@ -632,9 +648,10 @@ export default function Dashboard() {
                   <div className="space-y-2 pt-1">
                     <p className="text-xs text-muted-foreground">Status Breakdown</p>
                     {(() => {
-                      const breakdownTotal = onBoard + offBoard + atLab + sold;
+                      const breakdownTotal = onBoard + onHold + offBoard + atLab + sold;
                       return [
                         { label: "On Board", count: onBoard, color: "bg-emerald-500" },
+                        { label: "On Hold", count: onHold, color: "bg-orange-500" },
                         { label: "Not On Board", count: offBoard, color: "bg-slate-400" },
                         { label: "At Lab", count: atLab, color: "bg-amber-500" },
                         { label: "Sold", count: sold, color: "bg-blue-500" },
