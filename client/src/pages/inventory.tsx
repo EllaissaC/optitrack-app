@@ -1459,8 +1459,10 @@ function InvoiceImportDialog({
   const [importing, setImporting] = useState(false);
   const [detectedCount, setDetectedCount] = useState(0);
   const [importSummary, setImportSummary] = useState<{ added: number; skipped: number; detected: number } | null>(null);
+  const [globalManufacturer, setGlobalManufacturer] = useState<string>("");
 
   const { data: existingFrames = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
+  const { data: mfgList = [] } = useQuery<Manufacturer[]>({ queryKey: ["/api/manufacturers"] });
 
   const grouped = useMemo(() => {
     const groups = new Map<string, { key: string; brand: string; model: string; manufacturer: string; indices: number[] }>();
@@ -1490,6 +1492,7 @@ function InvoiceImportDialog({
     setImporting(false);
     setDetectedCount(0);
     setImportSummary(null);
+    setGlobalManufacturer("");
   }
 
   function handleFileChange(file: File) {
@@ -1537,7 +1540,28 @@ function InvoiceImportDialog({
       }
       const total = data.totalDetected ?? data.frames.length;
       setDetectedCount(total);
-      setRows(data.frames);
+
+      // Auto-detect the primary manufacturer from extracted frames
+      const mfgCounts = new Map<string, number>();
+      (data.frames as ExtractedFrame[]).forEach((f) => {
+        const m = f.manufacturer?.trim();
+        if (m) mfgCounts.set(m, (mfgCounts.get(m) ?? 0) + 1);
+      });
+      let detectedMfg = "";
+      let bestCount = 0;
+      mfgCounts.forEach((count, mfg) => {
+        if (count > bestCount) { detectedMfg = mfg; bestCount = count; }
+      });
+      // Prefer an exact match against known manufacturers (fixes AI casing/spelling)
+      const knownMfg = mfgList.find((m) => m.name.toLowerCase() === detectedMfg.toLowerCase());
+      const finalMfg = knownMfg?.name || detectedMfg;
+      if (finalMfg) {
+        setGlobalManufacturer(finalMfg);
+        setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: finalMfg })));
+      } else {
+        setRows(data.frames);
+      }
+
       if (data.truncated) {
         toast({
           title: "Large invoice detected",
@@ -1566,7 +1590,7 @@ function InvoiceImportDialog({
       try {
         const costNum = parseFloat(row.cost) || 0;
         const retailNum = Math.round(costNum * 2.5);
-        const manufacturer = row.manufacturer?.trim() || row.brand?.trim() || "Unknown";
+        const manufacturer = (globalManufacturer?.trim() || row.manufacturer?.trim() || row.brand?.trim() || "Unknown");
         const brand = row.brand?.trim() || manufacturer;
 
         const payload = {
@@ -1607,6 +1631,8 @@ function InvoiceImportDialog({
     }
 
     queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/frame-holds"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/lab-orders"] });
     setImporting(false);
     setImportSummary({ added, skipped, detected: detectedCount });
     const parts: string[] = [];
@@ -1636,6 +1662,41 @@ function InvoiceImportDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
+          {/* Global manufacturer selector — always visible, applies to all extracted frames */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border bg-muted/30">
+            <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm font-medium whitespace-nowrap">Manufacturer:</span>
+            <Select
+              value={globalManufacturer}
+              onValueChange={(v) => {
+                setGlobalManufacturer(v);
+                if (rows.length > 0) {
+                  setRows((prev) => prev.map((r) => ({ ...r, manufacturer: v })));
+                }
+              }}
+            >
+              <SelectTrigger className="flex-1 h-8 text-sm" data-testid="select-global-manufacturer">
+                <SelectValue placeholder="Select manufacturer to apply to all frames..." />
+              </SelectTrigger>
+              <SelectContent>
+                {mfgList.map((m) => (
+                  <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {globalManufacturer && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground flex-shrink-0"
+                onClick={() => setGlobalManufacturer("")}
+                data-testid="button-clear-global-manufacturer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+
           {rows.length === 0 ? (
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
