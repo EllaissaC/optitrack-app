@@ -438,7 +438,7 @@ function FrameFormDialog({
     const cost = parseFloat(watchedCost as string);
     const multiplier = parseFloat(watchedMultiplier as string);
     if (!isNaN(cost) && !isNaN(multiplier) && multiplier > 0) {
-      form.setValue("retailPrice", (cost * multiplier).toFixed(2), { shouldValidate: false });
+      form.setValue("retailPrice", String(Math.round(cost * multiplier)), { shouldValidate: false });
     }
   }, [watchedCost, watchedMultiplier]);
 
@@ -1504,7 +1504,7 @@ function InvoiceImportDialog({
     for (const row of rows) {
       try {
         const costNum = parseFloat(row.cost) || 0;
-        const retailNum = Math.round(costNum * 2.5 * 100) / 100;
+        const retailNum = Math.round(costNum * 2.5);
         const manufacturer = row.manufacturer?.trim() || row.brand?.trim() || "Unknown";
         const brand = row.brand?.trim() || manufacturer;
 
@@ -1517,7 +1517,7 @@ function InvoiceImportDialog({
           bridge: Number(row.bridge) || 18,
           templeLength: Number(row.templeLength) || 145,
           cost: String(costNum.toFixed(2)),
-          retailPrice: String(retailNum.toFixed(2)),
+          retailPrice: String(retailNum),
           quantity: Number(row.quantity) || 1,
           status: "on_board",
         };
