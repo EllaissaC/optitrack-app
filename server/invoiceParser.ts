@@ -71,7 +71,7 @@ export async function parseInvoiceFromImage(
         ],
       },
     ],
-    max_tokens: 3000,
+    max_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content ?? "[]";
@@ -94,10 +94,10 @@ export async function parseInvoiceFromPdf(
     messages: [
       {
         role: "user",
-        content: `${SYSTEM_PROMPT}\n\nInvoice text:\n${text.slice(0, 12000)}`,
+        content: `${SYSTEM_PROMPT}\n\nInvoice text:\n${text.slice(0, 80000)}`,
       },
     ],
-    max_tokens: 3000,
+    max_tokens: 16000,
   });
 
   const content = response.choices[0]?.message?.content ?? "[]";
