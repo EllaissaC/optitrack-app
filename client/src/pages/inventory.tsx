@@ -28,6 +28,7 @@ import {
   FileText,
   Archive,
   Clock,
+  Filter,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
@@ -1984,6 +1985,8 @@ function InvoiceImportDialog({
 export default function Inventory() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [manufacturerFilter, setManufacturerFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editFrame, setEditFrame] = useState<Frame | null>(null);
   const [prefillBarcode, setPrefillBarcode] = useState<string>("");
@@ -2023,8 +2026,43 @@ export default function Inventory() {
   });
 
 
+  const uniqueManufacturers = useMemo(
+    () => [...new Set(frames.map((f) => f.manufacturer).filter(Boolean))].sort(),
+    [frames]
+  );
+
+  const filteredBrandOptions = useMemo(() => {
+    const source = manufacturerFilter !== "all"
+      ? frames.filter((f) => f.manufacturer === manufacturerFilter)
+      : frames;
+    return [...new Set(source.map((f) => f.brand).filter(Boolean))].sort();
+  }, [frames, manufacturerFilter]);
+
+  const hasActiveFilters = search !== "" || brandFilter !== "all" || manufacturerFilter !== "all" || statusFilter !== "all";
+
+  function handleManufacturerFilterChange(value: string) {
+    setManufacturerFilter(value);
+    if (value !== "all" && brandFilter !== "all") {
+      const brandsForMfg = frames
+        .filter((f) => f.manufacturer === value)
+        .map((f) => f.brand);
+      if (!brandsForMfg.includes(brandFilter)) {
+        setBrandFilter("all");
+      }
+    }
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setBrandFilter("all");
+    setManufacturerFilter("all");
+    setStatusFilter("all");
+  }
+
   const filtered = frames.filter((frame) => {
     const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
+    const matchesBrand = brandFilter === "all" || frame.brand === brandFilter;
+    const matchesManufacturer = manufacturerFilter === "all" || frame.manufacturer === manufacturerFilter;
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
@@ -2033,7 +2071,7 @@ export default function Inventory() {
       frame.model.toLowerCase().includes(q) ||
       frame.color.toLowerCase().includes(q) ||
       (frame.barcode && frame.barcode.toLowerCase().includes(q));
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesBrand && matchesManufacturer && matchesSearch;
   });
 
   function highlightFrame(id: string) {
@@ -2206,42 +2244,83 @@ export default function Inventory() {
       )}
 
       {/* Search + filter */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-56">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search by brand, model, barcode..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            data-testid="input-search"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              data-testid="button-clear-search"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-56">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search by brand, model, barcode..."
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              data-testid="input-search"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                data-testid="button-clear-search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(["all", "on_board", "off_board", "at_lab", "sold"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                data-testid={`button-filter-${s}`}
+                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  statusFilter === s
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "off_board" ? "Off Board" : s === "at_lab" ? "At Lab" : "Sold"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {(["all", "on_board", "off_board", "at_lab", "sold"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              data-testid={`button-filter-${s}`}
-              className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
-                statusFilter === s
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
+
+        {/* Brand + Manufacturer dropdowns */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Select value={manufacturerFilter} onValueChange={handleManufacturerFilterChange}>
+            <SelectTrigger className="w-48 h-9 text-sm" data-testid="select-filter-manufacturer">
+              <SelectValue placeholder="All Manufacturers" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Manufacturers</SelectItem>
+              {uniqueManufacturers.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={brandFilter} onValueChange={setBrandFilter}>
+            <SelectTrigger className="w-44 h-9 text-sm" data-testid="select-filter-brand">
+              <SelectValue placeholder="All Brands" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Brands</SelectItem>
+              {filteredBrandOptions.map((b) => (
+                <SelectItem key={b} value={b}>{b}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="text-muted-foreground hover:text-foreground"
+              data-testid="button-clear-filters"
             >
-              {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "off_board" ? "Off Board" : s === "at_lab" ? "At Lab" : "Sold"}
-            </button>
-          ))}
+              <X className="w-3.5 h-3.5 mr-1.5" />
+              Clear Filters
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2257,11 +2336,11 @@ export default function Inventory() {
               <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
               <p className="font-medium text-foreground">No frames found</p>
               <p className="text-sm mt-1">
-                {search || statusFilter !== "all"
-                  ? "Try adjusting your search or filter"
+                {hasActiveFilters
+                  ? "Try adjusting your search or filters"
                   : "Add your first frame to get started"}
               </p>
-              {!search && statusFilter === "all" && (
+              {!hasActiveFilters && (
                 <Button className="mt-4" onClick={openAdd} data-testid="button-add-first-frame">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Frame
