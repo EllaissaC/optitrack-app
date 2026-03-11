@@ -1466,6 +1466,7 @@ function InvoiceImportDialog({
 
   const { data: existingFrames = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
   const { data: mfgList = [] } = useQuery<Manufacturer[]>({ queryKey: ["/api/manufacturers"] });
+  const { data: settingsData = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
 
   const grouped = useMemo(() => {
     const groups = new Map<string, { key: string; brand: string; model: string; manufacturer: string; indices: number[] }>();
