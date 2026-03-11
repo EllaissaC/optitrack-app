@@ -1518,10 +1518,13 @@ function InvoiceImportDialog({
           body: JSON.stringify(payload),
         });
 
-        if (res.status === 409) {
-          skipped++;
-        } else if (res.ok) {
-          added++;
+        if (res.ok) {
+          const json = await res.json().catch(() => ({}));
+          if (json._reorder) {
+            skipped++;
+          } else {
+            added++;
+          }
         } else {
           skipped++;
         }
@@ -1555,7 +1558,7 @@ function InvoiceImportDialog({
             Import Frames from Invoice
           </DialogTitle>
           <DialogDescription>
-            Upload an invoice (PDF or image) and AI will extract frame data for you to review before importing.
+            Upload an invoice (PDF, image, or spreadsheet) and the system will extract frame data for you to review before importing.
           </DialogDescription>
         </DialogHeader>
 
@@ -1574,14 +1577,14 @@ function InvoiceImportDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,image/jpeg,image/png,image/webp"
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.xlsx,.xls,image/jpeg,image/png,image/webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
                 data-testid="input-invoice-file"
               />
               <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
               <p className="font-medium text-foreground mb-1">Drop your invoice here</p>
-              <p className="text-sm text-muted-foreground">PDF, JPEG, PNG, or WebP · Max 20 MB</p>
+              <p className="text-sm text-muted-foreground">PDF, JPEG, PNG, WebP, CSV, XLS, or XLSX · Max 20 MB</p>
               {selectedFile && (
                 <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md text-sm font-medium">
                   <FileText className="w-4 h-4" />
@@ -1744,12 +1747,12 @@ function InvoiceImportDialog({
                 {parsing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Analyzing...
+                    {selectedFile && /\.(csv|xlsx|xls)$/i.test(selectedFile.name) ? "Reading..." : "Analyzing..."}
                   </>
                 ) : (
                   <>
                     <FileUp className="w-4 h-4 mr-2" />
-                    Extract Frames
+                    {selectedFile && /\.(csv|xlsx|xls)$/i.test(selectedFile.name) ? "Read Spreadsheet" : "Extract with AI"}
                   </>
                 )}
               </Button>

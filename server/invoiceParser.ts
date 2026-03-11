@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { createRequire } from "module";
+import * as XLSX from "xlsx";
 
 const _require = createRequire(import.meta.url ?? (process.cwd() + "/server/invoiceParser.ts"));
 const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse");
@@ -102,4 +103,100 @@ export async function parseInvoiceFromPdf(
   const content = response.choices[0]?.message?.content ?? "[]";
   const parsed = JSON.parse(cleanJsonResponse(content));
   return Array.isArray(parsed) ? parsed : [];
+}
+
+function normalizeHeader(h: unknown): string {
+  return String(h ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function matchesAny(h: string, candidates: string[]): boolean {
+  return candidates.some((c) => h.includes(c));
+}
+
+function parseSize(raw: string): { eyeSize: number; bridge: number; templeLength: number } {
+  const nums = raw.match(/\d{2,3}/g)?.map(Number) ?? [];
+  if (nums.length >= 3) return { eyeSize: nums[0], bridge: nums[1], templeLength: nums[2] };
+  if (nums.length === 2) return { eyeSize: nums[0], bridge: nums[1], templeLength: 145 };
+  if (nums.length === 1) return { eyeSize: nums[0], bridge: 18, templeLength: 145 };
+  return { eyeSize: 52, bridge: 18, templeLength: 145 };
+}
+
+export function parseInvoiceFromSpreadsheet(fileBuffer: Buffer, mimetype: string): ExtractedFrame[] {
+  const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+  const sheetName = workbook.SheetNames[0];
+  if (!sheetName) throw new Error("Unable to detect frame data from this file format.");
+
+  const sheet = workbook.Sheets[sheetName];
+  const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+  if (rawRows.length === 0) throw new Error("Unable to detect frame data from this file format.");
+
+  const sampleHeaders = Object.keys(rawRows[0]).map(normalizeHeader);
+  const hasAny = (...candidates: string[]) => sampleHeaders.some((h) => matchesAny(h, candidates));
+
+  const hasFrameColumns = hasAny("brand", "model", "sku", "style", "frame") ||
+    hasAny("manufacturer", "vendor", "supplier");
+
+  if (!hasFrameColumns) {
+    throw new Error("Unable to detect frame data from this file format.");
+  }
+
+  const frames: ExtractedFrame[] = [];
+
+  for (const rawRow of rawRows) {
+    const row: Record<string, string> = {};
+    for (const [k, v] of Object.entries(rawRow)) {
+      row[normalizeHeader(k)] = String(v ?? "").trim();
+    }
+
+    const getField = (...candidates: string[]): string => {
+      for (const key of Object.keys(row)) {
+        if (matchesAny(key, candidates)) return row[key] ?? "";
+      }
+      return "";
+    };
+
+    const brand = getField("brand", "brandname", "label");
+    const manufacturer = getField("manufacturer", "mfg", "vendor", "supplier", "company", "distributor") || brand;
+    const model = getField("model", "modelno", "modelnumber", "sku", "style", "stylenumber", "item", "itemno", "partnumber");
+    const color = getField("color", "colour", "colorname", "finish", "colorway", "colorcode");
+
+    if (!brand && !model) continue;
+
+    const rawSize = getField("size", "framesize", "lenssize", "dimension");
+    let { eyeSize, bridge, templeLength } = parseSize(rawSize);
+
+    const rawEye = getField("eye", "eyesize", "lens", "lenswidth");
+    if (rawEye) eyeSize = parseInt(rawEye) || eyeSize;
+
+    const rawBridge = getField("bridge", "bridgewidth", "bridgesize");
+    if (rawBridge) bridge = parseInt(rawBridge) || bridge;
+
+    const rawTemple = getField("temple", "templelength", "arm");
+    if (rawTemple) templeLength = parseInt(rawTemple) || templeLength;
+
+    const rawCost = getField("cost", "unitcost", "unitprice", "price", "wholesale", "invoiceprice", "amount");
+    const costNum = parseFloat(rawCost.replace(/[^0-9.]/g, "")) || 0;
+
+    const rawQty = getField("qty", "quantity", "units", "ordered", "qtyordered", "qtyship");
+    const quantity = parseInt(rawQty) || 1;
+
+    frames.push({
+      manufacturer: manufacturer || brand || "Unknown",
+      brand: brand || manufacturer || "Unknown",
+      model: model || "",
+      color: color || "",
+      eyeSize,
+      bridge,
+      templeLength,
+      cost: costNum.toFixed(2),
+      quantity,
+    });
+  }
+
+  if (frames.length === 0) {
+    throw new Error("Unable to detect frame data from this file format.");
+  }
+
+  return frames;
 }

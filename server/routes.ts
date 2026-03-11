@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema, insertLabOrderSchema } from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
-import { parseInvoiceFromImage, parseInvoiceFromPdf } from "./invoiceParser";
+import { parseInvoiceFromImage, parseInvoiceFromPdf, parseInvoiceFromSpreadsheet } from "./invoiceParser";
 import { z } from "zod";
 import type { User, Clinic } from "@shared/schema";
 
@@ -763,11 +763,18 @@ export async function registerRoutes(
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
-      if (allowed.includes(file.mimetype)) {
+      const allowed = [
+        "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf",
+        "text/csv", "application/csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ];
+      const ext = file.originalname.split(".").pop()?.toLowerCase();
+      const allowedExts = ["jpg", "jpeg", "png", "webp", "gif", "pdf", "csv", "xls", "xlsx"];
+      if (allowed.includes(file.mimetype) || allowedExts.includes(ext ?? "")) {
         cb(null, true);
       } else {
-        cb(new Error("Only PDF and image files (JPEG, PNG, WebP) are supported."));
+        cb(new Error("Only PDF, image (JPEG, PNG, WebP), and spreadsheet (CSV, XLS, XLSX) files are supported."));
       }
     },
   });
@@ -777,8 +784,18 @@ export async function registerRoutes(
       const file = req.file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });
 
+      const ext = file.originalname.split(".").pop()?.toLowerCase();
+      const isSpreadsheet =
+        ext === "csv" || ext === "xls" || ext === "xlsx" ||
+        file.mimetype === "text/csv" ||
+        file.mimetype === "application/csv" ||
+        file.mimetype === "application/vnd.ms-excel" ||
+        file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
       let frames;
-      if (file.mimetype === "application/pdf") {
+      if (isSpreadsheet) {
+        frames = parseInvoiceFromSpreadsheet(file.buffer, file.mimetype);
+      } else if (file.mimetype === "application/pdf") {
         frames = await parseInvoiceFromPdf(file.buffer);
       } else {
         const base64 = file.buffer.toString("base64");
@@ -788,7 +805,7 @@ export async function registerRoutes(
       res.json({ frames });
     } catch (err) {
       console.error("[invoice/parse] Error:", err);
-      const msg = err instanceof Error ? err.message : "Failed to parse invoice";
+      const msg = err instanceof Error ? err.message : "Unable to detect frame data from this file format.";
       res.status(500).json({ message: msg });
     }
   });
