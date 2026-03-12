@@ -133,7 +133,7 @@ export default function DailyBriefing() {
         </div>
       </header>
       {/* Main content */}
-      <main className="flex-1 flex flex-col px-6 py-6 sm:py-10 max-w-5xl mx-auto w-full gap-10 mt-[45px] mb-[45px]">
+      <main className="flex-1 flex flex-col px-6 py-6 sm:py-10 max-w-5xl mx-auto w-full gap-10 mt-[0px] mb-[0px]">
         
         {/* Status Area - The Hero */}
         <section className="space-y-4 mt-[150px] mb-[150px]">
