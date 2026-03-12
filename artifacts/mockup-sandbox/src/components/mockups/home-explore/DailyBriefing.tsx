@@ -176,7 +176,7 @@ export default function DailyBriefing() {
             Take Action
           </h2>
           
-          <div className="grid grid-cols-2 gap-3 mt-[16px]">
+          <div className="grid grid-cols-2 gap-3 mt-[100px]">
             {navCards.map((card) => (
               <a
                 key={card.title}
