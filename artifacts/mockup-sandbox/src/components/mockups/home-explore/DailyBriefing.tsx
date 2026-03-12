@@ -132,7 +132,6 @@ export default function DailyBriefing() {
           </Button>
         </div>
       </header>
-
       {/* Main content */}
       <main className="flex-1 flex flex-col px-6 py-6 sm:py-10 max-w-5xl mx-auto w-full gap-10">
         
@@ -177,7 +176,7 @@ export default function DailyBriefing() {
             Take Action
           </h2>
           
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mt-[250px]">
             {navCards.map((card) => (
               <a
                 key={card.title}
