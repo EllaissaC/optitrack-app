@@ -727,13 +727,63 @@ export async function registerRoutes(
       if (!parsed.success) {
         return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
       }
-      const order = await storage.createLabOrder(parsed.data);
-      if (!parsed.data.patientOwnFrame && parsed.data.frameId) {
-        await storage.adjustFrameInventory(parsed.data.frameId, -1, 0);
+
+      let finalFrameId = parsed.data.frameId ?? null;
+
+      // Auto-create inventory record when frame exists physically but was never entered
+      if (req.body.autoCreateFrame && !parsed.data.patientOwnFrame && !finalFrameId) {
+        const multiplierStr = await storage.getSetting("defaultMultiplier");
+        const multiplier = parseFloat(multiplierStr || "3") || 3;
+        const eyeSize = req.body.eyeSize ? Number(req.body.eyeSize) : 52;
+        const bridge = req.body.bridge ? Number(req.body.bridge) : 18;
+        const templeLength = req.body.templeLength ? Number(req.body.templeLength) : 145;
+        const cost = req.body.cost ? Number(req.body.cost) : 0;
+        const retailPrice = Math.round(cost * multiplier);
+
+        const newFrame = await storage.createFrame({
+          clinicId: user.clinicId ?? null,
+          manufacturer: parsed.data.frameManufacturer || parsed.data.frameBrand,
+          brand: parsed.data.frameBrand,
+          model: parsed.data.frameModel,
+          color: parsed.data.frameColor,
+          eyeSize,
+          bridge,
+          templeLength,
+          cost: cost.toFixed(2),
+          retailPrice: retailPrice.toString(),
+          quantity: 0,
+          offBoardQty: 1,
+          reorderCount: 1,
+          status: "off_board",
+        });
+
+        finalFrameId = newFrame.id;
+
+        // Back-fill any existing lab orders for the same frame that were never linked
+        await db.execute(
+          sql`UPDATE lab_orders
+              SET frame_id = ${newFrame.id}
+              WHERE clinic_id = ${user.clinicId ?? null}
+                AND LOWER(TRIM(frame_brand))  = LOWER(TRIM(${parsed.data.frameBrand}))
+                AND LOWER(TRIM(frame_model))  = LOWER(TRIM(${parsed.data.frameModel}))
+                AND LOWER(TRIM(frame_color))  = LOWER(TRIM(${parsed.data.frameColor}))
+                AND frame_id IS NULL
+                AND patient_own_frame = false`
+        );
       }
+
+      const orderData = { ...parsed.data, frameId: finalFrameId };
+      const order = await storage.createLabOrder(orderData);
+
+      // Adjust existing inventory frame (only for pre-existing frames, not auto-created ones)
+      if (!orderData.patientOwnFrame && finalFrameId && !req.body.autoCreateFrame) {
+        await storage.adjustFrameInventory(finalFrameId, -1, 0);
+      }
+
       const finalOrder = await storage.getLabOrder(order.id);
       res.status(201).json(finalOrder ?? order);
-    } catch {
+    } catch (err) {
+      console.error("Failed to create lab order:", err);
       res.status(500).json({ message: "Failed to create lab order" });
     }
   });

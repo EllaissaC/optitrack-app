@@ -87,12 +87,17 @@ const addLabOrderSchema = z.object({
 
 type AddLabOrderValues = z.infer<typeof addLabOrderSchema>;
 
+type ManualFrame = { manufacturer: string; brand: string; model: string; color: string };
+
 function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { toast } = useToast();
-  const [step, setStep] = useState<"select" | "details">("select");
+  const [step, setStep] = useState<"select" | "manual" | "details">("select");
   const [selectedFrame, setSelectedFrame] = useState<Frame | null>(null);
   const [isPOF, setIsPOF] = useState(false);
   const [isPOFInventory, setIsPOFInventory] = useState(false);
+  const [manualFrame, setManualFrame] = useState<ManualFrame | null>(null);
+  const [manualInput, setManualInput] = useState<ManualFrame>({ manufacturer: "", brand: "", model: "", color: "" });
+  const [manualErrors, setManualErrors] = useState<Partial<Record<keyof ManualFrame, string>>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [barcodeValue, setBarcodeValue] = useState("");
   const [barcodeError, setBarcodeError] = useState<string | null>(null);
@@ -136,6 +141,9 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       setSelectedFrame(null);
       setIsPOF(false);
       setIsPOFInventory(false);
+      setManualFrame(null);
+      setManualInput({ manufacturer: "", brand: "", model: "", color: "" });
+      setManualErrors({});
       setSearchQuery("");
       setBarcodeValue("");
       setBarcodeError(null);
@@ -216,9 +224,23 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         notes: values.notes || null,
         status: "pending",
       };
-      const body = isPOF
-        ? { ...commonFields, frameId: null, frameBrand: "Patient Own Frame", frameModel: "POF", frameColor: "—", frameManufacturer: "—", patientOwnFrame: true }
-        : { ...commonFields, frameId: selectedFrame!.id, frameBrand: selectedFrame!.brand, frameModel: selectedFrame!.model, frameColor: selectedFrame!.color, frameManufacturer: selectedFrame!.manufacturer, patientOwnFrame: isPOFInventory };
+      let body: Record<string, unknown>;
+      if (isPOF) {
+        body = { ...commonFields, frameId: null, frameBrand: "Patient Own Frame", frameModel: "POF", frameColor: "—", frameManufacturer: "—", patientOwnFrame: true };
+      } else if (manualFrame) {
+        body = {
+          ...commonFields,
+          frameId: null,
+          frameBrand: manualFrame.brand,
+          frameModel: manualFrame.model,
+          frameColor: manualFrame.color,
+          frameManufacturer: manualFrame.manufacturer || manualFrame.brand,
+          patientOwnFrame: false,
+          autoCreateFrame: true,
+        };
+      } else {
+        body = { ...commonFields, frameId: selectedFrame!.id, frameBrand: selectedFrame!.brand, frameModel: selectedFrame!.model, frameColor: selectedFrame!.color, frameManufacturer: selectedFrame!.manufacturer, patientOwnFrame: isPOFInventory };
+      }
       await apiRequest("POST", "/api/lab-orders", body);
     },
     onSuccess: () => {
@@ -228,6 +250,8 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
         title: "Lab order created",
         description: isPOF
           ? "Patient own frame order added"
+          : manualFrame
+          ? `${manualFrame.brand} ${manualFrame.model} added to inventory as off-board and sent to lab`
           : isPOFInventory
           ? `${selectedFrame!.brand} ${selectedFrame!.model} — POF, no sale recorded`
           : `${selectedFrame!.brand} ${selectedFrame!.model} sent to lab`,
@@ -242,10 +266,13 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
       <DialogContent className="max-w-2xl flex flex-col max-h-[90vh] p-0" aria-describedby={undefined}>
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-border flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            {step === "details" && (
+            {(step === "details" || step === "manual") && (
               <button
                 type="button"
-                onClick={() => { setStep("select"); setIsPOF(false); setIsPOFInventory(false); setBarcodeValue(""); setBarcodeError(null); }}
+                onClick={() => {
+                  if (step === "manual") { setStep("select"); setManualErrors({}); }
+                  else { setStep("select"); setIsPOF(false); setIsPOFInventory(false); setManualFrame(null); setBarcodeValue(""); setBarcodeError(null); }
+                }}
                 className="mr-1 text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="button-back-to-select"
               >
@@ -253,11 +280,16 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               </button>
             )}
             <FlaskConical className="w-4 h-4 text-primary" />
-            {step === "select" ? "Add Lab Order — Select Frame" : "Add Lab Order — Details"}
+            {step === "select" ? "Add Lab Order — Select Frame" : step === "manual" ? "Add Lab Order — Frame Details" : "Add Lab Order — Details"}
           </DialogTitle>
           {step === "select" && (
             <DialogDescription>
               Search inventory or scan a barcode to select a frame, or choose Patient Own Frame (POF) for lens-only orders.
+            </DialogDescription>
+          )}
+          {step === "manual" && (
+            <DialogDescription>
+              Enter the frame details. It will be auto-added to inventory as off-board and flagged for reorder.
             </DialogDescription>
           )}
           {step === "details" && selectedFrame && (
@@ -265,6 +297,13 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               Enter the lab order details for{" "}
               <span className="font-medium text-foreground">{selectedFrame.brand} — {selectedFrame.model}</span>
               {selectedFrame.color ? `, ${selectedFrame.color}` : ""}
+            </DialogDescription>
+          )}
+          {step === "details" && manualFrame && (
+            <DialogDescription>
+              Enter the lab order details for{" "}
+              <span className="font-medium text-foreground">{manualFrame.brand} — {manualFrame.model}</span>
+              {manualFrame.color ? `, ${manualFrame.color}` : ""}
             </DialogDescription>
           )}
           {step === "details" && isPOF && (
@@ -379,10 +418,104 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-auto" />
             </button>
+
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-md border border-dashed border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-950/20 hover:bg-blue-100/60 dark:hover:bg-blue-900/30 transition-colors text-left"
+              onClick={() => setStep("manual")}
+              data-testid="button-not-in-inventory"
+            >
+              <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Board Frame — Not in System</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Frame is physically on the board but never entered. Auto-added to inventory as off-board.</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0 ml-auto" />
+            </button>
           </div>
         )}
 
-        {step === "details" && (selectedFrame || isPOF) && (
+        {step === "manual" && (
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            <div className="p-3 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex gap-2">
+              <AlertTriangle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-800 dark:text-blue-300">
+                This frame will be created in inventory with <strong>quantity 0</strong>, marked as <strong>off-board</strong>, and added to the reorder list automatically.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Manufacturer</label>
+                <input
+                  type="text"
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="e.g. Luxottica, Marchon…"
+                  value={manualInput.manufacturer}
+                  onChange={(e) => setManualInput((p) => ({ ...p, manufacturer: e.target.value }))}
+                  data-testid="input-manual-manufacturer"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Brand <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  className={`w-full h-9 px-3 rounded-md border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${manualErrors.brand ? "border-destructive" : "border-input"}`}
+                  placeholder="e.g. Ray-Ban"
+                  value={manualInput.brand}
+                  onChange={(e) => { setManualInput((p) => ({ ...p, brand: e.target.value })); setManualErrors((p) => ({ ...p, brand: undefined })); }}
+                  data-testid="input-manual-brand"
+                />
+                {manualErrors.brand && <p className="text-xs text-destructive">{manualErrors.brand}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Model <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  className={`w-full h-9 px-3 rounded-md border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${manualErrors.model ? "border-destructive" : "border-input"}`}
+                  placeholder="e.g. RB5154"
+                  value={manualInput.model}
+                  onChange={(e) => { setManualInput((p) => ({ ...p, model: e.target.value })); setManualErrors((p) => ({ ...p, model: undefined })); }}
+                  data-testid="input-manual-model"
+                />
+                {manualErrors.model && <p className="text-xs text-destructive">{manualErrors.model}</p>}
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Color <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  className={`w-full h-9 px-3 rounded-md border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${manualErrors.color ? "border-destructive" : "border-input"}`}
+                  placeholder="e.g. Matte Black"
+                  value={manualInput.color}
+                  onChange={(e) => { setManualInput((p) => ({ ...p, color: e.target.value })); setManualErrors((p) => ({ ...p, color: undefined })); }}
+                  data-testid="input-manual-color"
+                />
+                {manualErrors.color && <p className="text-xs text-destructive">{manualErrors.color}</p>}
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => {
+                const errs: Partial<Record<keyof ManualFrame, string>> = {};
+                if (!manualInput.brand.trim()) errs.brand = "Brand is required";
+                if (!manualInput.model.trim()) errs.model = "Model is required";
+                if (!manualInput.color.trim()) errs.color = "Color is required";
+                if (Object.keys(errs).length > 0) { setManualErrors(errs); return; }
+                setManualFrame({ ...manualInput });
+                form.reset({ visionPlan: "", labName: "", labOrderNumber: "", labAccountNumber: "", trackingNumber: "", dateSentToLab: new Date().toISOString().split("T")[0], customDueDate: "", notes: "" });
+                setStep("details");
+              }}
+              data-testid="button-manual-continue"
+            >
+              Continue to Lab Details
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+        )}
+
+        {step === "details" && (selectedFrame || isPOF || manualFrame) && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col flex-1 min-h-0">
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -397,6 +530,15 @@ function AddLabOrderDialog({ open, onClose }: { open: boolean; onClose: () => vo
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">Patient Own Frame</p>
                         <p className="text-xs text-muted-foreground">Lenses only — no inventory change</p>
+                      </div>
+                    </div>
+                  ) : manualFrame ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                      <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-foreground truncate">{manualFrame.brand} — {manualFrame.model}</p>
+                        <p className="text-xs text-muted-foreground truncate">{manualFrame.color}{manualFrame.manufacturer ? ` · ${manualFrame.manufacturer}` : ""}</p>
+                        <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">Will be added to inventory as off-board · flagged for reorder</p>
                       </div>
                     </div>
                   ) : (
