@@ -777,7 +777,7 @@ export async function registerRoutes(
 
       // Adjust existing inventory frame (only for pre-existing frames, not auto-created ones)
       if (!orderData.patientOwnFrame && finalFrameId && !req.body.autoCreateFrame) {
-        await storage.adjustFrameInventory(finalFrameId, -1, 0);
+        await storage.adjustFrameInventory(finalFrameId, -1, 1);
       }
 
       const finalOrder = await storage.getLabOrder(order.id);

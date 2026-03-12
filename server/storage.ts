@@ -427,11 +427,25 @@ export class DbStorage implements IStorage {
   }
 
   async adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void> {
-    const [frame] = await db.select({ quantity: frames.quantity, offBoardQty: frames.offBoardQty }).from(frames).where(eq(frames.id, frameId));
+    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
     if (!frame) return;
     const newQty = Math.max(0, (frame.quantity ?? 1) + onBoardDelta);
     const newOffBoard = Math.max(0, (frame.offBoardQty ?? 0) + offBoardDelta);
-    await db.update(frames).set({ quantity: newQty, offBoardQty: newOffBoard }).where(eq(frames.id, frameId));
+
+    const updates: Partial<typeof frames.$inferInsert> = {
+      quantity: newQty,
+      offBoardQty: newOffBoard,
+    };
+
+    // When on-board quantity hits zero, mark off-board and flag for reorder
+    if (newQty === 0 && onBoardDelta < 0) {
+      updates.status = "off_board";
+      if ((frame.reorderCount ?? 0) === 0) {
+        updates.reorderCount = 1;
+      }
+    }
+
+    await db.update(frames).set(updates).where(eq(frames.id, frameId));
   }
 
   async reorderFrame(frameId: string, qty: number): Promise<Frame> {
