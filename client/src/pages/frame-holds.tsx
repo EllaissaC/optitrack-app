@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,13 +36,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { type FrameHold, type Frame } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +59,120 @@ interface HoldFormProps {
   isPending: boolean;
 }
 
+function FrameSearchCombobox({
+  frames,
+  value,
+  onChange,
+}: {
+  frames: Frame[];
+  value: string;
+  onChange: (frameId: string) => void;
+}) {
+  const getLabel = (frameId: string) => {
+    const f = frames.find((fr) => fr.id === frameId);
+    return f ? `${f.brand} – ${f.model} – ${f.color} – ${f.eyeSize}` : "";
+  };
+
+  const [query, setQuery] = useState(() => getLabel(value));
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== valueRef.current) {
+      valueRef.current = value;
+      setQuery(getLabel(value));
+    }
+  }, [value, frames]);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    const available = frames.filter((f) => f.status !== "sold");
+    if (!q) return available.slice(0, 20);
+    return available
+      .filter(
+        (f) =>
+          f.brand.toLowerCase().includes(q) ||
+          f.model.toLowerCase().includes(q) ||
+          f.color.toLowerCase().includes(q) ||
+          String(f.eyeSize).includes(q) ||
+          `${f.eyeSize}-${f.bridge}-${f.templeLength}`.includes(q),
+      )
+      .slice(0, 20);
+  }, [query, frames]);
+
+  function selectFrame(frame: Frame | null) {
+    const frameId = frame?.id ?? "";
+    valueRef.current = frameId;
+    onChange(frameId);
+    setQuery(frame ? getLabel(frame.id) : "");
+    setOpen(false);
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setQuery(e.target.value);
+    setOpen(true);
+  }
+
+  function handleBlur() {
+    setTimeout(() => {
+      if (!containerRef.current?.contains(document.activeElement)) {
+        setOpen(false);
+        setQuery(getLabel(value));
+      }
+    }, 150);
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <Input
+        value={query}
+        onChange={handleInputChange}
+        onFocus={() => setOpen(true)}
+        onBlur={handleBlur}
+        placeholder="Search by brand, model, color, or size..."
+        data-testid="input-frame-search"
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md max-h-64 overflow-y-auto">
+          <div
+            className="px-3 py-2 text-sm cursor-pointer hover:bg-accent text-muted-foreground border-b"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              selectFrame(null);
+            }}
+            data-testid="option-frame-none"
+          >
+            None (manual entry)
+          </div>
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">No frames found</div>
+          ) : (
+            filtered.map((frame) => (
+              <div
+                key={frame.id}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-accent ${frame.id === value ? "bg-accent/50 font-medium" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectFrame(frame);
+                }}
+                data-testid={`option-frame-${frame.id}`}
+              >
+                <span className="font-medium">{frame.brand}</span>
+                <span className="text-muted-foreground">
+                  {" – "}
+                  {frame.model} – {frame.color} – {frame.eyeSize}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HoldFormComponent({ form, frames, onFrameSelect, onSubmit, isPending }: HoldFormProps) {
   return (
     <Form {...form}>
@@ -76,30 +183,16 @@ function HoldFormComponent({ form, frames, onFrameSelect, onSubmit, isPending }:
           render={({ field }) => (
             <FormItem>
               <FormLabel>Link to Frame (optional)</FormLabel>
-              <Select
-                value={field.value ?? ""}
-                onValueChange={(v) => {
-                  const val = v === "none" ? "" : v;
-                  field.onChange(val);
-                  if (val) onFrameSelect(val);
-                }}
-              >
-                <FormControl>
-                  <SelectTrigger data-testid="select-frame-id">
-                    <SelectValue placeholder="Select a frame from inventory..." />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="none">None (manual entry)</SelectItem>
-                  {frames
-                    .filter((f) => f.status !== "sold")
-                    .map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.brand} {f.model} — {f.color}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <FrameSearchCombobox
+                  frames={frames}
+                  value={field.value ?? ""}
+                  onChange={(frameId) => {
+                    field.onChange(frameId || undefined);
+                    if (frameId) onFrameSelect(frameId);
+                  }}
+                />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
