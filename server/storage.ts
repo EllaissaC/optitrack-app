@@ -64,6 +64,7 @@ export interface IStorage {
 
   getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]>;
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
+  updateWeeklyMetric(id: string, data: Partial<InsertWeeklyMetric>): Promise<WeeklyMetric | undefined>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
 
   findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null>;
@@ -360,6 +361,11 @@ export class DbStorage implements IStorage {
   async createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric> {
     const [created] = await db.insert(weeklyMetrics).values(data).returning();
     return created;
+  }
+
+  async updateWeeklyMetric(id: string, data: Partial<InsertWeeklyMetric>): Promise<WeeklyMetric | undefined> {
+    const [updated] = await db.update(weeklyMetrics).set(data).where(eq(weeklyMetrics.id, id)).returning();
+    return updated;
   }
 
   async deleteWeeklyMetric(id: string): Promise<boolean> {

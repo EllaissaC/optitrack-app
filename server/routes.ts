@@ -698,6 +698,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
+    try {
+      const { weekStarting, totalComprehensiveExams, followUps, totalOpticalOrders, dailyData } = req.body;
+      const updated = await storage.updateWeeklyMetric(req.params.id as string, {
+        ...(weekStarting !== undefined && { weekStarting }),
+        ...(totalComprehensiveExams !== undefined && { totalComprehensiveExams }),
+        ...(followUps !== undefined && { followUps }),
+        ...(totalOpticalOrders !== undefined && { totalOpticalOrders }),
+        ...(dailyData !== undefined && { dailyData }),
+      });
+      if (!updated) return res.status(404).json({ message: "Not found" });
+      res.json(updated);
+    } catch {
+      res.status(500).json({ message: "Failed to update weekly metric" });
+    }
+  });
+
   app.delete("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteWeeklyMetric(req.params.id as string);

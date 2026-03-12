@@ -14,6 +14,9 @@ import {
   Eye,
   ChevronDown,
   ChevronUp,
+  Save,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { WeeklyMetric } from "@shared/schema";
@@ -90,6 +93,26 @@ function sumField(data: DailyData, field: keyof DayEntry): number {
   return DAY_KEYS.reduce((acc, d) => acc + parseNum(data[d][field]), 0);
 }
 
+function safeParseDaily(json: string | null | undefined): DailyData {
+  if (!json) return emptyDailyData();
+  try {
+    const parsed = JSON.parse(json);
+    const base = emptyDailyData();
+    for (const day of DAY_KEYS) {
+      if (parsed[day]) {
+        base[day] = {
+          comps: String(parsed[day].comps ?? ""),
+          orders: String(parsed[day].orders ?? ""),
+          followUps: String(parsed[day].followUps ?? ""),
+        };
+      }
+    }
+    return base;
+  } catch {
+    return emptyDailyData();
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formSchema = z.object({
@@ -164,9 +187,11 @@ function formatWeekDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 // ─── DailyInput ───────────────────────────────────────────────────────────────
-// Defined outside the page component so React never remounts it mid-typing.
-// Uses local state while the user types; commits to parent only on blur or Enter.
 function DailyInput({
   value,
   onCommit,
@@ -179,7 +204,6 @@ function DailyInput({
   const [local, setLocal] = useState(value);
   const committed = useRef(value);
 
-  // Sync local state when parent resets (e.g., after successful save)
   useEffect(() => {
     if (value !== committed.current) {
       setLocal(value);
@@ -268,6 +292,15 @@ export default function WeeklyMetricsPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [dailyData, setDailyData] = useState<DailyData>(emptyDailyData);
 
+  // Tracks the existing metric record ID being edited (null = creating new)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Whether the user has changed anything since last save / load
+  const [isDirty, setIsDirty] = useState(false);
+  // Timestamp of last successful save
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  // Ref to prevent reloading data from DB when date hasn't changed
+  const lastLoadedDate = useRef<string | null>(null);
+
   const { data: metrics = [], isLoading } = useQuery<WeeklyMetric[]>({
     queryKey: ["/api/weekly-metrics"],
   });
@@ -277,7 +310,38 @@ export default function WeeklyMetricsPage() {
     defaultValues: { weekStarting: "" },
   });
 
-  // ── Computed totals from daily data ──
+  const watchedDate = form.watch("weekStarting");
+
+  // ── Auto-load existing data when user picks a date ──────────────────────────
+  useEffect(() => {
+    if (!watchedDate || watchedDate === lastLoadedDate.current) return;
+    lastLoadedDate.current = watchedDate;
+
+    const existing = metrics.find((m) => m.weekStarting === watchedDate);
+    if (existing) {
+      setEditingId(existing.id);
+      setDailyData(safeParseDaily(existing.dailyData));
+    } else {
+      setEditingId(null);
+      setDailyData(emptyDailyData());
+    }
+    setIsDirty(false);
+    setLastSaved(null);
+  }, [watchedDate]); // intentionally excludes metrics — we only re-load when the date changes
+
+  // ── Warn on browser tab close / refresh when dirty ─────────────────────────
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  // ── Computed totals from daily data ─────────────────────────────────────────
   const totalComps = sumField(dailyData, "comps");
   const totalOrders = sumField(dailyData, "orders");
   const totalFollowUps = sumField(dailyData, "followUps");
@@ -290,22 +354,37 @@ export default function WeeklyMetricsPage() {
       ...prev,
       [day]: { ...prev[day], [field]: value },
     }));
+    setIsDirty(true);
   }
 
+  // ── Save mutation: PATCH (edit) or POST (new) ────────────────────────────────
   const saveMutation = useMutation({
-    mutationFn: (values: FormValues) =>
-      apiRequest("POST", "/api/weekly-metrics", {
+    mutationFn: async (values: FormValues) => {
+      const payload = {
         weekStarting: values.weekStarting,
         totalComprehensiveExams: totalComps,
         followUps: totalFollowUps,
         totalOpticalOrders: totalOrders,
         dailyData: JSON.stringify(dailyData),
-      }),
-    onSuccess: () => {
+      };
+      if (editingId) {
+        const res = await apiRequest("PATCH", `/api/weekly-metrics/${editingId}`, payload);
+        return res.json();
+      } else {
+        const res = await apiRequest("POST", "/api/weekly-metrics", payload);
+        return res.json();
+      }
+    },
+    onSuccess: (data) => {
+      // Capture the ID of a newly created record so subsequent saves use PATCH
+      if (!editingId && data?.id) {
+        setEditingId(data.id);
+        lastLoadedDate.current = data.weekStarting ?? watchedDate;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-metrics"] });
-      toast({ title: "Weekly metrics saved" });
-      form.reset({ weekStarting: "" });
-      setDailyData(emptyDailyData());
+      setIsDirty(false);
+      setLastSaved(new Date());
+      toast({ title: "Weekly Metrics Updated", description: "Your changes have been saved." });
     },
     onError: () => {
       toast({ title: "Failed to save metrics", variant: "destructive" });
@@ -318,6 +397,15 @@ export default function WeeklyMetricsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/weekly-metrics"] });
       toast({ title: "Entry deleted" });
       setDeleteId(null);
+      // If we were editing the deleted record, reset the form
+      if (deleteId === editingId) {
+        form.reset({ weekStarting: "" });
+        setDailyData(emptyDailyData());
+        setEditingId(null);
+        setIsDirty(false);
+        setLastSaved(null);
+        lastLoadedDate.current = null;
+      }
     },
     onError: () => {
       toast({ title: "Failed to delete entry", variant: "destructive" });
@@ -332,7 +420,7 @@ export default function WeeklyMetricsPage() {
     saveMutation.mutate(values);
   }
 
-  // ── Summary stats ──
+  // ── Summary stats ────────────────────────────────────────────────────────────
   const mostRecentMetric = metrics[0];
   const avgSchedulingRate =
     metrics.length > 0
@@ -397,13 +485,43 @@ export default function WeeklyMetricsPage() {
         </div>
       )}
 
-      {/* ── Entry form ───────────────────────────────────────────────────────── */}
+      {/* ── Entry / Edit form ─────────────────────────────────────────────────── */}
       <Card className="border-card-border">
         <CardHeader className="pb-3 px-5 pt-5">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <PlusCircle className="w-4 h-4 text-primary" />
-            Enter Weekly Data
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <PlusCircle className="w-4 h-4 text-primary" />
+              {editingId ? "Edit Weekly Data" : "Enter Weekly Data"}
+            </CardTitle>
+
+            {/* Save status indicator */}
+            {watchedDate && (
+              <div className="flex items-center gap-1.5 text-xs">
+                {isDirty ? (
+                  <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium" data-testid="status-unsaved">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Unsaved changes
+                  </span>
+                ) : lastSaved ? (
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium" data-testid="status-saved">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Saved at {formatTime(lastSaved)}
+                  </span>
+                ) : editingId ? (
+                  <span className="text-muted-foreground" data-testid="status-loaded">
+                    Existing data loaded
+                  </span>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          {/* Editing badge */}
+          {editingId && (
+            <p className="text-xs text-muted-foreground mt-0.5 ml-6">
+              Editing saved week — changes will update the existing record.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <Form {...form}>
@@ -420,14 +538,24 @@ export default function WeeklyMetricsPage() {
                         Week Starting Date
                       </FormLabel>
                       <FormControl>
-                        <Input type="date" data-testid="input-week-starting" {...field} />
+                        <Input
+                          type="date"
+                          data-testid="input-week-starting"
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            // isDirty will be reset in the useEffect when date changes
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <p className="text-xs text-muted-foreground pb-1">
-                  Enter daily numbers below — totals are auto-calculated.
+                  {editingId
+                    ? "Picking a saved date loads existing data for editing."
+                    : "Enter daily numbers below — totals are auto-calculated."}
                 </p>
               </div>
 
@@ -545,15 +673,34 @@ export default function WeeklyMetricsPage() {
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full sm:w-auto"
-                disabled={saveMutation.isPending}
-                data-testid="button-save-metrics"
-                onClick={() => (document.activeElement as HTMLElement)?.blur()}
-              >
-                {saveMutation.isPending ? "Saving..." : "Save Week"}
-              </Button>
+              {/* Save button row */}
+              <div className="flex items-center gap-3">
+                <Button
+                  type="submit"
+                  className="w-full sm:w-auto"
+                  disabled={saveMutation.isPending}
+                  data-testid="button-save-metrics"
+                  onClick={() => (document.activeElement as HTMLElement)?.blur()}
+                >
+                  <Save className="w-4 h-4 mr-1.5" />
+                  {saveMutation.isPending
+                    ? "Saving..."
+                    : editingId
+                    ? "Save Changes"
+                    : "Save Week"}
+                </Button>
+
+                {/* Inline "Changes Saved" confirmation */}
+                {!isDirty && lastSaved && (
+                  <span
+                    className="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium"
+                    data-testid="text-changes-saved"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Changes Saved
+                  </span>
+                )}
+              </div>
             </form>
           </Form>
         </CardContent>
@@ -598,11 +745,12 @@ export default function WeeklyMetricsPage() {
                     const captureRate = calcRate(m.totalOpticalOrders, m.totalComprehensiveExams);
                     const hasDailyData = !!m.dailyData;
                     const isExpanded = expandedRow === m.id;
+                    const isCurrentlyEditing = editingId === m.id;
                     return (
                       <>
                         <TableRow
                           key={m.id}
-                          className="hover:bg-muted/30 transition-colors"
+                          className={`hover:bg-muted/30 transition-colors ${isCurrentlyEditing ? "bg-primary/5 hover:bg-primary/8" : ""}`}
                           data-testid={`row-metric-${m.id}`}
                         >
                           <TableCell className="pl-5 py-3.5">
@@ -610,6 +758,11 @@ export default function WeeklyMetricsPage() {
                               <p className="font-medium text-sm text-foreground">
                                 {formatWeekDate(m.weekStarting)}
                               </p>
+                              {isCurrentlyEditing && (
+                                <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 border-primary/40 text-primary">
+                                  editing
+                                </Badge>
+                              )}
                               {hasDailyData && (
                                 <button
                                   type="button"
@@ -643,15 +796,40 @@ export default function WeeklyMetricsPage() {
                             <RateBadge rate={captureRate} label={`capture-${m.id}`} />
                           </TableCell>
                           <TableCell className="pr-5 text-right py-3.5">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setDeleteId(m.id)}
-                              data-testid={`button-delete-metric-${m.id}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  form.setValue("weekStarting", m.weekStarting);
+                                  lastLoadedDate.current = null; // force reload
+                                  // Trigger the useEffect by updating the watched date
+                                  const event = { target: { value: m.weekStarting } };
+                                  form.setValue("weekStarting", m.weekStarting, { shouldDirty: false });
+                                  // Force the effect to run
+                                  lastLoadedDate.current = null;
+                                  setEditingId(m.id);
+                                  setDailyData(safeParseDaily(m.dailyData));
+                                  setIsDirty(false);
+                                  setLastSaved(null);
+                                  lastLoadedDate.current = m.weekStarting;
+                                  window.scrollTo({ top: 0, behavior: "smooth" });
+                                }}
+                                data-testid={`button-edit-metric-${m.id}`}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteId(m.id)}
+                                data-testid={`button-delete-metric-${m.id}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                         {isExpanded && hasDailyData && (
@@ -671,21 +849,22 @@ export default function WeeklyMetricsPage() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+      {/* ── Delete confirm dialog ─────────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this entry?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this week's data?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently remove this week's metrics. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               disabled={deleteMutation.isPending}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-              data-testid="button-confirm-delete-metric"
+              data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
