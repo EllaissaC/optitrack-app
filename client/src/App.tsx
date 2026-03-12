@@ -143,6 +143,10 @@ function AppShell() {
     );
   }
 
+  if (location === "/home") {
+    return <Home />;
+  }
+
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full overflow-hidden bg-background">
