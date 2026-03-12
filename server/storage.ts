@@ -396,9 +396,22 @@ export class DbStorage implements IStorage {
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
-      const [frame] = await db.select({ quantity: frames.quantity }).from(frames).where(eq(frames.id, order.frameId));
+      const [frame] = await db.select().from(frames).where(eq(frames.id, order.frameId));
       if (frame) {
-        await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, order.frameId));
+        const newQty = (frame.quantity ?? 0) + 1;
+        const newOffBoard = Math.max(0, (frame.offBoardQty ?? 0) - 1);
+
+        const updates: Partial<typeof frames.$inferInsert> = {
+          quantity: newQty,
+          offBoardQty: newOffBoard,
+        };
+
+        // Restore status to on_board when frame is back and has stock
+        if (newQty > 0 && frame.status === "off_board") {
+          updates.status = "on_board";
+        }
+
+        await db.update(frames).set(updates).where(eq(frames.id, order.frameId));
       }
       await this.syncFrameSoldCount(order.frameId);
     }
