@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
   AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays, RefreshCw,
-  FileDown, BellOff,
+  FileDown, BellOff, ChevronUp, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
