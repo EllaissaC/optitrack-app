@@ -172,7 +172,7 @@ export default function DailyBriefing() {
 
         {/* Take Action Section */}
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mt-[9px] mb-[9px]">
             Take Action
           </h2>
           
