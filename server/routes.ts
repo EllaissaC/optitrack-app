@@ -780,6 +780,12 @@ export async function registerRoutes(
         await storage.adjustFrameInventory(finalFrameId, -1, 1);
       }
 
+      // Auto-mark frame as sold immediately — the physical board frame is taken by the patient
+      // when any inventory frame (existing or auto-created) is selected for a lab order.
+      if (!orderData.patientOwnFrame && finalFrameId) {
+        await storage.markLabOrderFrameSold(order.id);
+      }
+
       const finalOrder = await storage.getLabOrder(order.id);
       res.status(201).json(finalOrder ?? order);
     } catch (err) {

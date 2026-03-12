@@ -1,0 +1,49 @@
+Update the Lab Order workflow and analytics logic to properly handle frames that are used for patient orders.
+
+New behavior requirement:
+
+Whenever ANY frame is selected for a lab order, the system should automatically mark that frame as **"Sold"** because the physical board frame has been taken by a patient.
+
+Required logic:
+
+1. When a lab order is created and a frame is selected:
+
+   * The frame should automatically be marked with a status of **"Sold"**.
+   * The frame should move from **On Board** to **Off Board** in analytics.
+   * The frame quantity should decrease accordingly.
+   * All inventory analytics should update immediately.
+
+2. Analytics that must update automatically include:
+
+   * On Board frame count
+   * Off Board frame count
+   * Sold frame count (if applicable)
+   * Total frames
+   * Any inventory tracking metrics tied to frame status.
+
+3. If the frame quantity reaches **0** after being used for the lab order:
+
+   * The frame should automatically be added to the **"Frames Needing Reorder"** list.
+
+4. Deleting a Lab Order:
+   If a lab order is deleted, the system must reverse the previous actions:
+
+   * The frame should no longer be marked as **Sold**.
+   * The frame should be returned to **On Board** inventory.
+   * The frame quantity should increase accordingly.
+   * The frame should be removed from **Off Board** analytics.
+   * If the quantity is now above the reorder threshold, the frame should automatically be removed from the **"Frames Needing Reorder"** list.
+
+5. After a lab order is deleted:
+
+   * All analytics must refresh and recalculate immediately.
+   * This includes inventory analytics, reorder tracking, and frame status reporting.
+
+6. This behavior should apply to frames that were:
+
+   * Imported from invoices
+   * Manually added to inventory
+   * Automatically created through lab orders.
+
+Goal:
+Ensure that selecting a frame for a lab order accurately reflects that the board frame was sold, and deleting that order properly restores inventory and analytics so the system always reflects the correct board status.
