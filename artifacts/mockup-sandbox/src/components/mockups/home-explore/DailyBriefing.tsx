@@ -136,7 +136,7 @@ export default function DailyBriefing() {
       <main className="flex-1 flex flex-col px-6 py-6 sm:py-10 max-w-5xl mx-auto w-full gap-10">
         
         {/* Status Area - The Hero */}
-        <section className="space-y-4">
+        <section className="space-y-4 mt-[150px] mb-[150px]">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             Today's Briefing
           </h2>
