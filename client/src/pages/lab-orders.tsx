@@ -35,6 +35,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { type Frame, type LabOrder } from "@shared/schema";
 import { VISION_PLAN_OPTIONS } from "@/lib/constants";
 import { useToast } from "@/hooks/use-toast";
+import { useSearch } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1266,8 +1267,21 @@ function FrameSoldDialog({ order, open, onClose }: { order: LabOrder | null; ope
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 type CategoryFilter = "all" | "overdue" | "at_lab" | "rush" | "received";
+type UrgencyFilter = "all" | "red" | "orange" | "green";
+
+function getOrderUrgency(order: LabOrder, threshold: number): "red" | "orange" | "green" {
+  if (isOrderOverdue(order, threshold)) return "red";
+  if (isRushApproaching(order)) return "orange";
+  const days = calcDaysAtLab(order.dateSentToLab);
+  if (days !== null && days >= Math.max(1, threshold - 6)) return "orange";
+  return "green";
+}
 
 export default function LabOrders() {
+  const search = useSearch();
+  const urlParams = new URLSearchParams(search);
+  const initialUrgency = (urlParams.get("urgency") as UrgencyFilter) ?? "all";
+
   const [editOrder, setEditOrder] = useState<LabOrder | null>(null);
   const [receiveOrder, setReceiveOrder] = useState<LabOrder | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<LabOrder | null>(null);
@@ -1276,6 +1290,7 @@ export default function LabOrders() {
   const [filterLab, setFilterLab] = useState("all");
   const [filterVisionPlan, setFilterVisionPlan] = useState("all");
   const [filterCategory, setFilterCategory] = useState<CategoryFilter>("all");
+  const [filterUrgency, setFilterUrgency] = useState<UrgencyFilter>(initialUrgency);
   const [showFilters, setShowFilters] = useState(false);
   const [showAddLabOrder, setShowAddLabOrder] = useState(false);
 
@@ -1312,7 +1327,12 @@ export default function LabOrders() {
       const rush = isRushOrder(order);
       const rushApproaching = isRushApproaching(order);
 
-      if (filterCategory === "all") {
+      if (filterUrgency !== "all") {
+        // Urgency filter mode: show all non-received orders matching the urgency color,
+        // bypassing the category separation (Needs Attention section is hidden).
+        if (order.status === "received") return false;
+        if (getOrderUrgency(order, threshold) !== filterUrgency) return false;
+      } else if (filterCategory === "all") {
         // Only overdue + approaching-rush orders are moved to the Needs Attention section.
         // Non-approaching rush orders remain in the normal list.
         if (overdue || rushApproaching) return false;
@@ -1343,14 +1363,14 @@ export default function LabOrders() {
       }
       return true;
     });
-  }, [orders, filterCategory, filterLab, filterVisionPlan, searchQuery, threshold]);
+  }, [orders, filterCategory, filterUrgency, filterLab, filterVisionPlan, searchQuery, threshold]);
 
   const pendingOrders = orders.filter((o) => o.status === "pending");
 
   const uniqueLabs = [...new Set(orders.map((o) => o.labName).filter(Boolean))];
   const uniqueVisionPlans = [...new Set(orders.map((o) => o.visionPlan).filter(Boolean))];
 
-  const hasActiveFilters = filterLab !== "all" || filterVisionPlan !== "all" || filterCategory !== "all";
+  const hasActiveFilters = filterLab !== "all" || filterVisionPlan !== "all" || filterCategory !== "all" || filterUrgency !== "all";
 
   return (
     <div className="p-6 space-y-6">
@@ -1375,7 +1395,7 @@ export default function LabOrders() {
       </div>
 
       {/* Needs Attention Section — overdue orders + rush-attention orders */}
-      {(overdueOrders.length > 0 || rushAttentionOrders.length > 0) && filterCategory === "all" && (
+      {(overdueOrders.length > 0 || rushAttentionOrders.length > 0) && filterCategory === "all" && filterUrgency === "all" && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/20 overflow-hidden" data-testid="section-overdue-attention">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-amber-200 dark:border-amber-800">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
@@ -1516,6 +1536,31 @@ export default function LabOrders() {
         </span>
       </div>
 
+      {/* Urgency Status Filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Filter by status:</span>
+        {([
+          { key: "all",    label: "All Orders",    dot: null,              active: "bg-foreground text-background border-foreground" },
+          { key: "red",    label: "Overdue",        dot: "bg-red-500",      active: "bg-red-600 text-white border-red-600" },
+          { key: "orange", label: "Getting Close",  dot: "bg-yellow-500",   active: "bg-yellow-500 text-white border-yellow-500" },
+          { key: "green",  label: "On Track",       dot: "bg-green-500",    active: "bg-green-600 text-white border-green-600" },
+        ] as const).map(({ key, label, dot, active }) => (
+          <button
+            key={key}
+            onClick={() => setFilterUrgency(key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+              filterUrgency === key
+                ? active
+                : "bg-background text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground"
+            }`}
+            data-testid={`button-urgency-${key}`}
+          >
+            {dot && <span className={`w-2 h-2 rounded-full ${dot} flex-shrink-0`} />}
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Search + Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
@@ -1599,6 +1644,7 @@ export default function LabOrders() {
                 setFilterLab("all");
                 setFilterVisionPlan("all");
                 setFilterCategory("all");
+                setFilterUrgency("all");
               }}
               data-testid="button-clear-filters"
             >

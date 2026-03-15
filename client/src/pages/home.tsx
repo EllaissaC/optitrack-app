@@ -14,11 +14,30 @@ import {
   AlertTriangle,
   TrendingUp,
   ArrowRight,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth, useLogout } from "@/hooks/use-auth";
 import type { Frame } from "@shared/schema";
 import type { LabOrder } from "@shared/schema";
+
+function calcDaysAtLabHome(dateSentToLab: string | null | undefined): number | null {
+  if (!dateSentToLab) return null;
+  const sent = new Date(dateSentToLab + "T00:00:00");
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.floor((today.getTime() - sent.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function isLabOrderOverdue(order: LabOrder, threshold: number): boolean {
+  if (order.status === "received") return false;
+  if (order.customDueDate) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const due = new Date(order.customDueDate); due.setHours(0, 0, 0, 0);
+    return today > due;
+  }
+  const days = calcDaysAtLabHome(order.dateSentToLab);
+  return days !== null && days >= threshold;
+}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -55,11 +74,17 @@ export default function Home() {
 
   const { data: frames } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
   const { data: labOrders } = useQuery<LabOrder[]>({ queryKey: ["/api/lab-orders"] });
+  const { data: settingsMap = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
+
+  const overdueThreshold = useMemo(() => {
+    return Math.max(1, parseInt((settingsMap as Record<string, string>).labTurnaroundDays || "14"));
+  }, [settingsMap]);
 
   const stats = useMemo(() => {
     const framesInStock = frames?.reduce((sum, f) => sum + (f.quantity ?? 0), 0) ?? 0;
     const reorderAlerts = frames?.filter(f => (f.offBoardQty ?? 0) > 0).length ?? 0;
     const pendingOrders = labOrders?.filter(o => o.status !== "received").length ?? 0;
+    const overdueOrders = labOrders?.filter(o => isLabOrderOverdue(o, overdueThreshold)).length ?? 0;
 
     const weekStart = startOfCurrentWeek();
     const soldThisWeek = labOrders?.filter(o => {
@@ -71,8 +96,8 @@ export default function Home() {
       return sum + (frame ? parseFloat(frame.retailPrice as string) : 0);
     }, 0);
 
-    return { framesInStock, reorderAlerts, pendingOrders, weekRevenue };
-  }, [frames, labOrders]);
+    return { framesInStock, reorderAlerts, pendingOrders, overdueOrders, weekRevenue };
+  }, [frames, labOrders, overdueThreshold]);
 
   const statusCards = [
     {
@@ -122,6 +147,19 @@ export default function Home() {
       trendColor: "text-violet-700 bg-violet-50",
       alert: false,
       link: "/frame-analytics",
+    },
+    {
+      title: "Orders Needing Attention",
+      value: stats.overdueOrders.toLocaleString(),
+      icon: ShieldAlert,
+      color: "text-red-600",
+      bgColor: "bg-red-100",
+      borderColor: "bg-red-500",
+      trend: stats.overdueOrders > 0 ? "Overdue" : "All clear",
+      trendColor: stats.overdueOrders > 0 ? "text-red-700 bg-red-100" : "text-emerald-700 bg-emerald-50",
+      alert: stats.overdueOrders > 0,
+      link: "/lab-orders?urgency=red",
+      alertLink: "View overdue orders →",
     },
   ];
 
@@ -193,14 +231,16 @@ export default function Home() {
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70 mb-3">
               Today's Overview
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
               {statusCards.map((card) => (
                 <Link key={card.title} href={card.link}>
                   <div
                     data-testid={`stat-card-${card.title.toLowerCase().replace(/\s+/g, "-")}`}
                     className={`relative flex flex-col p-5 rounded-xl shadow-sm border cursor-pointer transition-all hover:shadow-md ${
                       card.alert
-                        ? "bg-amber-50/80 border-amber-200 hover:border-amber-300"
+                        ? card.title === "Orders Needing Attention"
+                          ? "bg-red-50/80 border-red-200 hover:border-red-300"
+                          : "bg-amber-50/80 border-amber-200 hover:border-amber-300"
                         : "bg-card border-border hover:border-primary/30"
                     } overflow-hidden`}
                   >
@@ -222,8 +262,10 @@ export default function Home() {
                       </div>
                     </div>
                     {card.alert && (
-                      <span className="text-xs text-amber-700 underline mt-4 font-medium">
-                        View reorders →
+                      <span className={`text-xs underline mt-4 font-medium ${
+                        card.title === "Orders Needing Attention" ? "text-red-700" : "text-amber-700"
+                      }`}>
+                        {"alertLink" in card ? card.alertLink : "View reorders →"}
                       </span>
                     )}
                   </div>

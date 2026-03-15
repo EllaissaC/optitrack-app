@@ -1,0 +1,75 @@
+I want to improve the **Lab Orders page** and the **Home Dashboard**, while making sure everything fits naturally with the current layout and design of the website.
+
+First, on the **Lab Orders page**, I want to add filtering based on the existing color status indicators.
+
+Right now the lab orders already have **color-coded urgency indicators**:
+
+* Green = Order is within the normal turnaround time (not close to overdue)
+* Orange = Order is getting close to the overdue date / approaching the turnaround limit
+* Red = Order is overdue or needs attention
+
+These colors are already being calculated based on the **order date and expected turnaround time**, so do NOT change the current color logic.
+
+LAB ORDERS PAGE – FILTER FEATURE
+
+Add a **filter system at the top of the Lab Orders page** that allows the user to filter orders by their urgency status.
+
+Filter options should include:
+
+* All Orders (default)
+* Overdue / Needs Attention (Red)
+* Getting Close (Orange)
+* On Track (Green)
+
+How it should behave:
+
+1. The default view should show **All Orders** like it currently does.
+2. When a filter is selected, the table should update to only show orders that match that status.
+3. The filtering should happen **instantly on the frontend without reloading the page**.
+4. The filter should still work alongside any **existing search or sorting functions** if those exist.
+5. The filter should read the **same status logic that determines the color**, so the filtering and color indicators always match.
+
+UI design:
+
+Add a small filter bar above the lab orders table with buttons like:
+
+Lab Order Status Filter
+
+[ All ]   [ Overdue ]   [ Getting Close ]   [ On Track ]
+
+When a filter is active, visually highlight the selected button.
+
+Important requirements:
+
+* Do NOT change the current color status calculation logic.
+* Only use the existing status to filter the displayed rows.
+* Make sure the filter continues to work if new lab orders are added or updated.
+
+HOME DASHBOARD – NEW CARD
+
+On the **Home page (dashboard when a user logs in)**, add a new analytics card called:
+
+**Orders Needing Attention**
+
+This card should automatically count and display the number of **Red status lab orders (Overdue / Needs Attention)**.
+
+Design requirements for the card:
+
+* It must **match the existing dashboard card style** (same size, spacing, fonts, and layout).
+* It should **fit naturally with the other cards already on the home page**.
+* Do not break or shift the existing layout — place it where it visually balances with the other analytics cards.
+* If the dashboard uses a card grid, simply add this as another card within that grid.
+
+Card behavior:
+
+* It should dynamically update based on the current lab orders.
+* It should only count orders that are **currently overdue (red status)**.
+* The card should be visually noticeable since these orders require attention.
+
+Optional improvement (if possible):
+
+* When clicking the **Orders Needing Attention** card, it should take the user directly to the **Lab Orders page filtered to show only overdue orders**.
+
+Goal:
+
+This will allow staff and doctors to instantly see when there are overdue jobs that need attention, while also giving them the ability to quickly filter and manage lab orders efficiently.
