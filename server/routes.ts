@@ -251,8 +251,9 @@ export async function registerRoutes(
 
   // ─── User Management (Admin Only) ──────────────────────────────────────────
 
-  app.get("/api/users", requireAdmin, async (_req, res) => {
-    const allUsers = await storage.getUsers();
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    const adminUser = req.user as User;
+    const allUsers = await storage.getUsers(adminUser.clinicId);
     res.json(
       allUsers.map((u) => ({
         id: u.id,
@@ -329,6 +330,10 @@ export async function registerRoutes(
 
   app.patch("/api/users/:id", requireAdmin, async (req, res) => {
     try {
+      const adminUser = req.user as User;
+      const target = await storage.getUser(req.params.id as string);
+      if (!target) return res.status(404).json({ message: "User not found" });
+      if (target.clinicId !== adminUser.clinicId) return res.status(403).json({ message: "Access denied" });
       const { role, isActive } = req.body;
       const updates: any = {};
       if (role !== undefined) updates.role = role;
@@ -359,6 +364,9 @@ export async function registerRoutes(
           .status(400)
           .json({ message: "You cannot delete your own account" });
       }
+      const target = await storage.getUser(req.params.id as string);
+      if (!target) return res.status(404).json({ message: "User not found" });
+      if (target.clinicId !== currentUser.clinicId) return res.status(403).json({ message: "Access denied" });
       const deleted = await storage.deleteUser(req.params.id as string);
       if (!deleted) return res.status(404).json({ message: "User not found" });
       res.json({ message: "User deleted" });
@@ -392,8 +400,9 @@ export async function registerRoutes(
   app.post(
     "/api/frames/recalculate-prices",
     requireAdmin,
-    async (_req, res) => {
+    async (req, res) => {
       try {
+        const adminUser = req.user as User;
         const multiplierStr = await storage.getSetting("defaultMultiplier");
         const multiplier =
           multiplierStr &&
@@ -405,6 +414,7 @@ export async function registerRoutes(
         UPDATE frames
         SET retail_price = ROUND(cost::numeric * ${multiplier})
         WHERE cost IS NOT NULL AND cost::numeric > 0
+          AND clinic_id = ${adminUser.clinicId ?? null}
       `);
         res.json({ success: true, multiplier });
       } catch {
@@ -686,7 +696,7 @@ export async function registerRoutes(
   app.get("/api/frames", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const allFrames = await storage.getFrames(null);
+      const allFrames = await storage.getFrames(user.clinicId);
       res.json(allFrames);
     } catch {
       res.status(500).json({ message: "Failed to fetch frames" });
@@ -695,8 +705,10 @@ export async function registerRoutes(
 
   app.get("/api/frames/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
       const frame = await storage.getFrame(req.params.id as string);
       if (!frame) return res.status(404).json({ message: "Frame not found" });
+      if (frame.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       res.json(frame);
     } catch {
       res.status(500).json({ message: "Failed to fetch frame" });
@@ -776,12 +788,16 @@ export async function registerRoutes(
 
   app.patch("/api/frames/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
       const parsed = insertFrameSchema.partial().safeParse(req.body);
       if (!parsed.success) {
         return res
           .status(400)
           .json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
+      const existing = await storage.getFrame(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Frame not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const updates = { ...parsed.data };
       if (updates.status === "sold" && !updates.dateSold) {
         updates.dateSold = new Date().toISOString().split("T")[0];
@@ -796,6 +812,10 @@ export async function registerRoutes(
 
   app.post("/api/frames/:id/reorder", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrame(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Frame not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const qty = Math.max(1, parseInt(req.body.qty ?? "1") || 1);
       const frame = await storage.reorderFrame(req.params.id as string, qty);
       res.json(frame);
@@ -808,6 +828,10 @@ export async function registerRoutes(
 
   app.post("/api/frames/:id/back-on-board", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrame(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Frame not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const frame = await storage.backOnBoard(req.params.id as string);
       res.json(frame);
     } catch (err) {
@@ -821,6 +845,10 @@ export async function registerRoutes(
 
   app.delete("/api/frames/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrame(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Frame not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const deleted = await storage.deleteFrame(req.params.id as string);
       if (!deleted) return res.status(404).json({ message: "Frame not found" });
       res.json({ message: "Frame deleted" });
@@ -860,6 +888,10 @@ export async function registerRoutes(
 
   app.patch("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getWeeklyMetric(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const {
         weekStarting,
         totalComprehensiveExams,
@@ -888,6 +920,10 @@ export async function registerRoutes(
 
   app.delete("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getWeeklyMetric(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const deleted = await storage.deleteWeeklyMetric(req.params.id as string);
       if (!deleted) return res.status(404).json({ message: "Not found" });
       res.json({ message: "Deleted" });
@@ -1015,6 +1051,10 @@ export async function registerRoutes(
 
   app.patch("/api/lab-orders/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existingOrder = await storage.getLabOrder(req.params.id as string);
+      if (!existingOrder) return res.status(404).json({ message: "Lab order not found" });
+      if (existingOrder.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const parsed = updateLabOrderSchema.safeParse(req.body);
       if (!parsed.success) {
         return res
@@ -1061,6 +1101,10 @@ export async function registerRoutes(
 
   app.delete("/api/lab-orders/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getLabOrder(req.params.id as string);
+      if (!existing) return res.status(404).json({ message: "Lab order not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const deleted = await storage.deleteLabOrder(req.params.id as string);
       if (!deleted)
         return res.status(404).json({ message: "Lab order not found" });
@@ -1198,6 +1242,10 @@ export async function registerRoutes(
 
   app.patch("/api/frame-holds/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrameHold(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Hold not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const hold = await storage.updateFrameHold(req.params.id, req.body);
       if (!hold) return res.status(404).json({ message: "Hold not found" });
       res.json(hold);
@@ -1208,6 +1256,10 @@ export async function registerRoutes(
 
   app.delete("/api/frame-holds/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrameHold(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Hold not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const deleted = await storage.deleteFrameHold(req.params.id);
       res.json({ success: deleted });
     } catch (err) {
@@ -1217,6 +1269,10 @@ export async function registerRoutes(
 
   app.post("/api/frame-holds/:id/release", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrameHold(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Hold not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const result = await storage.releaseFrameHold(req.params.id);
       res.json(result);
     } catch (err) {
@@ -1228,6 +1284,10 @@ export async function registerRoutes(
 
   app.post("/api/frame-holds/:id/extend", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const existing = await storage.getFrameHold(req.params.id);
+      if (!existing) return res.status(404).json({ message: "Hold not found" });
+      if (existing.clinicId !== user.clinicId) return res.status(403).json({ message: "Access denied" });
       const { newExpirationDate } = req.body;
       if (!newExpirationDate)
         return res.status(400).json({ message: "newExpirationDate required" });

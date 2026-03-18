@@ -55,7 +55,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByInviteToken(token: string): Promise<User | undefined>;
-  getUsers(): Promise<User[]>;
+  getUsers(clinicId?: string | null): Promise<User[]>;
   createUser(data: {
     username: string;
     email: string;
@@ -119,6 +119,7 @@ export interface IStorage {
   deleteBrand(id: string): Promise<boolean>;
 
   getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]>;
+  getWeeklyMetric(id: string): Promise<WeeklyMetric | undefined>;
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
   updateWeeklyMetric(
     id: string,
@@ -330,7 +331,14 @@ export class DbStorage implements IStorage {
     return user;
   }
 
-  async getUsers(): Promise<User[]> {
+  async getUsers(clinicId?: string | null): Promise<User[]> {
+    if (clinicId !== undefined && clinicId !== null) {
+      return db
+        .select()
+        .from(users)
+        .where(eq(users.clinicId, clinicId))
+        .orderBy(users.createdAt);
+    }
     return db.select().from(users).orderBy(users.createdAt);
   }
 
@@ -569,6 +577,14 @@ export class DbStorage implements IStorage {
       .select()
       .from(weeklyMetrics)
       .orderBy(desc(weeklyMetrics.weekStarting));
+  }
+
+  async getWeeklyMetric(id: string): Promise<WeeklyMetric | undefined> {
+    const [metric] = await db
+      .select()
+      .from(weeklyMetrics)
+      .where(eq(weeklyMetrics.id, id));
+    return metric;
   }
 
   async createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric> {
