@@ -1,6 +1,7 @@
-import { useQuery, } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Package, FlaskConical, CheckCircle, Archive, TrendingUp, ArrowRight,
   AlertTriangle, DollarSign, ShoppingCart, BarChart2, Trophy, CalendarDays, RefreshCw,
@@ -206,6 +207,8 @@ function computeFramesByManufacturer(
 }
 
 export default function Dashboard() {
+  const { isAdmin } = useAuth();
+
   const { data: frames = [], isLoading, isFetching, refetch } = useQuery<Frame[]>({
     queryKey: ["/api/frames"],
   });
@@ -414,75 +417,79 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 2: Sales financial stats */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Sales Performance (All Time)</p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            title="Total Revenue"
-            value={`$${fmt(totalRevenue)}`}
-            icon={DollarSign}
-            iconColor="text-emerald-600 dark:text-emerald-400"
-            bgColor="bg-emerald-100 dark:bg-emerald-900/30"
-            loading={isLoading}
-            description="Retail price of sold frames"
-          />
-          <StatCard
-            title="Total Wholesale Cost"
-            value={`$${fmt(totalWholesaleCost)}`}
-            icon={ShoppingCart}
-            iconColor="text-slate-600 dark:text-slate-400"
-            bgColor="bg-slate-100 dark:bg-slate-800/50"
-            loading={isLoading}
-            description="Cost of sold frames"
-          />
-          <StatCard
-            title="Total Profit"
-            value={`$${fmt(totalProfit)}`}
-            icon={TrendingUp}
-            iconColor={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
-            bgColor={totalProfit >= 0 ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"}
-            loading={isLoading}
-            description="Revenue minus wholesale cost"
-            valueClass={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
-          />
-          <StatCard
-            title="Profit Margin"
-            value={totalRevenue > 0 ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}%` : "—"}
-            icon={BarChart2}
-            iconColor="text-violet-600 dark:text-violet-400"
-            bgColor="bg-violet-100 dark:bg-violet-900/30"
-            loading={isLoading}
-            description="Profit as % of revenue"
-          />
+      {/* Row 2: Sales financial stats — admin only */}
+      {isAdmin && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Sales Performance (All Time)</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard
+              title="Total Revenue"
+              value={`$${fmt(totalRevenue)}`}
+              icon={DollarSign}
+              iconColor="text-emerald-600 dark:text-emerald-400"
+              bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+              loading={isLoading}
+              description="Retail price of sold frames"
+            />
+            <StatCard
+              title="Total Wholesale Cost"
+              value={`$${fmt(totalWholesaleCost)}`}
+              icon={ShoppingCart}
+              iconColor="text-slate-600 dark:text-slate-400"
+              bgColor="bg-slate-100 dark:bg-slate-800/50"
+              loading={isLoading}
+              description="Cost of sold frames"
+            />
+            <StatCard
+              title="Total Profit"
+              value={`$${fmt(totalProfit)}`}
+              icon={TrendingUp}
+              iconColor={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
+              bgColor={totalProfit >= 0 ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-red-100 dark:bg-red-900/30"}
+              loading={isLoading}
+              description="Revenue minus wholesale cost"
+              valueClass={totalProfit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}
+            />
+            <StatCard
+              title="Profit Margin"
+              value={totalRevenue > 0 ? `${((totalProfit / totalRevenue) * 100).toFixed(1)}%` : "—"}
+              icon={BarChart2}
+              iconColor="text-violet-600 dark:text-violet-400"
+              bgColor="bg-violet-100 dark:bg-violet-900/30"
+              loading={isLoading}
+              description="Profit as % of revenue"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Row 3: This month */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-          {currentMonth}
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            title="Revenue This Month"
-            value={`$${fmt(revenueThisMonth)}`}
-            icon={DollarSign}
-            iconColor="text-emerald-600 dark:text-emerald-400"
-            bgColor="bg-emerald-100 dark:bg-emerald-900/30"
-            loading={isLoading}
-          />
-          <StatCard
-            title="Frames Sold This Month"
-            value={framesThisMonth}
-            icon={CheckCircle}
-            iconColor="text-blue-600 dark:text-blue-400"
-            bgColor="bg-blue-100 dark:bg-blue-900/30"
-            loading={isLoading}
-          />
+      {/* Row 3: This month — admin only */}
+      {isAdmin && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+            {currentMonth}
+          </p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard
+              title="Revenue This Month"
+              value={`$${fmt(revenueThisMonth)}`}
+              icon={DollarSign}
+              iconColor="text-emerald-600 dark:text-emerald-400"
+              bgColor="bg-emerald-100 dark:bg-emerald-900/30"
+              loading={isLoading}
+            />
+            <StatCard
+              title="Frames Sold This Month"
+              value={framesThisMonth}
+              icon={CheckCircle}
+              iconColor="text-blue-600 dark:text-blue-400"
+              bgColor="bg-blue-100 dark:bg-blue-900/30"
+              loading={isLoading}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Lab follow-up alert */}
       {!isLoading && overdueLabOrders.length > 0 && (
@@ -636,8 +643,8 @@ export default function Dashboard() {
       </div>
 
       {/* Recent frames + status breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="border-card-border lg:col-span-2">
+      <div className={`grid grid-cols-1 ${isAdmin ? "lg:grid-cols-3" : ""} gap-4`}>
+        <Card className={`border-card-border ${isAdmin ? "lg:col-span-2" : ""}`}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 space-y-0 pb-2 px-6 pt-5">
             <CardTitle className="text-base font-semibold">Recent Frames</CardTitle>
             <Button variant="ghost" size="sm" asChild>
@@ -697,7 +704,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-card-border">
+        {isAdmin && (
+          <Card className="border-card-border">
           <CardHeader className="space-y-0 pb-2 px-6 pt-5">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
@@ -761,7 +769,8 @@ export default function Dashboard() {
               </>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        )}
       </div>
 
     </div>
