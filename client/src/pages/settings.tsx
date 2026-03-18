@@ -1274,6 +1274,120 @@ function AccountTab() {
   );
 }
 
+// ─── Create Clinic Account ────────────────────────────────────────────────────
+
+const createClinicAccountSchema = z.object({
+  clinicName: z.string().min(1, "Clinic name is required"),
+  adminName: z.string().min(1, "Admin name is required"),
+  adminEmail: z.string().email("Valid email required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+type CreateClinicAccountValues = z.infer<typeof createClinicAccountSchema>;
+
+function CreateClinicAccountCard() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  const form = useForm<CreateClinicAccountValues>({
+    resolver: zodResolver(createClinicAccountSchema),
+    defaultValues: { clinicName: "", adminName: "", adminEmail: "", password: "" },
+  });
+
+  const create = useMutation({
+    mutationFn: async (data: CreateClinicAccountValues) => {
+      const res = await apiRequest("POST", "/api/clinics/create-with-admin", data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Failed to create clinic account");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      form.reset();
+      setOpen(false);
+      toast({ title: "Clinic account created", description: "The new clinic and admin user are ready." });
+    },
+    onError: (e: any) => {
+      toast({ title: "Failed to create clinic account", description: e.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <>
+      <Card className="border-card-border mt-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plus className="w-4 h-4 text-muted-foreground" /> Create New Clinic Account
+          </CardTitle>
+          <CardDescription>Set up a separate clinic with its own admin user and isolated inventory.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => setOpen(true)} data-testid="button-create-clinic-account">
+            <Plus className="w-4 h-4 mr-1.5" /> Create New Clinic Account
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) form.reset(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Clinic Account</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit((v) => create.mutate(v))} className="space-y-4 pt-1">
+              <FormField control={form.control} name="clinicName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Clinic Name <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Northside Eye Care" data-testid="input-new-clinic-name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="adminName" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Name <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g. Dr. Jane Smith" data-testid="input-new-clinic-admin-name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="adminEmail" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Email <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="admin@newclinic.com" data-testid="input-new-clinic-admin-email" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="password" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="••••••••" autoComplete="new-password" data-testid="input-new-clinic-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <DialogFooter className="pt-2">
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); form.reset(); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={create.isPending} data-testid="button-submit-create-clinic-account">
+                  {create.isPending ? "Creating..." : "Create Clinic Account"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -1343,6 +1457,7 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="clinic">
           <ClinicTab />
+          <CreateClinicAccountCard />
         </TabsContent>
       </Tabs>
     </div>

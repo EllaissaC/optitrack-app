@@ -442,6 +442,33 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/clinics/create-with-admin", requireAdmin, async (req, res) => {
+    try {
+      const { clinicName, adminName, adminEmail, password } = req.body;
+      if (!clinicName || !adminName || !adminEmail || !password) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+      const existing = await storage.getUserByEmail(adminEmail);
+      if (existing) {
+        return res.status(409).json({ message: "A user with this email already exists" });
+      }
+      const clinic = await storage.createClinic({ clinicName });
+      const hashed = await bcrypt.hash(password, 12);
+      await storage.createUser({
+        username: adminName,
+        email: adminEmail,
+        password: hashed,
+        role: "admin",
+        clinicId: clinic.id,
+        isActive: true,
+      });
+      res.status(201).json({ clinic });
+    } catch (err) {
+      console.error("[create-with-admin] Error:", err);
+      res.status(500).json({ message: "Failed to create clinic account" });
+    }
+  });
+
   app.put("/api/clinics/:id", requireAdmin, async (req, res) => {
     try {
       const { clinicName, address, city, state, zip } = req.body;
