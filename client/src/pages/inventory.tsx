@@ -33,7 +33,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest, getQueryFn } from "@/lib/queryClient";
-import { insertFrameSchema, type Frame, type Manufacturer, type Brand, type Lab } from "@shared/schema";
+import {
+  insertFrameSchema,
+  type Frame,
+  type Manufacturer,
+  type Brand,
+  type Lab,
+} from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -90,38 +96,52 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { VISION_PLAN_OPTIONS } from "@/lib/constants";
 
-const formSchema = insertFrameSchema.extend({
-  eyeSize: z.coerce.number().min(1, "Required").max(99),
-  bridge: z.coerce.number().min(1, "Required").max(99),
-  templeLength: z.coerce.number().min(1, "Required").max(999),
-  cost: z.coerce
-    .string()
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
-  multiplier: z.coerce
-    .string()
-    .refine((v) => v === "" || v === null || (!isNaN(parseFloat(v)) && parseFloat(v) > 0), "Must be a positive number")
-    .optional()
-    .nullable(),
-  retailPrice: z.coerce
-    .string()
-    .refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, "Must be a valid price"),
-  barcode: z.string().optional().nullable(),
-  quantity: z.coerce.number().int().min(1).optional().nullable(),
-  labOrderNumber: z.string().optional().nullable(),
-  labName: z.string().optional().nullable(),
-  labAccountNumber: z.string().optional().nullable(),
-  trackingNumber: z.string().optional().nullable(),
-  dateSentToLab: z.string().optional().nullable(),
-  visionPlan: z.string().optional().nullable(),
-}).superRefine((data, ctx) => {
-  if (data.status === "at_lab" && !data.visionPlan) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Vision Plan is required",
-      path: ["visionPlan"],
-    });
-  }
-});
+const formSchema = insertFrameSchema
+  .extend({
+    eyeSize: z.coerce.number().min(1, "Required").max(99),
+    bridge: z.coerce.number().min(1, "Required").max(99),
+    templeLength: z.coerce.number().min(1, "Required").max(999),
+    cost: z.coerce
+      .string()
+      .refine(
+        (v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0,
+        "Must be a valid price",
+      ),
+    multiplier: z.coerce
+      .string()
+      .refine(
+        (v) =>
+          v === "" ||
+          v === null ||
+          (!isNaN(parseFloat(v)) && parseFloat(v) > 0),
+        "Must be a positive number",
+      )
+      .optional()
+      .nullable(),
+    retailPrice: z.coerce
+      .string()
+      .refine(
+        (v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0,
+        "Must be a valid price",
+      ),
+    barcode: z.string().optional().nullable(),
+    quantity: z.coerce.number().int().min(1).optional().nullable(),
+    labOrderNumber: z.string().optional().nullable(),
+    labName: z.string().optional().nullable(),
+    labAccountNumber: z.string().optional().nullable(),
+    trackingNumber: z.string().optional().nullable(),
+    dateSentToLab: z.string().optional().nullable(),
+    visionPlan: z.string().optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.status === "at_lab" && !data.visionPlan) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Vision Plan is required",
+        path: ["visionPlan"],
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -129,25 +149,29 @@ const STATUS_CONFIG = {
   on_board: {
     label: "On Board",
     icon: Package,
-    className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
     dot: "bg-emerald-500",
   },
   off_board: {
     label: "Off Board",
     icon: Archive,
-    className: "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
+    className:
+      "bg-slate-100 text-slate-600 dark:bg-slate-800/50 dark:text-slate-400",
     dot: "bg-slate-400",
   },
   at_lab: {
     label: "At Lab",
     icon: FlaskConical,
-    className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+    className:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
     dot: "bg-amber-500",
   },
   sold: {
     label: "Sold",
     icon: CheckCircle,
-    className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+    className:
+      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
     dot: "bg-blue-500",
   },
 };
@@ -156,13 +180,16 @@ function StatusPill({ status }: { status: string }) {
   const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
   if (!config) return null;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.className}`}>
-      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${config.dot}`} />
+    <span
+      className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${config.className}`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${config.dot}`}
+      />
       {config.label}
     </span>
   );
 }
-
 
 function FrameFoundCard({
   frame,
@@ -193,7 +220,11 @@ function FrameFoundCard({
       onDismiss();
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update status.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to update status.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -202,28 +233,32 @@ function FrameFoundCard({
       key: "at_lab",
       label: "Send to Lab",
       icon: FlaskConical,
-      className: "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
+      className:
+        "border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400",
       show: frame.status !== "at_lab",
     },
     {
       key: "off_board",
       label: "Mark Off Board",
       icon: Archive,
-      className: "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400",
+      className:
+        "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400",
       show: frame.status !== "off_board",
     },
     {
       key: "sold",
       label: "Mark Sold",
       icon: CheckCircle,
-      className: "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400",
+      className:
+        "border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400",
       show: frame.status !== "sold",
     },
     {
       key: "on_board",
       label: "Return to Board",
       icon: RotateCcw,
-      className: "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400",
+      className:
+        "border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400",
       show: frame.status !== "on_board",
     },
   ].filter((a) => a.show);
@@ -236,11 +271,18 @@ function FrameFoundCard({
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-emerald-100 dark:bg-emerald-900/40 border-b border-emerald-200 dark:border-emerald-800">
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          <span className="text-sm font-semibold">Frame found in inventory</span>
+          <span className="text-sm font-semibold">
+            Frame found in inventory
+          </span>
           {frame.barcode && (
             <span className="font-mono text-xs bg-emerald-200 dark:bg-emerald-800 px-1.5 py-0.5 rounded text-emerald-800 dark:text-emerald-300">
               {frame.barcode}
             </span>
+          )}
+          {frame.notes && (
+            <div style={{ fontSize: "12px", color: "#666", marginTop: "6px" }}>
+              📝 {frame.notes}
+            </div>
           )}
         </div>
         <button
@@ -260,50 +302,69 @@ function FrameFoundCard({
               {frame.brand} {frame.model}
             </p>
             <p className="text-sm text-muted-foreground">
-              {frame.manufacturer} · {frame.color}{frame.code ? ` · ${frame.code}` : ""}
+              {frame.manufacturer} · {frame.color}
+              {frame.code ? ` · ${frame.code}` : ""}
             </p>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
             {frame.code && (
               <div>
-                <span className="text-muted-foreground text-xs uppercase tracking-wide">Code</span>
-                <p className="font-mono font-medium text-foreground">{frame.code}</p>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                  Code
+                </span>
+                <p className="font-mono font-medium text-foreground">
+                  {frame.code}
+                </p>
               </div>
             )}
             <div>
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Size</span>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                Size
+              </span>
               <p className="font-mono font-medium text-foreground">
                 {frame.eyeSize}/{frame.bridge}/{frame.templeLength}
               </p>
             </div>
             <div>
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Wholesale</span>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                Wholesale
+              </span>
               <p className="font-medium text-foreground">
                 ${parseFloat(frame.cost as string).toFixed(2)}
               </p>
             </div>
             <div>
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Retail</span>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                Retail
+              </span>
               <p className="font-semibold text-foreground">
                 ${parseFloat(frame.retailPrice as string).toFixed(2)}
               </p>
             </div>
             <div>
-              <span className="text-muted-foreground text-xs uppercase tracking-wide">Status</span>
+              <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                Status
+              </span>
               <div className="mt-0.5">
                 <StatusPill status={frame.status} />
               </div>
             </div>
             {frame.labName && (
               <div>
-                <span className="text-muted-foreground text-xs uppercase tracking-wide">Lab</span>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                  Lab
+                </span>
                 <p className="font-medium text-foreground">{frame.labName}</p>
               </div>
             )}
             {frame.labOrderNumber && (
               <div>
-                <span className="text-muted-foreground text-xs uppercase tracking-wide">Order #</span>
-                <p className="font-mono font-medium text-foreground">{frame.labOrderNumber}</p>
+                <span className="text-muted-foreground text-xs uppercase tracking-wide">
+                  Order #
+                </span>
+                <p className="font-mono font-medium text-foreground">
+                  {frame.labOrderNumber}
+                </p>
               </div>
             )}
           </div>
@@ -324,7 +385,10 @@ function FrameFoundCard({
               {action.label}
             </Button>
           ))}
-          <Separator orientation="vertical" className="h-6 mx-1 hidden sm:block" />
+          <Separator
+            orientation="vertical"
+            className="h-6 mx-1 hidden sm:block"
+          />
           <Button
             variant="outline"
             size="sm"
@@ -361,9 +425,25 @@ function FrameFormDialog({
   const [showAddBrandModal, setShowAddBrandModal] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
   const [newBrandMfgId, setNewBrandMfgId] = useState<string>("");
-  const [duplicateInfo, setDuplicateInfo] = useState<{ existingFrameId: string; existingBrand: string; existingModel: string; existingColor: string } | null>(null);
-  const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
-  type Variant = { code: string; color: string; eyeSize: number; bridge: number; templeLength: number; barcode: string; quantity: number };
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    existingFrameId: string;
+    existingBrand: string;
+    existingModel: string;
+    existingColor: string;
+  } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  type Variant = {
+    code: string;
+    color: string;
+    eyeSize: number;
+    bridge: number;
+    templeLength: number;
+    barcode: string;
+    quantity: number;
+  };
   const [variants, setVariants] = useState<Variant[]>([]);
 
   const addMfgMutation = useMutation({
@@ -379,18 +459,31 @@ function FrameFormDialog({
       setShowAddMfgModal(false);
       toast({ title: `Manufacturer "${newMfg.name}" added` });
     },
-    onError: () => toast({ title: "Failed to add manufacturer", variant: "destructive" }),
+    onError: () =>
+      toast({ title: "Failed to add manufacturer", variant: "destructive" }),
   });
 
   const addBrandMutation = useMutation({
-    mutationFn: async ({ manufacturerId, name }: { manufacturerId: string; name: string }) => {
-      const res = await apiRequest("POST", `/api/manufacturers/${manufacturerId}/brands`, { name });
+    mutationFn: async ({
+      manufacturerId,
+      name,
+    }: {
+      manufacturerId: string;
+      name: string;
+    }) => {
+      const res = await apiRequest(
+        "POST",
+        `/api/manufacturers/${manufacturerId}/brands`,
+        { name },
+      );
       return res.json() as Promise<Brand>;
     },
     onSuccess: (newBrand) => {
       queryClient.invalidateQueries({ queryKey: ["/api/manufacturers"] });
       if (newBrandMfgId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/manufacturers", newBrandMfgId, "brands"] });
+        queryClient.invalidateQueries({
+          queryKey: ["/api/manufacturers", newBrandMfgId, "brands"],
+        });
       }
       form.setValue("brand", newBrand.name);
       setNewBrandName("");
@@ -398,7 +491,8 @@ function FrameFormDialog({
       setShowAddBrandModal(false);
       toast({ title: `Brand "${newBrand.name}" added` });
     },
-    onError: () => toast({ title: "Failed to add brand", variant: "destructive" }),
+    onError: () =>
+      toast({ title: "Failed to add brand", variant: "destructive" }),
   });
 
   const { data: manufacturersData = [] } = useQuery<Manufacturer[]>({
@@ -450,7 +544,9 @@ function FrameFormDialog({
     const cost = parseFloat(watchedCost as string);
     const multiplier = parseFloat(watchedMultiplier as string);
     if (!isNaN(cost) && !isNaN(multiplier) && multiplier > 0) {
-      form.setValue("retailPrice", String(Math.round(cost * multiplier)), { shouldValidate: false });
+      form.setValue("retailPrice", String(Math.round(cost * multiplier)), {
+        shouldValidate: false,
+      });
     }
   }, [watchedCost, watchedMultiplier]);
 
@@ -460,7 +556,9 @@ function FrameFormDialog({
     }
   }, [watchedStatus]);
 
-  const selectedMfgObj = manufacturersData.find((m) => m.name === watchedManufacturer);
+  const selectedMfgObj = manufacturersData.find(
+    (m) => m.name === watchedManufacturer,
+  );
   const { data: brandsData = [] } = useQuery<Brand[]>({
     queryKey: ["/api/manufacturers", selectedMfgObj?.id, "brands"],
     enabled: !!selectedMfgObj?.id,
@@ -482,10 +580,16 @@ function FrameFormDialog({
               templeLength: editFrame.templeLength,
               cost: String(editFrame.cost),
               retailPrice: String(editFrame.retailPrice),
-              status: editFrame.status as "on_board" | "off_board" | "at_lab" | "sold",
+              status: editFrame.status as
+                | "on_board"
+                | "off_board"
+                | "at_lab"
+                | "sold",
               barcode: editFrame.barcode ?? "",
               quantity: editFrame.quantity ?? 1,
-              multiplier: editFrame.multiplier ? String(editFrame.multiplier) : "",
+              multiplier: editFrame.multiplier
+                ? String(editFrame.multiplier)
+                : "",
               labOrderNumber: editFrame.labOrderNumber ?? "",
               labName: editFrame.labName ?? "",
               labAccountNumber: editFrame.labAccountNumber ?? "",
@@ -514,18 +618,24 @@ function FrameFormDialog({
               trackingNumber: "",
               dateSentToLab: "",
               visionPlan: "",
-            }
+            },
       );
       setVariants([]);
     }
   }, [open, editFrame, prefillBarcode]);
 
-  function handleManufacturerChange(value: string, fieldOnChange: (v: string) => void) {
+  function handleManufacturerChange(
+    value: string,
+    fieldOnChange: (v: string) => void,
+  ) {
     fieldOnChange(value);
     form.setValue("brand", "");
   }
 
-  function handleBrandChange(value: string, fieldOnChange: (v: string) => void) {
+  function handleBrandChange(
+    value: string,
+    fieldOnChange: (v: string) => void,
+  ) {
     fieldOnChange(value);
   }
 
@@ -550,29 +660,48 @@ function FrameFormDialog({
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
       if (result._reorder) {
-        toast({ title: "Quantity updated", description: "Matching frame found — quantity has been incremented." });
+        toast({
+          title: "Quantity updated",
+          description: "Matching frame found — quantity has been incremented.",
+        });
       } else {
-        toast({ title: "Frame added", description: "The frame has been added to inventory." });
+        toast({
+          title: "Frame added",
+          description: "The frame has been added to inventory.",
+        });
       }
       onClose();
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to add frame.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to add frame.",
+        variant: "destructive",
+      });
     },
   });
 
   const replaceMutation = useMutation({
-    mutationFn: (data: { existingFrameId: string; newFrame: Record<string, unknown> }) =>
-      apiRequest("POST", "/api/frames/replace", data),
+    mutationFn: (data: {
+      existingFrameId: string;
+      newFrame: Record<string, unknown>;
+    }) => apiRequest("POST", "/api/frames/replace", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame replaced", description: "The existing frame has been replaced with the new entry." });
+      toast({
+        title: "Frame replaced",
+        description: "The existing frame has been replaced with the new entry.",
+      });
       setDuplicateInfo(null);
       setPendingPayload(null);
       onClose();
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to replace frame.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to replace frame.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -581,15 +710,25 @@ function FrameFormDialog({
       apiRequest("PATCH", `/api/frames/${editFrame!.id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame updated", description: "The frame has been updated." });
+      toast({
+        title: "Frame updated",
+        description: "The frame has been updated.",
+      });
       onClose();
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update frame.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to update frame.",
+        variant: "destructive",
+      });
     },
   });
 
-  const isPending = createMutation.isPending || updateMutation.isPending || replaceMutation.isPending;
+  const isPending =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    replaceMutation.isPending;
 
   function onSubmit(values: FormValues) {
     const payload = {
@@ -609,16 +748,19 @@ function FrameFormDialog({
     } else {
       setPendingPayload(payload);
       if (variants.length > 0) {
-        const allPayloads = [payload, ...variants.map((v) => ({
-          ...payload,
-          code: v.code || null,
-          color: v.color,
-          eyeSize: v.eyeSize,
-          bridge: v.bridge,
-          templeLength: v.templeLength,
-          barcode: v.barcode || null,
-          quantity: v.quantity,
-        }))];
+        const allPayloads = [
+          payload,
+          ...variants.map((v) => ({
+            ...payload,
+            code: v.code || null,
+            color: v.color,
+            eyeSize: v.eyeSize,
+            bridge: v.bridge,
+            templeLength: v.templeLength,
+            barcode: v.barcode || null,
+            quantity: v.quantity,
+          })),
+        ];
         Promise.all(
           allPayloads.map((p) =>
             fetch("/api/frames", {
@@ -626,16 +768,25 @@ function FrameFormDialog({
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(p),
               credentials: "include",
-            })
-          )
-        ).then(() => {
-          queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-          toast({ title: "Frames added", description: `${allPayloads.length} frame variant${allPayloads.length !== 1 ? "s" : ""} added to inventory.` });
-          setVariants([]);
-          onClose();
-        }).catch(() => {
-          toast({ title: "Error", description: "Some variants may not have been added.", variant: "destructive" });
-        });
+            }),
+          ),
+        )
+          .then(() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
+            toast({
+              title: "Frames added",
+              description: `${allPayloads.length} frame variant${allPayloads.length !== 1 ? "s" : ""} added to inventory.`,
+            });
+            setVariants([]);
+            onClose();
+          })
+          .catch(() => {
+            toast({
+              title: "Error",
+              description: "Some variants may not have been added.",
+              variant: "destructive",
+            });
+          });
       } else {
         createMutation.mutate(payload);
       }
@@ -653,7 +804,10 @@ function FrameFormDialog({
             {!isEdit && prefillBarcode && (
               <DialogDescription>
                 No frame found for barcode{" "}
-                <span className="font-mono font-semibold text-foreground">{prefillBarcode}</span>. Fill in the details below.
+                <span className="font-mono font-semibold text-foreground">
+                  {prefillBarcode}
+                </span>
+                . Fill in the details below.
               </DialogDescription>
             )}
           </DialogHeader>
@@ -722,7 +876,9 @@ function FrameFormDialog({
                       <FormLabel>Manufacturer</FormLabel>
                       <Select
                         value={field.value}
-                        onValueChange={(v) => handleManufacturerChange(v, field.onChange)}
+                        onValueChange={(v) =>
+                          handleManufacturerChange(v, field.onChange)
+                        }
                       >
                         <FormControl>
                           <SelectTrigger data-testid="select-manufacturer">
@@ -773,7 +929,9 @@ function FrameFormDialog({
                       <FormLabel>Brand</FormLabel>
                       <Select
                         value={field.value}
-                        onValueChange={(v) => handleBrandChange(v, field.onChange)}
+                        onValueChange={(v) =>
+                          handleBrandChange(v, field.onChange)
+                        }
                         disabled={!watchedManufacturer}
                       >
                         <FormControl>
@@ -790,7 +948,9 @@ function FrameFormDialog({
                         <SelectContent>
                           {availableBrandNames.length > 0 ? (
                             <SelectGroup>
-                              <SelectLabel>{watchedManufacturer} Brands</SelectLabel>
+                              <SelectLabel>
+                                {watchedManufacturer} Brands
+                              </SelectLabel>
                               {availableBrandNames.map((b) => (
                                 <SelectItem key={b} value={b}>
                                   {b}
@@ -839,7 +999,11 @@ function FrameFormDialog({
                   <FormItem>
                     <FormLabel>Model</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. RB5154" data-testid="input-model" {...field} />
+                      <Input
+                        placeholder="e.g. RB5154"
+                        data-testid="input-model"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -855,7 +1019,11 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Color</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Matte Black" data-testid="input-color" {...field} />
+                        <Input
+                          placeholder="e.g. Matte Black"
+                          data-testid="input-color"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -866,9 +1034,19 @@ function FrameFormDialog({
                   name="code"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Code <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                      <FormLabel>
+                        Code{" "}
+                        <span className="text-muted-foreground font-normal">
+                          (optional)
+                        </span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. 8356" data-testid="input-code" {...field} value={field.value ?? ""} />
+                        <Input
+                          placeholder="e.g. 8356"
+                          data-testid="input-code"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -885,7 +1063,13 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Eye Size (mm)</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} max={99} data-testid="input-eye-size" {...field} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          data-testid="input-eye-size"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -898,7 +1082,13 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Bridge (mm)</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} max={99} data-testid="input-bridge" {...field} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={99}
+                          data-testid="input-bridge"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -911,7 +1101,13 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Temple (mm)</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} max={999} data-testid="input-temple" {...field} />
+                        <Input
+                          type="number"
+                          min={1}
+                          max={999}
+                          data-testid="input-temple"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -932,7 +1128,20 @@ function FrameFormDialog({
                       variant="outline"
                       size="sm"
                       className="text-xs h-7"
-                      onClick={() => setVariants((prev) => [...prev, { code: "", color: "", eyeSize: 52, bridge: 18, templeLength: 145, barcode: "", quantity: 1 }])}
+                      onClick={() =>
+                        setVariants((prev) => [
+                          ...prev,
+                          {
+                            code: "",
+                            color: "",
+                            eyeSize: 52,
+                            bridge: 18,
+                            templeLength: 145,
+                            barcode: "",
+                            quantity: 1,
+                          },
+                        ])
+                      }
                       data-testid="button-add-variant"
                     >
                       <Plus className="w-3 h-3 mr-1" />
@@ -942,71 +1151,158 @@ function FrameFormDialog({
                   {variants.length > 0 && (
                     <div className="space-y-2">
                       {variants.map((v, idx) => (
-                        <div key={idx} className="grid grid-cols-7 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border">
+                        <div
+                          key={idx}
+                          className="grid grid-cols-7 gap-2 items-end p-3 rounded-lg bg-muted/30 border border-border"
+                        >
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Code</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Code
+                            </p>
                             <Input
                               placeholder="e.g. 8356"
                               value={v.code}
-                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, code: e.target.value } : x))}
+                              onChange={(e) =>
+                                setVariants((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? { ...x, code: e.target.value }
+                                      : x,
+                                  ),
+                                )
+                              }
                               data-testid={`input-variant-code-${idx}`}
                             />
                           </div>
                           <div className="col-span-2">
-                            <p className="text-xs text-muted-foreground mb-1">Color</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Color
+                            </p>
                             <Input
                               placeholder="Color"
                               value={v.color}
-                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, color: e.target.value } : x))}
+                              onChange={(e) =>
+                                setVariants((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? { ...x, color: e.target.value }
+                                      : x,
+                                  ),
+                                )
+                              }
                               data-testid={`input-variant-color-${idx}`}
                             />
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Eye</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Eye
+                            </p>
                             <Input
                               type="number"
-                              min={1} max={99}
+                              min={1}
+                              max={99}
                               value={v.eyeSize}
-                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, eyeSize: parseInt(e.target.value) || 52 } : x))}
+                              onChange={(e) =>
+                                setVariants((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          eyeSize:
+                                            parseInt(e.target.value) || 52,
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
                               data-testid={`input-variant-eye-${idx}`}
                             />
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Bridge</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Bridge
+                            </p>
                             <Input
                               type="number"
-                              min={1} max={99}
+                              min={1}
+                              max={99}
                               value={v.bridge}
-                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, bridge: parseInt(e.target.value) || 18 } : x))}
+                              onChange={(e) =>
+                                setVariants((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          bridge:
+                                            parseInt(e.target.value) || 18,
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
                               data-testid={`input-variant-bridge-${idx}`}
                             />
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground mb-1">Temple</p>
+                            <p className="text-xs text-muted-foreground mb-1">
+                              Temple
+                            </p>
                             <Input
                               type="number"
-                              min={1} max={999}
+                              min={1}
+                              max={999}
                               value={v.templeLength}
-                              onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, templeLength: parseInt(e.target.value) || 145 } : x))}
+                              onChange={(e) =>
+                                setVariants((prev) =>
+                                  prev.map((x, i) =>
+                                    i === idx
+                                      ? {
+                                          ...x,
+                                          templeLength:
+                                            parseInt(e.target.value) || 145,
+                                        }
+                                      : x,
+                                  ),
+                                )
+                              }
                               data-testid={`input-variant-temple-${idx}`}
                             />
                           </div>
                           <div className="flex items-end gap-1">
                             <div className="flex-1">
-                              <p className="text-xs text-muted-foreground mb-1">Qty</p>
+                              <p className="text-xs text-muted-foreground mb-1">
+                                Qty
+                              </p>
                               <Input
                                 type="number"
-                                min={1} step={1}
+                                min={1}
+                                step={1}
                                 value={v.quantity}
                                 onFocus={(e) => e.target.select()}
-                                onChange={(e) => setVariants((prev) => prev.map((x, i) => i === idx ? { ...x, quantity: parseInt(e.target.value) || 1 } : x))}
+                                onChange={(e) =>
+                                  setVariants((prev) =>
+                                    prev.map((x, i) =>
+                                      i === idx
+                                        ? {
+                                            ...x,
+                                            quantity:
+                                              parseInt(e.target.value) || 1,
+                                          }
+                                        : x,
+                                    ),
+                                  )
+                                }
                                 data-testid={`input-variant-qty-${idx}`}
                               />
                             </div>
                             <button
                               type="button"
                               className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors mb-0.5"
-                              onClick={() => setVariants((prev) => prev.filter((_, i) => i !== idx))}
+                              onClick={() =>
+                                setVariants((prev) =>
+                                  prev.filter((_, i) => i !== idx),
+                                )
+                              }
                               data-testid={`button-remove-variant-${idx}`}
                             >
                               <X className="w-4 h-4" />
@@ -1018,7 +1314,8 @@ function FrameFormDialog({
                   )}
                   {variants.length === 0 && (
                     <p className="text-xs text-muted-foreground text-center py-2 bg-muted/20 rounded border border-dashed border-border">
-                      Click "Add Variant" to add additional color/size combinations for the same model.
+                      Click "Add Variant" to add additional color/size
+                      combinations for the same model.
                     </p>
                   )}
                 </div>
@@ -1033,7 +1330,14 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Wholesale Cost ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" min={0} placeholder="0.00" data-testid="input-cost" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          placeholder="0.00"
+                          data-testid="input-cost"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1067,7 +1371,14 @@ function FrameFormDialog({
                     <FormItem>
                       <FormLabel>Retail Price ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" min={0} placeholder="0.00" data-testid="input-retail-price" {...field} />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min={0}
+                          placeholder="0.00"
+                          data-testid="input-retail-price"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1084,7 +1395,10 @@ function FrameFormDialog({
                     <FormLabel>Status</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger data-testid="select-status" className="w-48">
+                        <SelectTrigger
+                          data-testid="select-status"
+                          className="w-48"
+                        >
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
@@ -1115,7 +1429,8 @@ function FrameFormDialog({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-1">
-                          Vision Plan <span className="text-destructive ml-0.5">*</span>
+                          Vision Plan{" "}
+                          <span className="text-destructive ml-0.5">*</span>
                         </FormLabel>
                         <Select
                           value={field.value ?? ""}
@@ -1147,11 +1462,14 @@ function FrameFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <Building2 className="w-3 h-3 text-muted-foreground" /> Lab Name
+                            <Building2 className="w-3 h-3 text-muted-foreground" />{" "}
+                            Lab Name
                           </FormLabel>
                           <Select
                             value={field.value ?? ""}
-                            onValueChange={(v) => handleLabChange(v, field.onChange)}
+                            onValueChange={(v) =>
+                              handleLabChange(v, field.onChange)
+                            }
                           >
                             <FormControl>
                               <SelectTrigger data-testid="select-lab-name">
@@ -1187,7 +1505,8 @@ function FrameFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <Hash className="w-3 h-3 text-muted-foreground" /> Account Number
+                            <Hash className="w-3 h-3 text-muted-foreground" />{" "}
+                            Account Number
                           </FormLabel>
                           <FormControl>
                             <div className="relative">
@@ -1197,7 +1516,13 @@ function FrameFormDialog({
                                 {...field}
                                 value={field.value ?? ""}
                                 className="font-mono"
-                                readOnly={!!allLabs.find((l) => l.name === form.watch("labName") && l.account)}
+                                readOnly={
+                                  !!allLabs.find(
+                                    (l) =>
+                                      l.name === form.watch("labName") &&
+                                      l.account,
+                                  )
+                                }
                               />
                               {field.value && (
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-amber-100 dark:bg-amber-900/40 px-1.5 py-0.5 rounded">
@@ -1220,7 +1545,8 @@ function FrameFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <Hash className="w-3 h-3 text-muted-foreground" /> Order Number
+                            <Hash className="w-3 h-3 text-muted-foreground" />{" "}
+                            Order Number
                           </FormLabel>
                           <FormControl>
                             <Input
@@ -1241,7 +1567,8 @@ function FrameFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <ChevronsUpDown className="w-3 h-3 text-muted-foreground" /> Date Sent
+                            <ChevronsUpDown className="w-3 h-3 text-muted-foreground" />{" "}
+                            Date Sent
                           </FormLabel>
                           <FormControl>
                             <Input
@@ -1262,7 +1589,8 @@ function FrameFormDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="flex items-center gap-1">
-                            <Truck className="w-3 h-3 text-muted-foreground" /> Tracking Number
+                            <Truck className="w-3 h-3 text-muted-foreground" />{" "}
+                            Tracking Number
                           </FormLabel>
                           <FormControl>
                             <Input
@@ -1281,11 +1609,24 @@ function FrameFormDialog({
               )}
 
               <DialogFooter className="gap-2">
-                <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel-frame">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  data-testid="button-cancel-frame"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isPending} data-testid="button-save-frame">
-                  {isPending ? "Saving..." : isEdit ? "Update Frame" : "Add Frame"}
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  data-testid="button-save-frame"
+                >
+                  {isPending
+                    ? "Saving..."
+                    : isEdit
+                      ? "Update Frame"
+                      : "Add Frame"}
                 </Button>
               </DialogFooter>
             </form>
@@ -1294,7 +1635,12 @@ function FrameFormDialog({
       </Dialog>
 
       {/* Quick-add Manufacturer modal */}
-      <Dialog open={showAddMfgModal} onOpenChange={(o) => { if (!o) setShowAddMfgModal(false); }}>
+      <Dialog
+        open={showAddMfgModal}
+        onOpenChange={(o) => {
+          if (!o) setShowAddMfgModal(false);
+        }}
+      >
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add Manufacturer</DialogTitle>
@@ -1319,7 +1665,13 @@ function FrameFormDialog({
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowAddMfgModal(false)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddMfgModal(false)}
+            >
+              Cancel
+            </Button>
             <Button
               type="button"
               data-testid="button-save-new-manufacturer"
@@ -1336,7 +1688,12 @@ function FrameFormDialog({
       </Dialog>
 
       {/* Quick-add Brand modal */}
-      <Dialog open={showAddBrandModal} onOpenChange={(o) => { if (!o) setShowAddBrandModal(false); }}>
+      <Dialog
+        open={showAddBrandModal}
+        onOpenChange={(o) => {
+          if (!o) setShowAddBrandModal(false);
+        }}
+      >
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add Brand</DialogTitle>
@@ -1369,15 +1726,28 @@ function FrameFormDialog({
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setShowAddBrandModal(false)}>Cancel</Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAddBrandModal(false)}
+            >
+              Cancel
+            </Button>
             <Button
               type="button"
               data-testid="button-save-new-brand"
-              disabled={!newBrandName.trim() || !newBrandMfgId || addBrandMutation.isPending}
+              disabled={
+                !newBrandName.trim() ||
+                !newBrandMfgId ||
+                addBrandMutation.isPending
+              }
               onClick={() => {
                 const name = newBrandName.trim();
                 if (name && newBrandMfgId) {
-                  addBrandMutation.mutate({ manufacturerId: newBrandMfgId, name });
+                  addBrandMutation.mutate({
+                    manufacturerId: newBrandMfgId,
+                    name,
+                  });
                 }
               }}
             >
@@ -1387,7 +1757,12 @@ function FrameFormDialog({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!duplicateInfo} onOpenChange={(o) => { if (!o) setDuplicateInfo(null); }}>
+      <Dialog
+        open={!!duplicateInfo}
+        onOpenChange={(o) => {
+          if (!o) setDuplicateInfo(null);
+        }}
+      >
         <DialogContent className="max-w-sm" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Duplicate Frame Detected</DialogTitle>
@@ -1395,13 +1770,15 @@ function FrameFormDialog({
               This frame already exists in inventory
               {duplicateInfo && (
                 <span className="block mt-1 font-semibold text-foreground">
-                  {duplicateInfo.existingBrand} {duplicateInfo.existingModel} — {duplicateInfo.existingColor}
+                  {duplicateInfo.existingBrand} {duplicateInfo.existingModel} —{" "}
+                  {duplicateInfo.existingColor}
                 </span>
               )}
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Would you like to replace the existing entry with the new one? Sales history will be preserved.
+            Would you like to replace the existing entry with the new one? Sales
+            history will be preserved.
           </p>
           <DialogFooter className="gap-2 pt-2">
             <Button
@@ -1424,7 +1801,9 @@ function FrameFormDialog({
                 });
               }}
             >
-              {replaceMutation.isPending ? "Replacing..." : "Replace Existing Frame"}
+              {replaceMutation.isPending
+                ? "Replacing..."
+                : "Replace Existing Frame"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1461,31 +1840,60 @@ function InvoiceImportDialog({
   const [rows, setRows] = useState<ExtractedFrame[]>([]);
   const [importing, setImporting] = useState(false);
   const [detectedCount, setDetectedCount] = useState(0);
-  const [importSummary, setImportSummary] = useState<{ added: number; skipped: number; detected: number } | null>(null);
+  const [importSummary, setImportSummary] = useState<{
+    added: number;
+    skipped: number;
+    detected: number;
+  } | null>(null);
   const [globalManufacturer, setGlobalManufacturer] = useState<string>("");
 
-  const { data: existingFrames = [] } = useQuery<Frame[]>({ queryKey: ["/api/frames"] });
-  const { data: mfgList = [] } = useQuery<Manufacturer[]>({ queryKey: ["/api/manufacturers"] });
-  const { data: settingsData = {} } = useQuery<Record<string, string>>({ queryKey: ["/api/settings"] });
+  const { data: existingFrames = [] } = useQuery<Frame[]>({
+    queryKey: ["/api/frames"],
+  });
+  const { data: mfgList = [] } = useQuery<Manufacturer[]>({
+    queryKey: ["/api/manufacturers"],
+  });
+  const { data: settingsData = {} } = useQuery<Record<string, string>>({
+    queryKey: ["/api/settings"],
+  });
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, { key: string; brand: string; model: string; manufacturer: string; indices: number[] }>();
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        brand: string;
+        model: string;
+        manufacturer: string;
+        indices: number[];
+      }
+    >();
     rows.forEach((row, idx) => {
       const key = `${row.brand.trim().toLowerCase()}|||${row.model.trim().toLowerCase()}`;
       if (!groups.has(key)) {
-        groups.set(key, { key, brand: row.brand, model: row.model, manufacturer: row.manufacturer, indices: [] });
+        groups.set(key, {
+          key,
+          brand: row.brand,
+          model: row.model,
+          manufacturer: row.manufacturer,
+          indices: [],
+        });
       }
       groups.get(key)!.indices.push(idx);
     });
     return Array.from(groups.values());
   }, [rows]);
 
-  function updateGroupField(groupKey: string, field: "brand" | "model" | "manufacturer", value: string) {
+  function updateGroupField(
+    groupKey: string,
+    field: "brand" | "model" | "manufacturer",
+    value: string,
+  ) {
     setRows((prev) =>
       prev.map((row) => {
         const key = `${row.brand.trim().toLowerCase()}|||${row.model.trim().toLowerCase()}`;
         return key === groupKey ? { ...row, [field]: value } : row;
-      })
+      }),
     );
   }
 
@@ -1512,8 +1920,14 @@ function InvoiceImportDialog({
     if (file) handleFileChange(file);
   }
 
-  function updateRow(idx: number, field: keyof ExtractedFrame, value: string | number) {
-    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+  function updateRow(
+    idx: number,
+    field: keyof ExtractedFrame,
+    value: string | number,
+  ) {
+    setRows((prev) =>
+      prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)),
+    );
   }
 
   function removeRow(idx: number) {
@@ -1534,12 +1948,19 @@ function InvoiceImportDialog({
         body: formData,
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to parse invoice" }));
+        const err = await res
+          .json()
+          .catch(() => ({ message: "Failed to parse invoice" }));
         throw new Error(err.message || "Failed to parse invoice");
       }
       const data = await res.json();
       if (!data.frames || data.frames.length === 0) {
-        toast({ title: "No frames found", description: "No optical frame products could be identified in this file.", variant: "destructive" });
+        toast({
+          title: "No frames found",
+          description:
+            "No optical frame products could be identified in this file.",
+          variant: "destructive",
+        });
         return;
       }
       const total = data.totalDetected ?? data.frames.length;
@@ -1548,7 +1969,12 @@ function InvoiceImportDialog({
       // If the user already chose a manufacturer before extracting, respect it and apply to all rows.
       // Only auto-detect if the user hasn't made a selection yet.
       if (globalManufacturer.trim()) {
-        setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: globalManufacturer.trim() })));
+        setRows(
+          (data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({
+            ...f,
+            manufacturer: globalManufacturer.trim(),
+          })),
+        );
       } else {
         // Auto-detect the primary manufacturer from extracted frames
         const mfgCounts = new Map<string, number>();
@@ -1559,14 +1985,24 @@ function InvoiceImportDialog({
         let detectedMfg = "";
         let bestCount = 0;
         mfgCounts.forEach((count, mfg) => {
-          if (count > bestCount) { detectedMfg = mfg; bestCount = count; }
+          if (count > bestCount) {
+            detectedMfg = mfg;
+            bestCount = count;
+          }
         });
         // Prefer an exact match against known manufacturers (normalises AI casing/spelling)
-        const knownMfg = mfgList.find((m) => m.name.toLowerCase() === detectedMfg.toLowerCase());
+        const knownMfg = mfgList.find(
+          (m) => m.name.toLowerCase() === detectedMfg.toLowerCase(),
+        );
         const finalMfg = knownMfg?.name || detectedMfg;
         if (finalMfg) {
           setGlobalManufacturer(finalMfg);
-          setRows((data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({ ...f, manufacturer: finalMfg })));
+          setRows(
+            (data.frames as ExtractedFrame[]).map((f: ExtractedFrame) => ({
+              ...f,
+              manufacturer: finalMfg,
+            })),
+          );
         } else {
           setRows(data.frames);
         }
@@ -1582,7 +2018,8 @@ function InvoiceImportDialog({
     } catch (err) {
       toast({
         title: "Parse failed",
-        description: err instanceof Error ? err.message : "Could not parse invoice",
+        description:
+          err instanceof Error ? err.message : "Could not parse invoice",
         variant: "destructive",
       });
     } finally {
@@ -1599,9 +2036,14 @@ function InvoiceImportDialog({
     for (const row of rows) {
       try {
         const costNum = parseFloat(row.cost) || 0;
-        const importMultiplier = parseFloat(settingsData.defaultMultiplier || "3") || 3;
+        const importMultiplier =
+          parseFloat(settingsData.defaultMultiplier || "3") || 3;
         const retailNum = Math.round(costNum * importMultiplier);
-        const manufacturer = (globalManufacturer?.trim() || row.manufacturer?.trim() || row.brand?.trim() || "Unknown");
+        const manufacturer =
+          globalManufacturer?.trim() ||
+          row.manufacturer?.trim() ||
+          row.brand?.trim() ||
+          "Unknown";
         const brand = row.brand?.trim() || manufacturer;
 
         const payload = {
@@ -1660,7 +2102,12 @@ function InvoiceImportDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) handleClose();
+      }}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1668,7 +2115,8 @@ function InvoiceImportDialog({
             Import Frames from Invoice
           </DialogTitle>
           <DialogDescription>
-            Upload an invoice (PDF, image, or spreadsheet) and the system will extract frame data for you to review before importing.
+            Upload an invoice (PDF, image, or spreadsheet) and the system will
+            extract frame data for you to review before importing.
           </DialogDescription>
         </DialogHeader>
 
@@ -1676,22 +2124,31 @@ function InvoiceImportDialog({
           {/* Global manufacturer selector — always visible, applies to all extracted frames */}
           <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border bg-muted/30">
             <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <span className="text-sm font-medium whitespace-nowrap">Manufacturer:</span>
+            <span className="text-sm font-medium whitespace-nowrap">
+              Manufacturer:
+            </span>
             <Select
               value={globalManufacturer}
               onValueChange={(v) => {
                 setGlobalManufacturer(v);
                 if (rows.length > 0) {
-                  setRows((prev) => prev.map((r) => ({ ...r, manufacturer: v })));
+                  setRows((prev) =>
+                    prev.map((r) => ({ ...r, manufacturer: v })),
+                  );
                 }
               }}
             >
-              <SelectTrigger className="flex-1 h-8 text-sm" data-testid="select-global-manufacturer">
+              <SelectTrigger
+                className="flex-1 h-8 text-sm"
+                data-testid="select-global-manufacturer"
+              >
                 <SelectValue placeholder="Select manufacturer to apply to all frames..." />
               </SelectTrigger>
               <SelectContent>
                 {mfgList.map((m) => (
-                  <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                  <SelectItem key={m.id} value={m.name}>
+                    {m.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1711,10 +2168,15 @@ function InvoiceImportDialog({
           {rows.length === 0 ? (
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                dragOver
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:border-primary/50"
               }`}
               onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
               data-testid="invoice-drop-zone"
@@ -1724,12 +2186,19 @@ function InvoiceImportDialog({
                 type="file"
                 accept=".pdf,.jpg,.jpeg,.png,.webp,.csv,.xlsx,.xls"
                 className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChange(f); }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFileChange(f);
+                }}
                 data-testid="input-invoice-file"
               />
               <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
-              <p className="font-medium text-foreground mb-1">Drop your invoice here</p>
-              <p className="text-sm text-muted-foreground">PDF, JPEG, PNG, WebP, CSV, XLS, or XLSX · Max 20 MB</p>
+              <p className="font-medium text-foreground mb-1">
+                Drop your invoice here
+              </p>
+              <p className="text-sm text-muted-foreground">
+                PDF, JPEG, PNG, WebP, CSV, XLS, or XLSX · Max 20 MB
+              </p>
               {selectedFile && (
                 <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 bg-muted rounded-md text-sm font-medium">
                   <FileText className="w-4 h-4" />
@@ -1741,13 +2210,21 @@ function InvoiceImportDialog({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Detected <strong>{detectedCount}</strong> frame{detectedCount !== 1 ? "s" : ""} in invoice —{" "}
-                  <span className="text-foreground font-medium">{grouped.length} model{grouped.length !== 1 ? "s" : ""}, {rows.length} variant{rows.length !== 1 ? "s" : ""}</span>. Review before importing.
+                  Detected <strong>{detectedCount}</strong> frame
+                  {detectedCount !== 1 ? "s" : ""} in invoice —{" "}
+                  <span className="text-foreground font-medium">
+                    {grouped.length} model{grouped.length !== 1 ? "s" : ""},{" "}
+                    {rows.length} variant{rows.length !== 1 ? "s" : ""}
+                  </span>
+                  . Review before importing.
                 </p>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setRows([]); setImportSummary(null); }}
+                  onClick={() => {
+                    setRows([]);
+                    setImportSummary(null);
+                  }}
                   data-testid="button-clear-rows"
                 >
                   <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
@@ -1770,32 +2247,52 @@ function InvoiceImportDialog({
               {/* Grouped cards */}
               <div className="space-y-2 overflow-y-auto max-h-[420px] pr-1">
                 {grouped.map((group) => (
-                  <div key={group.key} className="rounded-lg border border-border overflow-hidden" data-testid={`group-${group.key}`}>
+                  <div
+                    key={group.key}
+                    className="rounded-lg border border-border overflow-hidden"
+                    data-testid={`group-${group.key}`}
+                  >
                     {/* Group header — editable brand/model/manufacturer */}
                     <div className="px-3 py-2 bg-muted/40 border-b border-border flex items-center gap-2">
                       <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
                         <input
                           className="font-semibold text-sm bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
                           value={group.brand}
-                          onChange={(e) => updateGroupField(group.key, "brand", e.target.value)}
+                          onChange={(e) =>
+                            updateGroupField(group.key, "brand", e.target.value)
+                          }
                           data-testid={`input-group-brand-${group.key}`}
                         />
                         <input
                           className="font-semibold text-sm bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
                           value={group.model}
-                          onChange={(e) => updateGroupField(group.key, "model", e.target.value)}
+                          onChange={(e) =>
+                            updateGroupField(group.key, "model", e.target.value)
+                          }
                           data-testid={`input-group-model-${group.key}`}
                         />
-                        <span className="text-muted-foreground/40 text-xs">·</span>
+                        <span className="text-muted-foreground/40 text-xs">
+                          ·
+                        </span>
                         <input
                           className="text-xs text-muted-foreground bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-28 min-w-0"
                           value={group.manufacturer}
-                          onChange={(e) => updateGroupField(group.key, "manufacturer", e.target.value)}
+                          onChange={(e) =>
+                            updateGroupField(
+                              group.key,
+                              "manufacturer",
+                              e.target.value,
+                            )
+                          }
                           data-testid={`input-group-manufacturer-${group.key}`}
                         />
                       </div>
-                      <Badge variant="secondary" className="text-xs flex-shrink-0">
-                        {group.indices.length} variant{group.indices.length !== 1 ? "s" : ""}
+                      <Badge
+                        variant="secondary"
+                        className="text-xs flex-shrink-0"
+                      >
+                        {group.indices.length} variant
+                        {group.indices.length !== 1 ? "s" : ""}
                       </Badge>
                     </div>
 
@@ -1803,13 +2300,16 @@ function InvoiceImportDialog({
                     {group.indices.map((rowIdx, vIdx) => {
                       const row = rows[rowIdx];
                       const isLast = vIdx === group.indices.length - 1;
-                      const isExactDuplicate = existingFrames.some((f) =>
-                        f.brand.toLowerCase() === row.brand.trim().toLowerCase() &&
-                        f.model.toLowerCase() === row.model.trim().toLowerCase() &&
-                        (f.code ?? "") === (row.code?.trim() ?? "") &&
-                        f.eyeSize === Number(row.eyeSize) &&
-                        f.bridge === Number(row.bridge) &&
-                        f.templeLength === Number(row.templeLength)
+                      const isExactDuplicate = existingFrames.some(
+                        (f) =>
+                          f.brand.toLowerCase() ===
+                            row.brand.trim().toLowerCase() &&
+                          f.model.toLowerCase() ===
+                            row.model.trim().toLowerCase() &&
+                          (f.code ?? "") === (row.code?.trim() ?? "") &&
+                          f.eyeSize === Number(row.eyeSize) &&
+                          f.bridge === Number(row.bridge) &&
+                          f.templeLength === Number(row.templeLength),
                       );
                       return (
                         <div
@@ -1817,14 +2317,18 @@ function InvoiceImportDialog({
                           className={`px-3 py-2 flex items-center gap-1.5 hover:bg-muted/20 transition-colors ${!isLast ? "border-b border-border/50" : ""}`}
                           data-testid={`row-invoice-frame-${rowIdx}`}
                         >
-                          <span className="text-muted-foreground/30 text-xs w-3 flex-shrink-0 font-mono">{isLast ? "└" : "├"}</span>
+                          <span className="text-muted-foreground/30 text-xs w-3 flex-shrink-0 font-mono">
+                            {isLast ? "└" : "├"}
+                          </span>
 
                           {/* Code */}
                           <input
                             className="w-14 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 font-mono text-muted-foreground placeholder:text-muted-foreground/30 flex-shrink-0"
                             placeholder="Code"
                             value={row.code ?? ""}
-                            onChange={(e) => updateRow(rowIdx, "code", e.target.value)}
+                            onChange={(e) =>
+                              updateRow(rowIdx, "code", e.target.value)
+                            }
                             data-testid={`input-invoice-code-${rowIdx}`}
                           />
 
@@ -1833,7 +2337,9 @@ function InvoiceImportDialog({
                             className="flex-1 min-w-0 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-foreground placeholder:text-muted-foreground/30"
                             placeholder="Color"
                             value={row.color}
-                            onChange={(e) => updateRow(rowIdx, "color", e.target.value)}
+                            onChange={(e) =>
+                              updateRow(rowIdx, "color", e.target.value)
+                            }
                             data-testid={`input-invoice-color-${rowIdx}`}
                           />
 
@@ -1843,7 +2349,13 @@ function InvoiceImportDialog({
                               type="number"
                               className="w-9 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
                               value={row.eyeSize}
-                              onChange={(e) => updateRow(rowIdx, "eyeSize", Number(e.target.value))}
+                              onChange={(e) =>
+                                updateRow(
+                                  rowIdx,
+                                  "eyeSize",
+                                  Number(e.target.value),
+                                )
+                              }
                               data-testid={`input-invoice-eyesize-${rowIdx}`}
                             />
                             <span className="text-muted-foreground/40">-</span>
@@ -1851,7 +2363,13 @@ function InvoiceImportDialog({
                               type="number"
                               className="w-9 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
                               value={row.bridge}
-                              onChange={(e) => updateRow(rowIdx, "bridge", Number(e.target.value))}
+                              onChange={(e) =>
+                                updateRow(
+                                  rowIdx,
+                                  "bridge",
+                                  Number(e.target.value),
+                                )
+                              }
                               data-testid={`input-invoice-bridge-${rowIdx}`}
                             />
                             <span className="text-muted-foreground/40">-</span>
@@ -1859,42 +2377,66 @@ function InvoiceImportDialog({
                               type="number"
                               className="w-11 text-center bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-0.5 text-xs text-muted-foreground"
                               value={row.templeLength}
-                              onChange={(e) => updateRow(rowIdx, "templeLength", Number(e.target.value))}
+                              onChange={(e) =>
+                                updateRow(
+                                  rowIdx,
+                                  "templeLength",
+                                  Number(e.target.value),
+                                )
+                              }
                               data-testid={`input-invoice-temple-${rowIdx}`}
                             />
                           </div>
 
                           {/* Cost */}
                           <div className="flex items-center flex-shrink-0">
-                            <span className="text-xs text-muted-foreground/60">$</span>
+                            <span className="text-xs text-muted-foreground/60">
+                              $
+                            </span>
                             <input
                               className="w-16 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-right text-muted-foreground"
                               value={row.cost}
-                              onChange={(e) => updateRow(rowIdx, "cost", e.target.value)}
+                              onChange={(e) =>
+                                updateRow(rowIdx, "cost", e.target.value)
+                              }
                               data-testid={`input-invoice-cost-${rowIdx}`}
                             />
                           </div>
 
                           {/* Qty */}
                           <div className="flex items-center gap-0.5 flex-shrink-0">
-                            <span className="text-xs text-muted-foreground/60">×</span>
+                            <span className="text-xs text-muted-foreground/60">
+                              ×
+                            </span>
                             <input
                               type="number"
                               min={1}
                               className="w-9 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 text-center text-muted-foreground"
                               value={row.quantity}
-                              onChange={(e) => updateRow(rowIdx, "quantity", Number(e.target.value))}
+                              onChange={(e) =>
+                                updateRow(
+                                  rowIdx,
+                                  "quantity",
+                                  Number(e.target.value),
+                                )
+                              }
                               data-testid={`input-invoice-qty-${rowIdx}`}
                             />
                           </div>
 
                           {/* Status badge */}
                           {isExactDuplicate ? (
-                            <Badge variant="outline" className="text-xs flex-shrink-0 border-amber-400/60 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0">
+                            <Badge
+                              variant="outline"
+                              className="text-xs flex-shrink-0 border-amber-400/60 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1.5 py-0"
+                            >
                               Update Qty
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="text-xs flex-shrink-0 border-emerald-400/60 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0">
+                            <Badge
+                              variant="outline"
+                              className="text-xs flex-shrink-0 border-emerald-400/60 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0"
+                            >
                               New
                             </Badge>
                           )}
@@ -1920,9 +2462,17 @@ function InvoiceImportDialog({
                 <div className="rounded-md bg-muted/50 border px-4 py-3 text-sm flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                   <span>
-                    Detected <strong>{importSummary.detected}</strong> frame{importSummary.detected !== 1 ? "s" : ""} in invoice.
-                    {" "}Imported <strong>{importSummary.added}</strong> frame{importSummary.added !== 1 ? "s" : ""}
-                    {importSummary.skipped > 0 && <>, <strong>{importSummary.skipped}</strong> quantity updated (already exist)</>}.
+                    Detected <strong>{importSummary.detected}</strong> frame
+                    {importSummary.detected !== 1 ? "s" : ""} in invoice.{" "}
+                    Imported <strong>{importSummary.added}</strong> frame
+                    {importSummary.added !== 1 ? "s" : ""}
+                    {importSummary.skipped > 0 && (
+                      <>
+                        , <strong>{importSummary.skipped}</strong> quantity
+                        updated (already exist)
+                      </>
+                    )}
+                    .
                   </span>
                 </div>
               )}
@@ -1933,7 +2483,11 @@ function InvoiceImportDialog({
         <DialogFooter className="flex-shrink-0 pt-2 gap-2 border-t">
           {rows.length === 0 ? (
             <>
-              <Button variant="outline" onClick={handleClose} data-testid="button-cancel-import">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                data-testid="button-cancel-import"
+              >
                 Cancel
               </Button>
               <Button
@@ -1944,19 +2498,29 @@ function InvoiceImportDialog({
                 {parsing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    {selectedFile && /\.(csv|xlsx|xls)$/i.test(selectedFile.name) ? "Reading..." : "Analyzing..."}
+                    {selectedFile &&
+                    /\.(csv|xlsx|xls)$/i.test(selectedFile.name)
+                      ? "Reading..."
+                      : "Analyzing..."}
                   </>
                 ) : (
                   <>
                     <FileUp className="w-4 h-4 mr-2" />
-                    {selectedFile && /\.(csv|xlsx|xls)$/i.test(selectedFile.name) ? "Read Spreadsheet" : "Extract with AI"}
+                    {selectedFile &&
+                    /\.(csv|xlsx|xls)$/i.test(selectedFile.name)
+                      ? "Read Spreadsheet"
+                      : "Extract with AI"}
                   </>
                 )}
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={handleClose} data-testid="button-close-import">
+              <Button
+                variant="outline"
+                onClick={handleClose}
+                data-testid="button-close-import"
+              >
                 {importSummary ? "Close" : "Cancel"}
               </Button>
               {!importSummary && (
@@ -1973,7 +2537,9 @@ function InvoiceImportDialog({
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Confirm Import ({rows.length} variant{rows.length !== 1 ? "s" : ""} across {grouped.length} model{grouped.length !== 1 ? "s" : ""})
+                      Confirm Import ({rows.length} variant
+                      {rows.length !== 1 ? "s" : ""} across {grouped.length}{" "}
+                      model{grouped.length !== 1 ? "s" : ""})
                     </>
                   )}
                 </Button>
@@ -2000,7 +2566,9 @@ export default function Inventory() {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [foundFrame, setFoundFrame] = useState<Frame | null>(null);
   const [scanValue, setScanValue] = useState("");
-  const [scanState, setScanState] = useState<"idle" | "found" | "not_found">("idle");
+  const [scanState, setScanState] = useState<"idle" | "found" | "not_found">(
+    "idle",
+  );
   const scanInputRef = useRef<HTMLInputElement>(null);
   const highlightedRowRef = useRef<HTMLTableRowElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2010,36 +2578,49 @@ export default function Inventory() {
     queryKey: ["/api/frames"],
   });
 
-  const { data: frameHoldsData = [] } = useQuery<{ frameId: string | null; status: string }[]>({
+  const { data: frameHoldsData = [] } = useQuery<
+    { frameId: string | null; status: string }[]
+  >({
     queryKey: ["/api/frame-holds"],
   });
 
   const activeHoldFrameIds = new Set(
-    frameHoldsData.filter((h) => h.status === "active").map((h) => h.frameId).filter(Boolean)
+    frameHoldsData
+      .filter((h) => h.status === "active")
+      .map((h) => h.frameId)
+      .filter(Boolean),
   );
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/frames/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/frames"] });
-      toast({ title: "Frame deleted", description: "The frame has been removed from inventory." });
+      toast({
+        title: "Frame deleted",
+        description: "The frame has been removed from inventory.",
+      });
       setDeleteId(null);
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to delete frame.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to delete frame.",
+        variant: "destructive",
+      });
     },
   });
 
-
   const uniqueManufacturers = useMemo(
-    () => [...new Set(frames.map((f) => f.manufacturer).filter(Boolean))].sort(),
-    [frames]
+    () =>
+      [...new Set(frames.map((f) => f.manufacturer).filter(Boolean))].sort(),
+    [frames],
   );
 
   const filteredBrandOptions = useMemo(() => {
-    const source = manufacturerFilter !== "all"
-      ? frames.filter((f) => f.manufacturer === manufacturerFilter)
-      : frames;
+    const source =
+      manufacturerFilter !== "all"
+        ? frames.filter((f) => f.manufacturer === manufacturerFilter)
+        : frames;
     return [...new Set(source.map((f) => f.brand).filter(Boolean))].sort();
   }, [frames, manufacturerFilter]);
 
@@ -2049,25 +2630,37 @@ export default function Inventory() {
     const cutoff = Date.now() - FIVE_DAYS_MS;
     return [...frames]
       .filter((f) => new Date(f.createdAt).getTime() >= cutoff)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
   }, [frames]);
 
   const recentManufacturers = useMemo(
-    () => [...new Set(recentlyAdded.map((f) => f.manufacturer).filter(Boolean))].sort(),
-    [recentlyAdded]
+    () =>
+      [
+        ...new Set(recentlyAdded.map((f) => f.manufacturer).filter(Boolean)),
+      ].sort(),
+    [recentlyAdded],
   );
 
   const [recentTab, setRecentTab] = useState<string>("");
 
   function formatRelativeDate(dateStr: string | Date) {
     const date = new Date(dateStr);
-    const diffDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.floor(
+      (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24),
+    );
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
     return `${diffDays} days ago`;
   }
 
-  const hasActiveFilters = search !== "" || brandFilter !== "all" || manufacturerFilter !== "all" || statusFilter !== "all";
+  const hasActiveFilters =
+    search !== "" ||
+    brandFilter !== "all" ||
+    manufacturerFilter !== "all" ||
+    statusFilter !== "all";
 
   function handleManufacturerFilterChange(value: string) {
     setManufacturerFilter(value);
@@ -2089,9 +2682,11 @@ export default function Inventory() {
   }
 
   const filtered = frames.filter((frame) => {
-    const matchesStatus = statusFilter === "all" || frame.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || frame.status === statusFilter;
     const matchesBrand = brandFilter === "all" || frame.brand === brandFilter;
-    const matchesManufacturer = manufacturerFilter === "all" || frame.manufacturer === manufacturerFilter;
+    const matchesManufacturer =
+      manufacturerFilter === "all" || frame.manufacturer === manufacturerFilter;
     const q = search.toLowerCase();
     const matchesSearch =
       !q ||
@@ -2100,7 +2695,9 @@ export default function Inventory() {
       frame.model.toLowerCase().includes(q) ||
       frame.color.toLowerCase().includes(q) ||
       (frame.barcode && frame.barcode.toLowerCase().includes(q));
-    return matchesStatus && matchesBrand && matchesManufacturer && matchesSearch;
+    return (
+      matchesStatus && matchesBrand && matchesManufacturer && matchesSearch
+    );
   });
 
   function highlightFrame(id: string) {
@@ -2111,7 +2708,10 @@ export default function Inventory() {
 
   useEffect(() => {
     if (highlightedId && highlightedRowRef.current) {
-      highlightedRowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      highlightedRowRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
     }
   }, [highlightedId]);
 
@@ -2119,7 +2719,9 @@ export default function Inventory() {
     (value: string) => {
       const barcode = value.trim();
       if (!barcode) return;
-      const match = frames.find((f) => f.barcode && f.barcode.trim() === barcode);
+      const match = frames.find(
+        (f) => f.barcode && f.barcode.trim() === barcode,
+      );
       if (match) {
         setScanState("found");
         setFoundFrame(match);
@@ -2134,7 +2736,7 @@ export default function Inventory() {
         setDialogOpen(true);
       }
     },
-    [frames]
+    [frames],
   );
 
   function handleScanKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -2188,7 +2790,11 @@ export default function Inventory() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)} data-testid="button-import-invoice">
+          <Button
+            variant="outline"
+            onClick={() => setImportDialogOpen(true)}
+            data-testid="button-import-invoice"
+          >
             <FileUp className="w-4 h-4 mr-2" />
             Import Invoice
           </Button>
@@ -2205,8 +2811,8 @@ export default function Inventory() {
           scanState === "found"
             ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/20"
             : scanState === "not_found"
-            ? "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20"
-            : "border-border bg-muted/30"
+              ? "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20"
+              : "border-border bg-muted/30"
         }`}
         data-testid="barcode-scanner-panel"
       >
@@ -2215,14 +2821,17 @@ export default function Inventory() {
             scanState === "found"
               ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
               : scanState === "not_found"
-              ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
-              : "bg-background text-muted-foreground"
+                ? "bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
+                : "bg-background text-muted-foreground"
           }`}
         >
           <ScanLine className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <label htmlFor="scan-input" className="block text-sm font-medium text-foreground mb-1">
+          <label
+            htmlFor="scan-input"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
             Scan Frame Barcode
           </label>
           <div className="relative">
@@ -2239,7 +2848,10 @@ export default function Inventory() {
             />
             {scanValue && (
               <button
-                onClick={() => { setScanValue(""); scanInputRef.current?.focus(); }}
+                onClick={() => {
+                  setScanValue("");
+                  scanInputRef.current?.focus();
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                 data-testid="button-clear-scan"
               >
@@ -2274,7 +2886,10 @@ export default function Inventory() {
 
       {/* Recently Added */}
       {recentlyAdded.length > 0 && (
-        <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20" data-testid="section-recently-added">
+        <div
+          className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20"
+          data-testid="section-recently-added"
+        >
           <button
             className="w-full flex items-center justify-between px-4 py-3 text-left"
             onClick={() => setShowRecent(!showRecent)}
@@ -2282,11 +2897,15 @@ export default function Inventory() {
           >
             <div className="flex items-center gap-2 flex-wrap">
               <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-semibold text-sm text-foreground">Recently Added</span>
+              <span className="font-semibold text-sm text-foreground">
+                Recently Added
+              </span>
               <Badge className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-0 text-xs px-2">
                 {recentlyAdded.length}
               </Badge>
-              <span className="text-xs text-muted-foreground">· within the last 5 days</span>
+              <span className="text-xs text-muted-foreground">
+                · within the last 5 days
+              </span>
             </div>
             <ChevronDown
               className={`w-4 h-4 text-muted-foreground transition-transform duration-200 shrink-0 ${showRecent ? "" : "-rotate-90"}`}
@@ -2310,7 +2929,13 @@ export default function Inventory() {
                         >
                           {mfg}
                           <span className="ml-1.5 text-[10px] opacity-60">
-                            ({recentlyAdded.filter((f) => f.manufacturer === mfg).length})
+                            (
+                            {
+                              recentlyAdded.filter(
+                                (f) => f.manufacturer === mfg,
+                              ).length
+                            }
+                            )
                           </span>
                         </TabsTrigger>
                       ))}
@@ -2323,14 +2948,30 @@ export default function Inventory() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="text-xs text-muted-foreground border-b border-emerald-100 dark:border-emerald-900">
-                            <th className="text-left font-medium px-4 py-2">Brand / Model</th>
-                            <th className="text-left font-medium px-4 py-2">Color</th>
-                            <th className="text-right font-medium px-4 py-2">Qty</th>
-                            <th className="text-right font-medium px-4 py-2">Size</th>
-                            <th className="text-right font-medium px-4 py-2">Code</th>
-                            <th className="text-right font-medium px-4 py-2">Cost</th>
-                            <th className="text-right font-medium px-4 py-2">Retail</th>
-                            <th className="text-right font-medium px-4 py-2">Added</th>
+                            <th className="text-left font-medium px-4 py-2">
+                              Brand / Model
+                            </th>
+                            <th className="text-left font-medium px-4 py-2">
+                              Color
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Qty
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Size
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Code
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Cost
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Retail
+                            </th>
+                            <th className="text-right font-medium px-4 py-2">
+                              Added
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/60">
@@ -2340,17 +2981,30 @@ export default function Inventory() {
                               <tr
                                 key={frame.id}
                                 className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-colors"
-                                onClick={() => { setEditFrame(frame); setDialogOpen(true); }}
+                                onClick={() => {
+                                  setEditFrame(frame);
+                                  setDialogOpen(true);
+                                }}
                                 data-testid={`row-recently-added-${frame.id}`}
                               >
                                 <td className="px-4 py-2.5">
-                                  <p className="font-medium text-foreground">{frame.brand}</p>
-                                  <p className="text-xs text-muted-foreground">{frame.model}</p>
+                                  <p className="font-medium text-foreground">
+                                    {frame.brand}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {frame.model}
+                                  </p>
                                 </td>
-                                <td className="px-4 py-2.5 text-muted-foreground">{frame.color}</td>
-                                <td className="px-4 py-2.5 text-right font-medium text-foreground">{frame.quantity}</td>
+                                <td className="px-4 py-2.5 text-muted-foreground">
+                                  {frame.color}
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-medium text-foreground">
+                                  {frame.quantity}
+                                </td>
                                 <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap font-mono text-xs">
-                                  {frame.eyeSize && frame.bridge && frame.templeLength
+                                  {frame.eyeSize &&
+                                  frame.bridge &&
+                                  frame.templeLength
                                     ? `${frame.eyeSize}-${frame.bridge}-${frame.templeLength}`
                                     : "N/A"}
                                 </td>
@@ -2358,10 +3012,14 @@ export default function Inventory() {
                                   {frame.code ?? "N/A"}
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
-                                  {frame.cost ? `$${parseFloat(frame.cost).toFixed(0)}` : "—"}
+                                  {frame.cost
+                                    ? `$${parseFloat(frame.cost).toFixed(0)}`
+                                    : "—"}
                                 </td>
                                 <td className="px-4 py-2.5 text-right font-medium text-foreground whitespace-nowrap">
-                                  {frame.retailPrice ? `$${parseFloat(frame.retailPrice).toFixed(0)}` : "—"}
+                                  {frame.retailPrice
+                                    ? `$${parseFloat(frame.retailPrice).toFixed(0)}`
+                                    : "—"}
                                 </td>
                                 <td className="px-4 py-2.5 text-right text-muted-foreground whitespace-nowrap">
                                   {formatRelativeDate(frame.createdAt)}
@@ -2403,45 +3061,68 @@ export default function Inventory() {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {(["all", "on_board", "off_board", "at_lab", "sold"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                data-testid={`button-filter-${s}`}
-                className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  statusFilter === s
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {s === "all" ? "All" : s === "on_board" ? "On Board" : s === "off_board" ? "Off Board" : s === "at_lab" ? "At Lab" : "Sold"}
-              </button>
-            ))}
+            {(["all", "on_board", "off_board", "at_lab", "sold"] as const).map(
+              (s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  data-testid={`button-filter-${s}`}
+                  className={`text-sm px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    statusFilter === s
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {s === "all"
+                    ? "All"
+                    : s === "on_board"
+                      ? "On Board"
+                      : s === "off_board"
+                        ? "Off Board"
+                        : s === "at_lab"
+                          ? "At Lab"
+                          : "Sold"}
+                </button>
+              ),
+            )}
           </div>
         </div>
 
         {/* Brand + Manufacturer dropdowns */}
         <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-          <Select value={manufacturerFilter} onValueChange={handleManufacturerFilterChange}>
-            <SelectTrigger className="w-48 h-9 text-sm" data-testid="select-filter-manufacturer">
+          <Select
+            value={manufacturerFilter}
+            onValueChange={handleManufacturerFilterChange}
+          >
+            <SelectTrigger
+              className="w-48 h-9 text-sm"
+              data-testid="select-filter-manufacturer"
+            >
               <SelectValue placeholder="All Manufacturers" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Manufacturers</SelectItem>
               {uniqueManufacturers.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
+                <SelectItem key={m} value={m}>
+                  {m}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={brandFilter} onValueChange={setBrandFilter}>
-            <SelectTrigger className="w-44 h-9 text-sm" data-testid="select-filter-brand">
+            <SelectTrigger
+              className="w-44 h-9 text-sm"
+              data-testid="select-filter-brand"
+            >
               <SelectValue placeholder="All Brands" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Brands</SelectItem>
               {filteredBrandOptions.map((b) => (
-                <SelectItem key={b} value={b}>{b}</SelectItem>
+                <SelectItem key={b} value={b}>
+                  {b}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -2465,7 +3146,9 @@ export default function Inventory() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-3">
-              {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
@@ -2477,7 +3160,11 @@ export default function Inventory() {
                   : "Add your first frame to get started"}
               </p>
               {!hasActiveFilters && (
-                <Button className="mt-4" onClick={openAdd} data-testid="button-add-first-frame">
+                <Button
+                  className="mt-4"
+                  onClick={openAdd}
+                  data-testid="button-add-first-frame"
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Add Frame
                 </Button>
@@ -2515,13 +3202,17 @@ export default function Inventory() {
                         ref={isHighlighted ? highlightedRowRef : null}
                         data-testid={`row-frame-${frame.id}`}
                         className={`border-b border-card-border/60 last:border-0 transition-colors duration-500 ${
-                          isHighlighted ? "bg-primary/10 dark:bg-primary/15" : ""
+                          isHighlighted
+                            ? "bg-primary/10 dark:bg-primary/15"
+                            : ""
                         }`}
                       >
                         <TableCell className="pl-6 py-3.5">
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <p className="font-semibold text-foreground text-sm">{frame.brand}</p>
+                              <p className="font-semibold text-foreground text-sm">
+                                {frame.brand}
+                              </p>
                               {activeHoldFrameIds.has(frame.id) && (
                                 <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 flex-shrink-0">
                                   <Clock className="w-2.5 h-2.5" />
@@ -2529,7 +3220,9 @@ export default function Inventory() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">{frame.model}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {frame.model}
+                            </p>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground py-3.5">
@@ -2540,9 +3233,13 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell className="text-sm py-3.5">
                           {frame.code ? (
-                            <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded text-foreground">{frame.code}</span>
+                            <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded text-foreground">
+                              {frame.code}
+                            </span>
                           ) : (
-                            <span className="text-muted-foreground/40 text-xs italic">—</span>
+                            <span className="text-muted-foreground/40 text-xs italic">
+                              —
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="text-center py-3.5">
@@ -2556,7 +3253,9 @@ export default function Inventory() {
                               {frame.barcode}
                             </span>
                           ) : (
-                            <span className="text-xs text-muted-foreground/40 italic">—</span>
+                            <span className="text-xs text-muted-foreground/40 italic">
+                              —
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="text-right text-sm py-3.5">
@@ -2569,13 +3268,27 @@ export default function Inventory() {
                         </TableCell>
                         <TableCell className="text-right text-sm py-3.5">
                           <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            ${(parseFloat(frame.retailPrice as string) - parseFloat(frame.cost as string)).toFixed(2)}
+                            $
+                            {(
+                              parseFloat(frame.retailPrice as string) -
+                              parseFloat(frame.cost as string)
+                            ).toFixed(2)}
                           </span>
                         </TableCell>
                         <TableCell className="text-center py-3.5">
                           <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-sm font-semibold text-foreground" data-testid={`text-qty-${frame.id}`}>{frame.quantity ?? 1}</span>
-                            <span className="text-xs text-muted-foreground" data-testid={`text-sold-${frame.id}`}>{frame.soldCount ?? 0} sold</span>
+                            <span
+                              className="text-sm font-semibold text-foreground"
+                              data-testid={`text-qty-${frame.id}`}
+                            >
+                              {frame.quantity ?? 1}
+                            </span>
+                            <span
+                              className="text-xs text-muted-foreground"
+                              data-testid={`text-sold-${frame.id}`}
+                            >
+                              {frame.soldCount ?? 0} sold
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell className="py-3.5">
@@ -2631,16 +3344,22 @@ export default function Inventory() {
         onClose={() => setImportDialogOpen(false)}
       />
 
-      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(v) => !v && setDeleteId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Frame</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove this frame from your inventory. This action cannot be undone.
+              This will permanently remove this frame from your inventory. This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteId && deleteMutation.mutate(deleteId)}
               className="bg-destructive text-destructive-foreground"

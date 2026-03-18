@@ -7,22 +7,31 @@ import multer from "multer";
 import { storage } from "./storage";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import { insertFrameSchema, insertWeeklyMetricSchema, insertClinicSchema, insertLabOrderSchema } from "@shared/schema";
+import {
+  insertFrameSchema,
+  insertWeeklyMetricSchema,
+  insertClinicSchema,
+  insertLabOrderSchema,
+} from "@shared/schema";
 import { requireAuth, requireAdmin } from "./auth";
 import { sendLabFollowUpEmail } from "./email";
-import { parseInvoiceFromImage, parseInvoiceFromPdf, parseInvoiceFromSpreadsheet } from "./invoiceParser";
+import {
+  parseInvoiceFromImage,
+  parseInvoiceFromPdf,
+  parseInvoiceFromSpreadsheet,
+} from "./invoiceParser";
 import { z } from "zod";
 import type { User, Clinic } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Express,
 ): Promise<Server> {
-
   // ─── Auth Routes ──────────────────────────────────────────────────────────
 
   app.get("/api/auth/me", async (req, res) => {
-    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.isAuthenticated())
+      return res.status(401).json({ message: "Not authenticated" });
     const user = req.user as User;
     let clinic: Clinic | undefined;
     if (user.clinicId) {
@@ -47,19 +56,33 @@ export async function registerRoutes(
   app.post("/api/auth/setup", async (req, res) => {
     try {
       const count = await storage.countUsers();
-      if (count > 0) return res.status(400).json({ message: "Setup already complete" });
+      if (count > 0)
+        return res.status(400).json({ message: "Setup already complete" });
 
       const { username, email, password } = req.body;
       if (!username || !email || !password) {
-        return res.status(400).json({ message: "Username, email, and password are required" });
+        return res
+          .status(400)
+          .json({ message: "Username, email, and password are required" });
       }
 
       const hashed = await bcrypt.hash(password, 12);
-      const user = await storage.createUser({ username, email, password: hashed, role: "admin" });
+      const user = await storage.createUser({
+        username,
+        email,
+        password: hashed,
+        role: "admin",
+      });
 
       req.login(user, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed after setup" });
-        res.json({ id: user.id, username: user.username, email: user.email, role: user.role });
+        if (err)
+          return res.status(500).json({ message: "Login failed after setup" });
+        res.json({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        });
       });
     } catch {
       res.status(500).json({ message: "Setup failed" });
@@ -67,20 +90,31 @@ export async function registerRoutes(
   });
 
   app.post("/api/auth/login", (req, res, next) => {
-    passport.authenticate("local", (err: any, user: User | false, info: any) => {
-      if (err) return next(err);
-      if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
+    passport.authenticate(
+      "local",
+      (err: any, user: User | false, info: any) => {
+        if (err) return next(err);
+        if (!user)
+          return res
+            .status(401)
+            .json({ message: info?.message || "Invalid credentials" });
 
-      req.login(user, async (loginErr) => {
-        if (loginErr) return next(loginErr);
-        const setting = await storage.getSetting("sessionExpirationDays");
-        const days = setting ? Math.max(1, parseInt(setting)) : 7;
-        const maxAge = days * 24 * 60 * 60 * 1000;
-        req.session.expiresAt = Date.now() + maxAge;
-        req.session.cookie.maxAge = maxAge;
-        res.json({ id: user.id, username: user.username, email: user.email, role: user.role });
-      });
-    })(req, res, next);
+        req.login(user, async (loginErr) => {
+          if (loginErr) return next(loginErr);
+          const setting = await storage.getSetting("sessionExpirationDays");
+          const days = setting ? Math.max(1, parseInt(setting)) : 7;
+          const maxAge = days * 24 * 60 * 60 * 1000;
+          req.session.expiresAt = Date.now() + maxAge;
+          req.session.cookie.maxAge = maxAge;
+          res.json({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            role: user.role,
+          });
+        });
+      },
+    )(req, res, next);
   });
 
   app.post("/api/auth/logout", (req, res) => {
@@ -92,10 +126,13 @@ export async function registerRoutes(
   app.patch("/api/auth/account", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const { currentPassword, newEmail, newPassword, confirmNewPassword } = req.body;
+      const { currentPassword, newEmail, newPassword, confirmNewPassword } =
+        req.body;
 
       if (!currentPassword) {
-        return res.status(400).json({ message: "Current password is required" });
+        return res
+          .status(400)
+          .json({ message: "Current password is required" });
       }
 
       const fullUser = await storage.getUser(user.id);
@@ -103,7 +140,9 @@ export async function registerRoutes(
 
       const valid = await bcrypt.compare(currentPassword, fullUser.password);
       if (!valid) {
-        return res.status(401).json({ message: "Current password is incorrect" });
+        return res
+          .status(401)
+          .json({ message: "Current password is incorrect" });
       }
 
       if (!newEmail && !newPassword) {
@@ -119,7 +158,9 @@ export async function registerRoutes(
       if (newEmail && newEmail !== fullUser.email) {
         const existing = await storage.getUserByEmail(newEmail);
         if (existing) {
-          return res.status(409).json({ message: "That email address is already in use" });
+          return res
+            .status(409)
+            .json({ message: "That email address is already in use" });
         }
         updates.email = newEmail;
       }
@@ -133,21 +174,30 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateUser(user.id, updates);
-      if (!updated) return res.status(500).json({ message: "Failed to update account" });
+      if (!updated)
+        return res.status(500).json({ message: "Failed to update account" });
 
       await new Promise<void>((resolve, reject) => {
         req.login(updated, (err) => (err ? reject(err) : resolve()));
       });
 
-      res.json({ id: updated.id, username: updated.username, email: updated.email, role: updated.role });
+      res.json({
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        role: updated.role,
+      });
     } catch (e: any) {
-      res.status(500).json({ message: e.message || "Failed to update account" });
+      res
+        .status(500)
+        .json({ message: e.message || "Failed to update account" });
     }
   });
 
   app.get("/api/auth/invite/:token", async (req, res) => {
     const user = await storage.getUserByInviteToken(req.params.token);
-    if (!user) return res.status(404).json({ message: "Invalid or expired invite" });
+    if (!user)
+      return res.status(404).json({ message: "Invalid or expired invite" });
     if (user.inviteExpiry && new Date() > user.inviteExpiry) {
       return res.status(410).json({ message: "Invite link has expired" });
     }
@@ -158,11 +208,14 @@ export async function registerRoutes(
     try {
       const { token, username, password } = req.body;
       if (!token || !username || !password) {
-        return res.status(400).json({ message: "Token, username, and password are required" });
+        return res
+          .status(400)
+          .json({ message: "Token, username, and password are required" });
       }
 
       const user = await storage.getUserByInviteToken(token);
-      if (!user) return res.status(404).json({ message: "Invalid or expired invite" });
+      if (!user)
+        return res.status(404).json({ message: "Invalid or expired invite" });
       if (user.inviteExpiry && new Date() > user.inviteExpiry) {
         return res.status(410).json({ message: "Invite link has expired" });
       }
@@ -176,11 +229,20 @@ export async function registerRoutes(
         inviteExpiry: null as any,
       });
 
-      if (!updated) return res.status(500).json({ message: "Failed to activate account" });
+      if (!updated)
+        return res.status(500).json({ message: "Failed to activate account" });
 
       req.login(updated, (err) => {
-        if (err) return res.status(500).json({ message: "Login failed after accepting invite" });
-        res.json({ id: updated.id, username: updated.username, email: updated.email, role: updated.role });
+        if (err)
+          return res
+            .status(500)
+            .json({ message: "Login failed after accepting invite" });
+        res.json({
+          id: updated.id,
+          username: updated.username,
+          email: updated.email,
+          role: updated.role,
+        });
       });
     } catch {
       res.status(500).json({ message: "Failed to accept invite" });
@@ -191,25 +253,32 @@ export async function registerRoutes(
 
   app.get("/api/users", requireAdmin, async (_req, res) => {
     const allUsers = await storage.getUsers();
-    res.json(allUsers.map(u => ({
-      id: u.id,
-      username: u.username,
-      email: u.email,
-      role: u.role,
-      isActive: u.isActive,
-      createdAt: u.createdAt,
-      hasInvitePending: !!u.inviteToken,
-    })));
+    res.json(
+      allUsers.map((u) => ({
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive,
+        createdAt: u.createdAt,
+        hasInvitePending: !!u.inviteToken,
+      })),
+    );
   });
 
   app.post("/api/users/invite", requireAdmin, async (req, res) => {
     try {
       const { email, role } = req.body;
-      if (!email || !role) return res.status(400).json({ message: "Email and role are required" });
-      if (!["admin", "optician", "staff"].includes(role)) return res.status(400).json({ message: "Invalid role" });
+      if (!email || !role)
+        return res.status(400).json({ message: "Email and role are required" });
+      if (!["admin", "optician", "staff"].includes(role))
+        return res.status(400).json({ message: "Invalid role" });
 
       const existing = await storage.getUserByEmail(email);
-      if (existing) return res.status(409).json({ message: "A user with this email already exists" });
+      if (existing)
+        return res
+          .status(409)
+          .json({ message: "A user with this email already exists" });
 
       const token = crypto.randomBytes(32).toString("hex");
       const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -226,7 +295,10 @@ export async function registerRoutes(
         isActive: false,
       });
 
-      await storage.updateUser(user.id, { inviteToken: token, inviteExpiry: expiry });
+      await storage.updateUser(user.id, {
+        inviteToken: token,
+        inviteExpiry: expiry,
+      });
 
       const inviteUrl = `${req.protocol}://${req.get("host")}/invite?token=${token}`;
 
@@ -262,9 +334,18 @@ export async function registerRoutes(
       if (role !== undefined) updates.role = role;
       if (isActive !== undefined) updates.isActive = isActive;
 
-      const updated = await storage.updateUser(req.params.id as string, updates);
+      const updated = await storage.updateUser(
+        req.params.id as string,
+        updates,
+      );
       if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ id: updated.id, username: updated.username, email: updated.email, role: updated.role, isActive: updated.isActive });
+      res.json({
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        role: updated.role,
+        isActive: updated.isActive,
+      });
     } catch {
       res.status(500).json({ message: "Failed to update user" });
     }
@@ -273,8 +354,10 @@ export async function registerRoutes(
   app.delete("/api/users/:id", requireAdmin, async (req, res) => {
     try {
       const currentUser = req.user as User;
-      if (req.params.id as string === currentUser.id) {
-        return res.status(400).json({ message: "You cannot delete your own account" });
+      if ((req.params.id as string) === currentUser.id) {
+        return res
+          .status(400)
+          .json({ message: "You cannot delete your own account" });
       }
       const deleted = await storage.deleteUser(req.params.id as string);
       if (!deleted) return res.status(404).json({ message: "User not found" });
@@ -306,22 +389,29 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/frames/recalculate-prices", requireAdmin, async (_req, res) => {
-    try {
-      const multiplierStr = await storage.getSetting("defaultMultiplier");
-      const multiplier = multiplierStr && !isNaN(Number(multiplierStr)) && Number(multiplierStr) > 0
-        ? Number(multiplierStr)
-        : 3;
-      await db.execute(sql`
+  app.post(
+    "/api/frames/recalculate-prices",
+    requireAdmin,
+    async (_req, res) => {
+      try {
+        const multiplierStr = await storage.getSetting("defaultMultiplier");
+        const multiplier =
+          multiplierStr &&
+          !isNaN(Number(multiplierStr)) &&
+          Number(multiplierStr) > 0
+            ? Number(multiplierStr)
+            : 3;
+        await db.execute(sql`
         UPDATE frames
         SET retail_price = ROUND(cost::numeric * ${multiplier})
         WHERE cost IS NOT NULL AND cost::numeric > 0
       `);
-      res.json({ success: true, multiplier });
-    } catch {
-      res.status(500).json({ message: "Failed to recalculate prices" });
-    }
-  });
+        res.json({ success: true, multiplier });
+      } catch {
+        res.status(500).json({ message: "Failed to recalculate prices" });
+      }
+    },
+  );
 
   // ─── Clinics ───────────────────────────────────────────────────────────────
 
@@ -333,7 +423,8 @@ export async function registerRoutes(
   app.post("/api/clinics", requireAdmin, async (req, res) => {
     try {
       const parsed = insertClinicSchema.safeParse(req.body);
-      if (!parsed.success) return res.status(400).json({ message: "Invalid clinic data" });
+      if (!parsed.success)
+        return res.status(400).json({ message: "Invalid clinic data" });
       const clinic = await storage.createClinic(parsed.data);
       res.status(201).json(clinic);
     } catch {
@@ -351,7 +442,8 @@ export async function registerRoutes(
       if (state !== undefined) updates.state = state || null;
       if (zip !== undefined) updates.zip = zip || null;
       const updated = await storage.updateClinic(req.params.id, updates as any);
-      if (!updated) return res.status(404).json({ message: "Clinic not found" });
+      if (!updated)
+        return res.status(404).json({ message: "Clinic not found" });
       res.json(updated);
     } catch {
       res.status(500).json({ message: "Failed to update clinic" });
@@ -361,7 +453,8 @@ export async function registerRoutes(
   app.delete("/api/clinics/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteClinic(req.params.id);
-      if (!deleted) return res.status(404).json({ message: "Clinic not found" });
+      if (!deleted)
+        return res.status(404).json({ message: "Clinic not found" });
       res.json({ message: "Clinic deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete clinic" });
@@ -371,9 +464,15 @@ export async function registerRoutes(
   app.patch("/api/users/:id/clinic", requireAdmin, async (req, res) => {
     try {
       const { clinicId } = req.body;
-      const updated = await storage.updateUser(req.params.id, { clinicId: clinicId ?? null });
+      const updated = await storage.updateUser(req.params.id, {
+        clinicId: clinicId ?? null,
+      });
       if (!updated) return res.status(404).json({ message: "User not found" });
-      res.json({ id: updated.id, username: updated.username, clinicId: updated.clinicId });
+      res.json({
+        id: updated.id,
+        username: updated.username,
+        clinicId: updated.clinicId,
+      });
     } catch {
       res.status(500).json({ message: "Failed to update user clinic" });
     }
@@ -390,9 +489,14 @@ export async function registerRoutes(
   app.post("/api/labs", requireAdmin, async (req, res) => {
     try {
       const { name, account } = req.body;
-      if (!name) return res.status(400).json({ message: "Lab name is required" });
+      if (!name)
+        return res.status(400).json({ message: "Lab name is required" });
       const user = req.user as User;
-      const lab = await storage.createLab({ name, account: account || "", clinicId: user.clinicId ?? null });
+      const lab = await storage.createLab({
+        name,
+        account: account || "",
+        clinicId: user.clinicId ?? null,
+      });
       res.status(201).json(lab);
     } catch {
       res.status(500).json({ message: "Failed to create lab" });
@@ -402,7 +506,10 @@ export async function registerRoutes(
   app.patch("/api/labs/:id", requireAdmin, async (req, res) => {
     try {
       const { name, account } = req.body;
-      const updated = await storage.updateLab(req.params.id as string, { name, account });
+      const updated = await storage.updateLab(req.params.id as string, {
+        name,
+        account,
+      });
       if (!updated) return res.status(404).json({ message: "Lab not found" });
       res.json(updated);
     } catch {
@@ -430,7 +537,10 @@ export async function registerRoutes(
   app.post("/api/manufacturers", requireAdmin, async (req, res) => {
     try {
       const { name } = req.body;
-      if (!name) return res.status(400).json({ message: "Manufacturer name is required" });
+      if (!name)
+        return res
+          .status(400)
+          .json({ message: "Manufacturer name is required" });
       const mfg = await storage.createManufacturer({ name });
       res.status(201).json(mfg);
     } catch {
@@ -440,8 +550,12 @@ export async function registerRoutes(
 
   app.patch("/api/manufacturers/:id", requireAdmin, async (req, res) => {
     try {
-      const updated = await storage.updateManufacturer(req.params.id as string, { name: req.body.name });
-      if (!updated) return res.status(404).json({ message: "Manufacturer not found" });
+      const updated = await storage.updateManufacturer(
+        req.params.id as string,
+        { name: req.body.name },
+      );
+      if (!updated)
+        return res.status(404).json({ message: "Manufacturer not found" });
       res.json(updated);
     } catch {
       res.status(500).json({ message: "Failed to update manufacturer" });
@@ -451,7 +565,8 @@ export async function registerRoutes(
   app.delete("/api/manufacturers/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteManufacturer(req.params.id as string);
-      if (!deleted) return res.status(404).json({ message: "Manufacturer not found" });
+      if (!deleted)
+        return res.status(404).json({ message: "Manufacturer not found" });
       res.json({ message: "Manufacturer deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete manufacturer" });
@@ -468,8 +583,12 @@ export async function registerRoutes(
   app.post("/api/manufacturers/:id/brands", requireAdmin, async (req, res) => {
     try {
       const { name } = req.body;
-      if (!name) return res.status(400).json({ message: "Brand name is required" });
-      const brand = await storage.createBrand({ manufacturerId: req.params.id as string, name });
+      if (!name)
+        return res.status(400).json({ message: "Brand name is required" });
+      const brand = await storage.createBrand({
+        manufacturerId: req.params.id as string,
+        name,
+      });
       res.status(201).json(brand);
     } catch {
       res.status(500).json({ message: "Failed to create brand" });
@@ -478,7 +597,9 @@ export async function registerRoutes(
 
   app.patch("/api/brands/:id", requireAdmin, async (req, res) => {
     try {
-      const updated = await storage.updateBrand(req.params.id as string, { name: req.body.name });
+      const updated = await storage.updateBrand(req.params.id as string, {
+        name: req.body.name,
+      });
       if (!updated) return res.status(404).json({ message: "Brand not found" });
       res.json(updated);
     } catch {
@@ -501,12 +622,17 @@ export async function registerRoutes(
   app.post("/api/reminders/check", requireAdmin, async (req, res) => {
     try {
       const reminderEmail = await storage.getSetting("reminderEmail");
-      const emailFrom = await storage.getSetting("emailFrom") || reminderEmail;
+      const emailFrom =
+        (await storage.getSetting("emailFrom")) || reminderEmail;
       const reminderDaysStr = await storage.getSetting("labReminderDays");
       const reminderDays = reminderDaysStr ? parseInt(reminderDaysStr) : 14;
 
       if (!reminderEmail || !emailFrom) {
-        return res.json({ sent: 0, skipped: 0, reason: "No reminder email configured in Settings" });
+        return res.json({
+          sent: 0,
+          skipped: 0,
+          reason: "No reminder email configured in Settings",
+        });
       }
 
       const adminUser = req.user as User;
@@ -520,7 +646,9 @@ export async function registerRoutes(
         if (frame.status !== "at_lab" || !frame.dateSentToLab) continue;
 
         const dateSent = new Date(frame.dateSentToLab);
-        const daysAtLab = Math.floor((today.getTime() - dateSent.getTime()) / (1000 * 60 * 60 * 24));
+        const daysAtLab = Math.floor(
+          (today.getTime() - dateSent.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
         if (daysAtLab >= reminderDays) {
           const result = await sendLabFollowUpEmail({
@@ -539,7 +667,11 @@ export async function registerRoutes(
           } else {
             skipped++;
           }
-          results.push({ frame: `${frame.brand} ${frame.model}`, daysAtLab, ...result });
+          results.push({
+            frame: `${frame.brand} ${frame.model}`,
+            daysAtLab,
+            ...result,
+          });
         }
       }
 
@@ -554,7 +686,7 @@ export async function registerRoutes(
   app.get("/api/frames", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const allFrames = await storage.getFrames(user.clinicId);
+      const allFrames = await storage.getFrames(null);
       res.json(allFrames);
     } catch {
       res.status(500).json({ message: "Failed to fetch frames" });
@@ -574,9 +706,14 @@ export async function registerRoutes(
   app.post("/api/frames", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const parsed = insertFrameSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
+      const parsed = insertFrameSchema.safeParse({
+        ...req.body,
+        clinicId: user.clinicId ?? null,
+      });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
       const duplicate = await storage.findDuplicateFrame({
         barcode: parsed.data.barcode,
@@ -590,9 +727,11 @@ export async function registerRoutes(
       });
       if (duplicate) {
         const addQty = parsed.data.quantity ?? 1;
-        const manufacturerUpdate = parsed.data.manufacturer && parsed.data.manufacturer !== duplicate.manufacturer
-          ? { manufacturer: parsed.data.manufacturer }
-          : {};
+        const manufacturerUpdate =
+          parsed.data.manufacturer &&
+          parsed.data.manufacturer !== duplicate.manufacturer
+            ? { manufacturer: parsed.data.manufacturer }
+            : {};
         const updated = await storage.updateFrame(duplicate.id, {
           quantity: (duplicate.quantity ?? 1) + addQty,
           reorderCount: (duplicate.reorderCount ?? 0) + 1,
@@ -612,13 +751,23 @@ export async function registerRoutes(
       const user = req.user as User;
       const { existingFrameId, newFrame } = req.body;
       if (!existingFrameId || !newFrame) {
-        return res.status(400).json({ message: "existingFrameId and newFrame are required" });
+        return res
+          .status(400)
+          .json({ message: "existingFrameId and newFrame are required" });
       }
-      const parsed = insertFrameSchema.safeParse({ ...newFrame, clinicId: user.clinicId ?? null });
+      const parsed = insertFrameSchema.safeParse({
+        ...newFrame,
+        clinicId: user.clinicId ?? null,
+      });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
-      const frame = await storage.replaceFrame(existingFrameId as string, parsed.data);
+      const frame = await storage.replaceFrame(
+        existingFrameId as string,
+        parsed.data,
+      );
       res.status(201).json(frame);
     } catch {
       res.status(500).json({ message: "Failed to replace frame" });
@@ -629,7 +778,9 @@ export async function registerRoutes(
     try {
       const parsed = insertFrameSchema.partial().safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid frame data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid frame data", errors: parsed.error.errors });
       }
       const updates = { ...parsed.data };
       if (updates.status === "sold" && !updates.dateSold) {
@@ -649,7 +800,8 @@ export async function registerRoutes(
       const frame = await storage.reorderFrame(req.params.id as string, qty);
       res.json(frame);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to reorder frame";
+      const msg =
+        err instanceof Error ? err.message : "Failed to reorder frame";
       res.status(500).json({ message: msg });
     }
   });
@@ -659,7 +811,10 @@ export async function registerRoutes(
       const frame = await storage.backOnBoard(req.params.id as string);
       res.json(frame);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to mark frame back on board";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to mark frame back on board";
       res.status(500).json({ message: msg });
     }
   });
@@ -687,9 +842,14 @@ export async function registerRoutes(
   app.post("/api/weekly-metrics", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const parsed = insertWeeklyMetricSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
+      const parsed = insertWeeklyMetricSchema.safeParse({
+        ...req.body,
+        clinicId: user.clinicId ?? null,
+      });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({ message: "Invalid data", errors: parsed.error.errors });
       }
       const metric = await storage.createWeeklyMetric(parsed.data);
       res.status(201).json(metric);
@@ -700,14 +860,25 @@ export async function registerRoutes(
 
   app.patch("/api/weekly-metrics/:id", requireAuth, async (req, res) => {
     try {
-      const { weekStarting, totalComprehensiveExams, followUps, totalOpticalOrders, dailyData } = req.body;
-      const updated = await storage.updateWeeklyMetric(req.params.id as string, {
-        ...(weekStarting !== undefined && { weekStarting }),
-        ...(totalComprehensiveExams !== undefined && { totalComprehensiveExams }),
-        ...(followUps !== undefined && { followUps }),
-        ...(totalOpticalOrders !== undefined && { totalOpticalOrders }),
-        ...(dailyData !== undefined && { dailyData }),
-      });
+      const {
+        weekStarting,
+        totalComprehensiveExams,
+        followUps,
+        totalOpticalOrders,
+        dailyData,
+      } = req.body;
+      const updated = await storage.updateWeeklyMetric(
+        req.params.id as string,
+        {
+          ...(weekStarting !== undefined && { weekStarting }),
+          ...(totalComprehensiveExams !== undefined && {
+            totalComprehensiveExams,
+          }),
+          ...(followUps !== undefined && { followUps }),
+          ...(totalOpticalOrders !== undefined && { totalOpticalOrders }),
+          ...(dailyData !== undefined && { dailyData }),
+        },
+      );
       if (!updated) return res.status(404).json({ message: "Not found" });
       res.json(updated);
     } catch {
@@ -740,20 +911,34 @@ export async function registerRoutes(
   app.post("/api/lab-orders", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const parsed = insertLabOrderSchema.safeParse({ ...req.body, clinicId: user.clinicId ?? null });
+      const parsed = insertLabOrderSchema.safeParse({
+        ...req.body,
+        clinicId: user.clinicId ?? null,
+      });
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({
+            message: "Invalid lab order data",
+            errors: parsed.error.errors,
+          });
       }
 
       let finalFrameId = parsed.data.frameId ?? null;
 
       // Auto-create inventory record when frame exists physically but was never entered
-      if (req.body.autoCreateFrame && !parsed.data.patientOwnFrame && !finalFrameId) {
+      if (
+        req.body.autoCreateFrame &&
+        !parsed.data.patientOwnFrame &&
+        !finalFrameId
+      ) {
         const multiplierStr = await storage.getSetting("defaultMultiplier");
         const multiplier = parseFloat(multiplierStr || "3") || 3;
         const eyeSize = req.body.eyeSize ? Number(req.body.eyeSize) : 52;
         const bridge = req.body.bridge ? Number(req.body.bridge) : 18;
-        const templeLength = req.body.templeLength ? Number(req.body.templeLength) : 145;
+        const templeLength = req.body.templeLength
+          ? Number(req.body.templeLength)
+          : 145;
         const cost = req.body.cost ? Number(req.body.cost) : 0;
         const retailPrice = Math.round(cost * multiplier);
 
@@ -785,7 +970,7 @@ export async function registerRoutes(
                 AND LOWER(TRIM(frame_model))  = LOWER(TRIM(${parsed.data.frameModel}))
                 AND LOWER(TRIM(frame_color))  = LOWER(TRIM(${parsed.data.frameColor}))
                 AND frame_id IS NULL
-                AND patient_own_frame = false`
+                AND patient_own_frame = false`,
         );
       }
 
@@ -793,7 +978,11 @@ export async function registerRoutes(
       const order = await storage.createLabOrder(orderData);
 
       // Adjust existing inventory frame (only for pre-existing frames, not auto-created ones)
-      if (!orderData.patientOwnFrame && finalFrameId && !req.body.autoCreateFrame) {
+      if (
+        !orderData.patientOwnFrame &&
+        finalFrameId &&
+        !req.body.autoCreateFrame
+      ) {
         await storage.adjustFrameInventory(finalFrameId, -1, 1);
       }
 
@@ -828,11 +1017,24 @@ export async function registerRoutes(
     try {
       const parsed = updateLabOrderSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Invalid lab order data", errors: parsed.error.errors });
+        return res
+          .status(400)
+          .json({
+            message: "Invalid lab order data",
+            errors: parsed.error.errors,
+          });
       }
-      const order = await storage.updateLabOrder(req.params.id as string, parsed.data);
-      if (!order) return res.status(404).json({ message: "Lab order not found" });
-      if (parsed.data.status === "received" && !order.patientOwnFrame && order.frameId) {
+      const order = await storage.updateLabOrder(
+        req.params.id as string,
+        parsed.data,
+      );
+      if (!order)
+        return res.status(404).json({ message: "Lab order not found" });
+      if (
+        parsed.data.status === "received" &&
+        !order.patientOwnFrame &&
+        order.frameId
+      ) {
         if (!order.frameSold) {
           await storage.markLabOrderFrameSold(order.id);
         }
@@ -850,7 +1052,8 @@ export async function registerRoutes(
       await storage.markLabOrderFrameSold(req.params.id as string);
       res.json({ message: "Frame marked as sold" });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to mark frame as sold";
+      const msg =
+        err instanceof Error ? err.message : "Failed to mark frame as sold";
       const status = msg === "Frame already marked as sold" ? 409 : 500;
       res.status(status).json({ message: msg });
     }
@@ -859,7 +1062,8 @@ export async function registerRoutes(
   app.delete("/api/lab-orders/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteLabOrder(req.params.id as string);
-      if (!deleted) return res.status(404).json({ message: "Lab order not found" });
+      if (!deleted)
+        return res.status(404).json({ message: "Lab order not found" });
       res.json({ message: "Deleted" });
     } catch {
       res.status(500).json({ message: "Failed to delete lab order" });
@@ -871,64 +1075,100 @@ export async function registerRoutes(
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       const allowedMimes = [
-        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/webp",
+        "image/gif",
         "application/pdf",
-        "text/csv", "application/csv", "application/octet-stream",
+        "text/csv",
+        "application/csv",
+        "application/octet-stream",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       ];
       const ext = file.originalname.split(".").pop()?.toLowerCase();
-      const allowedExts = ["jpg", "jpeg", "png", "webp", "gif", "pdf", "csv", "xls", "xlsx"];
-      if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext ?? "")) {
+      const allowedExts = [
+        "jpg",
+        "jpeg",
+        "png",
+        "webp",
+        "gif",
+        "pdf",
+        "csv",
+        "xls",
+        "xlsx",
+      ];
+      if (
+        allowedMimes.includes(file.mimetype) ||
+        allowedExts.includes(ext ?? "")
+      ) {
         cb(null, true);
       } else {
-        cb(new Error("Only PDF, image (JPEG, PNG, WebP), and spreadsheet (CSV, XLS, XLSX) files are supported."));
+        cb(
+          new Error(
+            "Only PDF, image (JPEG, PNG, WebP), and spreadsheet (CSV, XLS, XLSX) files are supported.",
+          ),
+        );
       }
     },
   });
 
-  app.post("/api/invoice/parse", requireAuth, (req, res, next) => {
-    invoiceUpload.single("file")(req, res, (err) => {
-      if (err) {
-        return res.status(400).json({ message: err.message || "File upload failed." });
+  app.post(
+    "/api/invoice/parse",
+    requireAuth,
+    (req, res, next) => {
+      invoiceUpload.single("file")(req, res, (err) => {
+        if (err) {
+          return res
+            .status(400)
+            .json({ message: err.message || "File upload failed." });
+        }
+        next();
+      });
+    },
+    async (req, res) => {
+      try {
+        const file = req.file;
+        if (!file) return res.status(400).json({ message: "No file uploaded" });
+
+        const ext = file.originalname.split(".").pop()?.toLowerCase();
+        const isSpreadsheet =
+          ext === "csv" ||
+          ext === "xls" ||
+          ext === "xlsx" ||
+          file.mimetype === "text/csv" ||
+          file.mimetype === "application/csv" ||
+          file.mimetype === "application/vnd.ms-excel" ||
+          file.mimetype ===
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        let frames;
+        if (isSpreadsheet) {
+          frames = parseInvoiceFromSpreadsheet(file.buffer, file.mimetype);
+        } else if (file.mimetype === "application/pdf") {
+          frames = await parseInvoiceFromPdf(file.buffer);
+        } else {
+          const base64 = file.buffer.toString("base64");
+          frames = await parseInvoiceFromImage(base64, file.mimetype);
+        }
+
+        const MAX_FRAMES = 100;
+        const totalDetected = frames.length;
+        const truncated = totalDetected > MAX_FRAMES;
+        if (truncated) frames = frames.slice(0, MAX_FRAMES);
+
+        res.json({ frames, totalDetected, truncated });
+      } catch (err) {
+        console.error("[invoice/parse] Error:", err);
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Unable to detect frame data from this file format.";
+        res.status(500).json({ message: msg });
       }
-      next();
-    });
-  }, async (req, res) => {
-    try {
-      const file = req.file;
-      if (!file) return res.status(400).json({ message: "No file uploaded" });
-
-      const ext = file.originalname.split(".").pop()?.toLowerCase();
-      const isSpreadsheet =
-        ext === "csv" || ext === "xls" || ext === "xlsx" ||
-        file.mimetype === "text/csv" ||
-        file.mimetype === "application/csv" ||
-        file.mimetype === "application/vnd.ms-excel" ||
-        file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-      let frames;
-      if (isSpreadsheet) {
-        frames = parseInvoiceFromSpreadsheet(file.buffer, file.mimetype);
-      } else if (file.mimetype === "application/pdf") {
-        frames = await parseInvoiceFromPdf(file.buffer);
-      } else {
-        const base64 = file.buffer.toString("base64");
-        frames = await parseInvoiceFromImage(base64, file.mimetype);
-      }
-
-      const MAX_FRAMES = 100;
-      const totalDetected = frames.length;
-      const truncated = totalDetected > MAX_FRAMES;
-      if (truncated) frames = frames.slice(0, MAX_FRAMES);
-
-      res.json({ frames, totalDetected, truncated });
-    } catch (err) {
-      console.error("[invoice/parse] Error:", err);
-      const msg = err instanceof Error ? err.message : "Unable to detect frame data from this file format.";
-      res.status(500).json({ message: msg });
-    }
-  });
+    },
+  );
 
   // ─── Frame Holds ────────────────────────────────────────────────────────────
 
@@ -950,7 +1190,8 @@ export async function registerRoutes(
       const hold = await storage.createFrameHold(data);
       res.json(hold);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to create frame hold";
+      const msg =
+        err instanceof Error ? err.message : "Failed to create frame hold";
       res.status(500).json({ message: msg });
     }
   });
@@ -979,7 +1220,8 @@ export async function registerRoutes(
       const result = await storage.releaseFrameHold(req.params.id);
       res.json(result);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to release frame hold";
+      const msg =
+        err instanceof Error ? err.message : "Failed to release frame hold";
       res.status(500).json({ message: msg });
     }
   });
@@ -987,8 +1229,12 @@ export async function registerRoutes(
   app.post("/api/frame-holds/:id/extend", requireAuth, async (req, res) => {
     try {
       const { newExpirationDate } = req.body;
-      if (!newExpirationDate) return res.status(400).json({ message: "newExpirationDate required" });
-      const hold = await storage.extendFrameHold(req.params.id, newExpirationDate);
+      if (!newExpirationDate)
+        return res.status(400).json({ message: "newExpirationDate required" });
+      const hold = await storage.extendFrameHold(
+        req.params.id,
+        newExpirationDate,
+      );
       if (!hold) return res.status(404).json({ message: "Hold not found" });
       res.json(hold);
     } catch (err) {
@@ -996,40 +1242,47 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/frame-holds/:id/convert-to-lab-order", requireAuth, async (req, res) => {
-    try {
-      const clinicId = (req.user as any)?.clinicId ?? null;
-      const hold = await storage.getFrameHold(req.params.id);
-      if (!hold) return res.status(404).json({ message: "Hold not found" });
-      const labOrderData = {
-        clinicId,
-        frameId: hold.frameId ?? null,
-        frameBrand: hold.brand,
-        frameModel: hold.frameName,
-        frameColor: req.body.frameColor ?? "",
-        frameManufacturer: req.body.frameManufacturer ?? hold.brand,
-        visionPlan: req.body.visionPlan ?? null,
-        labName: req.body.labName ?? null,
-        labOrderNumber: req.body.labOrderNumber ?? null,
-        labAccountNumber: req.body.labAccountNumber ?? null,
-        trackingNumber: null,
-        dateSentToLab: req.body.dateSentToLab ?? null,
-        dateReceivedFromLab: null,
-        notes: req.body.notes ?? hold.notes ?? null,
-        status: "pending",
-        patientOwnFrame: false,
-        frameSold: false,
-        frameSoldAt: null,
-        customDueDate: null,
-      };
-      const labOrder = await storage.createLabOrder(labOrderData as any);
-      await storage.updateFrameHold(hold.id, { status: "released" });
-      res.json({ labOrder, hold: { ...hold, status: "released" } });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to convert hold to lab order";
-      res.status(500).json({ message: msg });
-    }
-  });
+  app.post(
+    "/api/frame-holds/:id/convert-to-lab-order",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const clinicId = (req.user as any)?.clinicId ?? null;
+        const hold = await storage.getFrameHold(req.params.id);
+        if (!hold) return res.status(404).json({ message: "Hold not found" });
+        const labOrderData = {
+          clinicId,
+          frameId: hold.frameId ?? null,
+          frameBrand: hold.brand,
+          frameModel: hold.frameName,
+          frameColor: req.body.frameColor ?? "",
+          frameManufacturer: req.body.frameManufacturer ?? hold.brand,
+          visionPlan: req.body.visionPlan ?? null,
+          labName: req.body.labName ?? null,
+          labOrderNumber: req.body.labOrderNumber ?? null,
+          labAccountNumber: req.body.labAccountNumber ?? null,
+          trackingNumber: null,
+          dateSentToLab: req.body.dateSentToLab ?? null,
+          dateReceivedFromLab: null,
+          notes: req.body.notes ?? hold.notes ?? null,
+          status: "pending",
+          patientOwnFrame: false,
+          frameSold: false,
+          frameSoldAt: null,
+          customDueDate: null,
+        };
+        const labOrder = await storage.createLabOrder(labOrderData as any);
+        await storage.updateFrameHold(hold.id, { status: "released" });
+        res.json({ labOrder, hold: { ...hold, status: "released" } });
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "Failed to convert hold to lab order";
+        res.status(500).json({ message: msg });
+      }
+    },
+  );
 
   return httpServer;
 }

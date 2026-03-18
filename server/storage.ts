@@ -1,29 +1,54 @@
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
-  frames, type Frame, type InsertFrame,
-  clinics, type Clinic, type InsertClinic,
-  users, type User, type InsertUser,
-  settings, type Setting,
-  labs, type Lab, type InsertLab,
-  manufacturers, type Manufacturer, type InsertManufacturer,
-  brands, type Brand, type InsertBrand,
-  weeklyMetrics, type WeeklyMetric, type InsertWeeklyMetric,
-  labOrders, type LabOrder, type InsertLabOrder,
-  frameHolds, type FrameHold, type InsertFrameHold,
+  frames,
+  type Frame,
+  type InsertFrame,
+  clinics,
+  type Clinic,
+  type InsertClinic,
+  users,
+  type User,
+  type InsertUser,
+  settings,
+  type Setting,
+  labs,
+  type Lab,
+  type InsertLab,
+  manufacturers,
+  type Manufacturer,
+  type InsertManufacturer,
+  brands,
+  type Brand,
+  type InsertBrand,
+  weeklyMetrics,
+  type WeeklyMetric,
+  type InsertWeeklyMetric,
+  labOrders,
+  type LabOrder,
+  type InsertLabOrder,
+  frameHolds,
+  type FrameHold,
+  type InsertFrameHold,
 } from "@shared/schema";
 
 export interface IStorage {
   getFrames(clinicId?: string | null): Promise<Frame[]>;
   getFrame(id: string): Promise<Frame | undefined>;
   createFrame(frame: InsertFrame): Promise<Frame>;
-  updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined>;
+  updateFrame(
+    id: string,
+    frame: Partial<InsertFrame>,
+  ): Promise<Frame | undefined>;
   deleteFrame(id: string): Promise<boolean>;
 
   getClinics(): Promise<Clinic[]>;
   getClinic(id: string): Promise<Clinic | undefined>;
   createClinic(data: InsertClinic): Promise<Clinic>;
-  updateClinic(id: string, data: Partial<InsertClinic>): Promise<Clinic | undefined>;
+  updateClinic(
+    id: string,
+    data: Partial<InsertClinic>,
+  ): Promise<Clinic | undefined>;
   deleteClinic(id: string): Promise<boolean>;
 
   getUser(id: string): Promise<User | undefined>;
@@ -31,8 +56,30 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByInviteToken(token: string): Promise<User | undefined>;
   getUsers(): Promise<User[]>;
-  createUser(data: { username: string; email: string; password: string; role: "admin" | "optician" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User>;
-  updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "clinicId" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined>;
+  createUser(data: {
+    username: string;
+    email: string;
+    password: string;
+    role: "admin" | "optician" | "staff";
+    clinicId?: string | null;
+    isActive?: boolean;
+  }): Promise<User>;
+  updateUser(
+    id: string,
+    data: Partial<
+      Pick<
+        User,
+        | "username"
+        | "email"
+        | "password"
+        | "role"
+        | "clinicId"
+        | "inviteToken"
+        | "inviteExpiry"
+        | "isActive"
+      >
+    >,
+  ): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
   countUsers(): Promise<number>;
 
@@ -43,7 +90,10 @@ export interface IStorage {
 
   getLabs(clinicId?: string | null): Promise<Lab[]>;
   getLab(id: string): Promise<Lab | undefined>;
-  getLabByName(name: string, clinicId?: string | null): Promise<Lab | undefined>;
+  getLabByName(
+    name: string,
+    clinicId?: string | null,
+  ): Promise<Lab | undefined>;
   createLab(data: InsertLab): Promise<Lab>;
   updateLab(id: string, data: Partial<InsertLab>): Promise<Lab | undefined>;
   deleteLab(id: string): Promise<boolean>;
@@ -52,32 +102,57 @@ export interface IStorage {
   getManufacturers(): Promise<Manufacturer[]>;
   getManufacturer(id: string): Promise<Manufacturer | undefined>;
   createManufacturer(data: InsertManufacturer): Promise<Manufacturer>;
-  updateManufacturer(id: string, data: Partial<InsertManufacturer>): Promise<Manufacturer | undefined>;
+  updateManufacturer(
+    id: string,
+    data: Partial<InsertManufacturer>,
+  ): Promise<Manufacturer | undefined>;
   deleteManufacturer(id: string): Promise<boolean>;
   manufacturersExist(): Promise<boolean>;
 
   getBrands(manufacturerId?: string): Promise<Brand[]>;
   getBrand(id: string): Promise<Brand | undefined>;
   createBrand(data: InsertBrand): Promise<Brand>;
-  updateBrand(id: string, data: Partial<InsertBrand>): Promise<Brand | undefined>;
+  updateBrand(
+    id: string,
+    data: Partial<InsertBrand>,
+  ): Promise<Brand | undefined>;
   deleteBrand(id: string): Promise<boolean>;
 
   getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]>;
   createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric>;
-  updateWeeklyMetric(id: string, data: Partial<InsertWeeklyMetric>): Promise<WeeklyMetric | undefined>;
+  updateWeeklyMetric(
+    id: string,
+    data: Partial<InsertWeeklyMetric>,
+  ): Promise<WeeklyMetric | undefined>;
   deleteWeeklyMetric(id: string): Promise<boolean>;
 
-  findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null>;
+  findDuplicateFrame(params: {
+    barcode?: string | null;
+    brand: string;
+    model: string;
+    color: string;
+    eyeSize: number;
+    bridge: number;
+    templeLength: number;
+    clinicId?: string | null;
+  }): Promise<Frame | null>;
   replaceFrame(oldFrameId: string, newFrameData: InsertFrame): Promise<Frame>;
 
   getLabOrders(clinicId?: string | null): Promise<LabOrder[]>;
   getLabOrder(id: string): Promise<LabOrder | undefined>;
   createLabOrder(data: InsertLabOrder): Promise<LabOrder>;
-  updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined>;
+  updateLabOrder(
+    id: string,
+    data: Partial<InsertLabOrder>,
+  ): Promise<LabOrder | undefined>;
   deleteLabOrder(id: string): Promise<boolean>;
   markLabOrderFrameSold(labOrderId: string): Promise<void>;
   updateFrameStatus(frameId: string, status: string): Promise<void>;
-  adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void>;
+  adjustFrameInventory(
+    frameId: string,
+    onBoardDelta: number,
+    offBoardDelta: number,
+  ): Promise<void>;
   reorderFrame(frameId: string, qty: number): Promise<Frame>;
   backOnBoard(frameId: string): Promise<Frame>;
   syncFrameSoldCount(frameId: string): Promise<void>;
@@ -88,17 +163,29 @@ export interface IStorage {
   getFrameHolds(clinicId?: string | null): Promise<FrameHold[]>;
   getFrameHold(id: string): Promise<FrameHold | undefined>;
   createFrameHold(data: InsertFrameHold): Promise<FrameHold>;
-  updateFrameHold(id: string, data: Partial<InsertFrameHold>): Promise<FrameHold | undefined>;
+  updateFrameHold(
+    id: string,
+    data: Partial<InsertFrameHold>,
+  ): Promise<FrameHold | undefined>;
   deleteFrameHold(id: string): Promise<boolean>;
-  releaseFrameHold(id: string): Promise<{ hold: FrameHold; frame: Frame | null }>;
-  extendFrameHold(id: string, newExpirationDate: string): Promise<FrameHold | undefined>;
+  releaseFrameHold(
+    id: string,
+  ): Promise<{ hold: FrameHold; frame: Frame | null }>;
+  extendFrameHold(
+    id: string,
+    newExpirationDate: string,
+  ): Promise<FrameHold | undefined>;
   autoExpireHolds(clinicId?: string | null): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
   async getFrames(clinicId?: string | null): Promise<Frame[]> {
     if (clinicId) {
-      return db.select().from(frames).where(eq(frames.clinicId, clinicId)).orderBy(frames.createdAt);
+      return db
+        .select()
+        .from(frames)
+        .where(eq(frames.clinicId, clinicId))
+        .orderBy(frames.createdAt);
     }
     return db.select().from(frames).orderBy(frames.createdAt);
   }
@@ -113,8 +200,15 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateFrame(id: string, frame: Partial<InsertFrame>): Promise<Frame | undefined> {
-    const [updated] = await db.update(frames).set(frame).where(eq(frames.id, id)).returning();
+  async updateFrame(
+    id: string,
+    frame: Partial<InsertFrame>,
+  ): Promise<Frame | undefined> {
+    const [updated] = await db
+      .update(frames)
+      .set(frame)
+      .where(eq(frames.id, id))
+      .returning();
     return updated;
   }
 
@@ -123,11 +217,23 @@ export class DbStorage implements IStorage {
     return result.length > 0;
   }
 
-  async findDuplicateFrame(params: { barcode?: string | null; brand: string; model: string; color: string; eyeSize: number; bridge: number; templeLength: number; clinicId?: string | null }): Promise<Frame | null> {
+  async findDuplicateFrame(params: {
+    barcode?: string | null;
+    brand: string;
+    model: string;
+    color: string;
+    eyeSize: number;
+    bridge: number;
+    templeLength: number;
+    clinicId?: string | null;
+  }): Promise<Frame | null> {
     if (params.barcode) {
       const conds = [eq(frames.barcode, params.barcode)];
       if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
-      const [frame] = await db.select().from(frames).where(and(...conds));
+      const [frame] = await db
+        .select()
+        .from(frames)
+        .where(and(...conds));
       return frame ?? null;
     }
     const conds = [
@@ -139,19 +245,28 @@ export class DbStorage implements IStorage {
       eq(frames.templeLength, params.templeLength),
     ];
     if (params.clinicId) conds.push(eq(frames.clinicId, params.clinicId));
-    const [frame] = await db.select().from(frames).where(and(...conds));
+    const [frame] = await db
+      .select()
+      .from(frames)
+      .where(and(...conds));
     return frame ?? null;
   }
 
-  async replaceFrame(oldFrameId: string, newFrameData: InsertFrame): Promise<Frame> {
+  async replaceFrame(
+    oldFrameId: string,
+    newFrameData: InsertFrame,
+  ): Promise<Frame> {
     const oldFrame = await this.getFrame(oldFrameId);
     if (!oldFrame) throw new Error("Existing frame not found");
     await db.delete(frames).where(eq(frames.id, oldFrameId));
-    const [created] = await db.insert(frames).values({
-      ...newFrameData,
-      soldCount: oldFrame.soldCount,
-      dateSold: oldFrame.dateSold,
-    }).returning();
+    const [created] = await db
+      .insert(frames)
+      .values({
+        ...newFrameData,
+        soldCount: oldFrame.soldCount,
+        dateSold: oldFrame.dateSold,
+      })
+      .returning();
     return created;
   }
 
@@ -169,13 +284,23 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateClinic(id: string, data: Partial<InsertClinic>): Promise<Clinic | undefined> {
-    const [updated] = await db.update(clinics).set(data).where(eq(clinics.id, id)).returning();
+  async updateClinic(
+    id: string,
+    data: Partial<InsertClinic>,
+  ): Promise<Clinic | undefined> {
+    const [updated] = await db
+      .update(clinics)
+      .set(data)
+      .where(eq(clinics.id, id))
+      .returning();
     return updated;
   }
 
   async deleteClinic(id: string): Promise<boolean> {
-    const result = await db.delete(clinics).where(eq(clinics.id, id)).returning();
+    const result = await db
+      .delete(clinics)
+      .where(eq(clinics.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -190,12 +315,18 @@ export class DbStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username));
     return user;
   }
 
   async getUserByInviteToken(token: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.inviteToken, token));
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.inviteToken, token));
     return user;
   }
 
@@ -203,20 +334,49 @@ export class DbStorage implements IStorage {
     return db.select().from(users).orderBy(users.createdAt);
   }
 
-  async createUser(data: { username: string; email: string; password: string; role: "admin" | "optician" | "staff"; clinicId?: string | null; isActive?: boolean }): Promise<User> {
-    const [user] = await db.insert(users).values({
-      username: data.username,
-      email: data.email,
-      password: data.password,
-      role: data.role,
-      clinicId: data.clinicId ?? null,
-      isActive: data.isActive ?? true,
-    }).returning();
+  async createUser(data: {
+    username: string;
+    email: string;
+    password: string;
+    role: "admin" | "optician" | "staff";
+    clinicId?: string | null;
+    isActive?: boolean;
+  }): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        role: data.role,
+        clinicId: data.clinicId ?? null,
+        isActive: data.isActive ?? true,
+      })
+      .returning();
     return user;
   }
 
-  async updateUser(id: string, data: Partial<Pick<User, "username" | "email" | "password" | "role" | "clinicId" | "inviteToken" | "inviteExpiry" | "isActive">>): Promise<User | undefined> {
-    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+  async updateUser(
+    id: string,
+    data: Partial<
+      Pick<
+        User,
+        | "username"
+        | "email"
+        | "password"
+        | "role"
+        | "clinicId"
+        | "inviteToken"
+        | "inviteExpiry"
+        | "isActive"
+      >
+    >,
+  ): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
     return updated;
   }
 
@@ -240,7 +400,9 @@ export class DbStorage implements IStorage {
   }
 
   async setSetting(key: string, value: string): Promise<void> {
-    await db.insert(settings).values({ key, value })
+    await db
+      .insert(settings)
+      .values({ key, value })
       .onConflictDoUpdate({ target: settings.key, set: { value } });
   }
 
@@ -252,7 +414,11 @@ export class DbStorage implements IStorage {
 
   async getLabs(clinicId?: string | null): Promise<Lab[]> {
     if (clinicId) {
-      return db.select().from(labs).where(eq(labs.clinicId, clinicId)).orderBy(labs.name);
+      return db
+        .select()
+        .from(labs)
+        .where(eq(labs.clinicId, clinicId))
+        .orderBy(labs.name);
     }
     return db.select().from(labs).orderBy(labs.name);
   }
@@ -262,9 +428,15 @@ export class DbStorage implements IStorage {
     return lab;
   }
 
-  async getLabByName(name: string, clinicId?: string | null): Promise<Lab | undefined> {
+  async getLabByName(
+    name: string,
+    clinicId?: string | null,
+  ): Promise<Lab | undefined> {
     if (clinicId) {
-      const [lab] = await db.select().from(labs).where(and(eq(labs.name, name), eq(labs.clinicId, clinicId)));
+      const [lab] = await db
+        .select()
+        .from(labs)
+        .where(and(eq(labs.name, name), eq(labs.clinicId, clinicId)));
       return lab;
     }
     const [lab] = await db.select().from(labs).where(eq(labs.name, name));
@@ -276,8 +448,15 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateLab(id: string, data: Partial<InsertLab>): Promise<Lab | undefined> {
-    const [updated] = await db.update(labs).set(data).where(eq(labs.id, id)).returning();
+  async updateLab(
+    id: string,
+    data: Partial<InsertLab>,
+  ): Promise<Lab | undefined> {
+    const [updated] = await db
+      .update(labs)
+      .set(data)
+      .where(eq(labs.id, id))
+      .returning();
     return updated;
   }
 
@@ -288,7 +467,10 @@ export class DbStorage implements IStorage {
 
   async labsExist(clinicId?: string | null): Promise<boolean> {
     if (clinicId) {
-      const result = await db.select().from(labs).where(eq(labs.clinicId, clinicId));
+      const result = await db
+        .select()
+        .from(labs)
+        .where(eq(labs.clinicId, clinicId));
       return result.length > 0;
     }
     const result = await db.select().from(labs);
@@ -300,7 +482,10 @@ export class DbStorage implements IStorage {
   }
 
   async getManufacturer(id: string): Promise<Manufacturer | undefined> {
-    const [m] = await db.select().from(manufacturers).where(eq(manufacturers.id, id));
+    const [m] = await db
+      .select()
+      .from(manufacturers)
+      .where(eq(manufacturers.id, id));
     return m;
   }
 
@@ -309,13 +494,23 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateManufacturer(id: string, data: Partial<InsertManufacturer>): Promise<Manufacturer | undefined> {
-    const [updated] = await db.update(manufacturers).set(data).where(eq(manufacturers.id, id)).returning();
+  async updateManufacturer(
+    id: string,
+    data: Partial<InsertManufacturer>,
+  ): Promise<Manufacturer | undefined> {
+    const [updated] = await db
+      .update(manufacturers)
+      .set(data)
+      .where(eq(manufacturers.id, id))
+      .returning();
     return updated;
   }
 
   async deleteManufacturer(id: string): Promise<boolean> {
-    const result = await db.delete(manufacturers).where(eq(manufacturers.id, id)).returning();
+    const result = await db
+      .delete(manufacturers)
+      .where(eq(manufacturers.id, id))
+      .returning();
     return result.length > 0;
   }
 
@@ -326,7 +521,11 @@ export class DbStorage implements IStorage {
 
   async getBrands(manufacturerId?: string): Promise<Brand[]> {
     if (manufacturerId) {
-      return db.select().from(brands).where(eq(brands.manufacturerId, manufacturerId)).orderBy(brands.name);
+      return db
+        .select()
+        .from(brands)
+        .where(eq(brands.manufacturerId, manufacturerId))
+        .orderBy(brands.name);
     }
     return db.select().from(brands).orderBy(brands.name);
   }
@@ -341,8 +540,15 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateBrand(id: string, data: Partial<InsertBrand>): Promise<Brand | undefined> {
-    const [updated] = await db.update(brands).set(data).where(eq(brands.id, id)).returning();
+  async updateBrand(
+    id: string,
+    data: Partial<InsertBrand>,
+  ): Promise<Brand | undefined> {
+    const [updated] = await db
+      .update(brands)
+      .set(data)
+      .where(eq(brands.id, id))
+      .returning();
     return updated;
   }
 
@@ -353,9 +559,16 @@ export class DbStorage implements IStorage {
 
   async getWeeklyMetrics(clinicId?: string | null): Promise<WeeklyMetric[]> {
     if (clinicId) {
-      return db.select().from(weeklyMetrics).where(eq(weeklyMetrics.clinicId, clinicId)).orderBy(desc(weeklyMetrics.weekStarting));
+      return db
+        .select()
+        .from(weeklyMetrics)
+        .where(eq(weeklyMetrics.clinicId, clinicId))
+        .orderBy(desc(weeklyMetrics.weekStarting));
     }
-    return db.select().from(weeklyMetrics).orderBy(desc(weeklyMetrics.weekStarting));
+    return db
+      .select()
+      .from(weeklyMetrics)
+      .orderBy(desc(weeklyMetrics.weekStarting));
   }
 
   async createWeeklyMetric(data: InsertWeeklyMetric): Promise<WeeklyMetric> {
@@ -363,25 +576,42 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateWeeklyMetric(id: string, data: Partial<InsertWeeklyMetric>): Promise<WeeklyMetric | undefined> {
-    const [updated] = await db.update(weeklyMetrics).set(data).where(eq(weeklyMetrics.id, id)).returning();
+  async updateWeeklyMetric(
+    id: string,
+    data: Partial<InsertWeeklyMetric>,
+  ): Promise<WeeklyMetric | undefined> {
+    const [updated] = await db
+      .update(weeklyMetrics)
+      .set(data)
+      .where(eq(weeklyMetrics.id, id))
+      .returning();
     return updated;
   }
 
   async deleteWeeklyMetric(id: string): Promise<boolean> {
-    const result = await db.delete(weeklyMetrics).where(eq(weeklyMetrics.id, id)).returning();
+    const result = await db
+      .delete(weeklyMetrics)
+      .where(eq(weeklyMetrics.id, id))
+      .returning();
     return result.length > 0;
   }
 
   async getLabOrders(clinicId?: string | null): Promise<LabOrder[]> {
     if (clinicId) {
-      return db.select().from(labOrders).where(eq(labOrders.clinicId, clinicId)).orderBy(desc(labOrders.createdAt));
+      return db
+        .select()
+        .from(labOrders)
+        .where(eq(labOrders.clinicId, clinicId))
+        .orderBy(desc(labOrders.createdAt));
     }
     return db.select().from(labOrders).orderBy(desc(labOrders.createdAt));
   }
 
   async getLabOrder(id: string): Promise<LabOrder | undefined> {
-    const [order] = await db.select().from(labOrders).where(eq(labOrders.id, id));
+    const [order] = await db
+      .select()
+      .from(labOrders)
+      .where(eq(labOrders.id, id));
     return order;
   }
 
@@ -390,19 +620,32 @@ export class DbStorage implements IStorage {
     return created;
   }
 
-  async updateLabOrder(id: string, data: Partial<InsertLabOrder>): Promise<LabOrder | undefined> {
-    const [updated] = await db.update(labOrders).set(data).where(eq(labOrders.id, id)).returning();
+  async updateLabOrder(
+    id: string,
+    data: Partial<InsertLabOrder>,
+  ): Promise<LabOrder | undefined> {
+    const [updated] = await db
+      .update(labOrders)
+      .set(data)
+      .where(eq(labOrders.id, id))
+      .returning();
     return updated;
   }
 
   async deleteLabOrder(id: string): Promise<boolean> {
     const order = await this.getLabOrder(id);
 
-    const result = await db.delete(labOrders).where(eq(labOrders.id, id)).returning();
+    const result = await db
+      .delete(labOrders)
+      .where(eq(labOrders.id, id))
+      .returning();
     if (result.length === 0) return false;
 
     if (order && !order.patientOwnFrame && order.frameId) {
-      const [frame] = await db.select().from(frames).where(eq(frames.id, order.frameId));
+      const [frame] = await db
+        .select()
+        .from(frames)
+        .where(eq(frames.id, order.frameId));
       if (frame) {
         const newQty = (frame.quantity ?? 0) + 1;
         const newOffBoard = Math.max(0, (frame.offBoardQty ?? 0) - 1);
@@ -417,7 +660,10 @@ export class DbStorage implements IStorage {
           updates.status = "on_board";
         }
 
-        await db.update(frames).set(updates).where(eq(frames.id, order.frameId));
+        await db
+          .update(frames)
+          .set(updates)
+          .where(eq(frames.id, order.frameId));
       }
       await this.syncFrameSoldCount(order.frameId);
     }
@@ -432,7 +678,8 @@ export class DbStorage implements IStorage {
 
     const today = new Date().toISOString().split("T")[0];
 
-    await db.update(labOrders)
+    await db
+      .update(labOrders)
       .set({ frameSold: true, frameSoldAt: today })
       .where(eq(labOrders.id, labOrderId));
 
@@ -442,11 +689,21 @@ export class DbStorage implements IStorage {
   }
 
   async updateFrameStatus(frameId: string, status: string): Promise<void> {
-    await db.update(frames).set({ status: status as "on_board" | "off_board" | "at_lab" | "sold" }).where(eq(frames.id, frameId));
+    await db
+      .update(frames)
+      .set({ status: status as "on_board" | "off_board" | "at_lab" | "sold" })
+      .where(eq(frames.id, frameId));
   }
 
-  async adjustFrameInventory(frameId: string, onBoardDelta: number, offBoardDelta: number): Promise<void> {
-    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
+  async adjustFrameInventory(
+    frameId: string,
+    onBoardDelta: number,
+    offBoardDelta: number,
+  ): Promise<void> {
+    const [frame] = await db
+      .select()
+      .from(frames)
+      .where(eq(frames.id, frameId));
     if (!frame) return;
     const newQty = Math.max(0, (frame.quantity ?? 1) + onBoardDelta);
     const newOffBoard = Math.max(0, (frame.offBoardQty ?? 0) + offBoardDelta);
@@ -468,29 +725,43 @@ export class DbStorage implements IStorage {
   }
 
   async reorderFrame(frameId: string, qty: number): Promise<Frame> {
-    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
+    const [frame] = await db
+      .select()
+      .from(frames)
+      .where(eq(frames.id, frameId));
     if (!frame) throw new Error("Frame not found");
     const offQty = frame.offBoardQty ?? 0;
     const moveQty = offQty > 0 ? offQty : Math.max(1, qty);
-    const [updated] = await db.update(frames).set({
-      offBoardQty: 0,
-      reorderedQty: (frame.reorderedQty ?? 0) + moveQty,
-      reorderCount: (frame.reorderCount ?? 0) + 1,
-    }).where(eq(frames.id, frameId)).returning();
+    const [updated] = await db
+      .update(frames)
+      .set({
+        offBoardQty: 0,
+        reorderedQty: (frame.reorderedQty ?? 0) + moveQty,
+        reorderCount: (frame.reorderCount ?? 0) + 1,
+      })
+      .where(eq(frames.id, frameId))
+      .returning();
     return updated;
   }
 
   async backOnBoard(frameId: string): Promise<Frame> {
-    const [frame] = await db.select().from(frames).where(eq(frames.id, frameId));
+    const [frame] = await db
+      .select()
+      .from(frames)
+      .where(eq(frames.id, frameId));
     if (!frame) throw new Error("Frame not found");
     const reorderedQty = frame.reorderedQty ?? 0;
     const restoreQty = reorderedQty > 0 ? reorderedQty : 1;
-    const [updated] = await db.update(frames).set({
-      quantity: (frame.quantity ?? 0) + restoreQty,
-      reorderedQty: 0,
-      offBoardQty: 0,
-      status: "on_board",
-    }).where(eq(frames.id, frameId)).returning();
+    const [updated] = await db
+      .update(frames)
+      .set({
+        quantity: (frame.quantity ?? 0) + restoreQty,
+        reorderedQty: 0,
+        offBoardQty: 0,
+        status: "on_board",
+      })
+      .where(eq(frames.id, frameId))
+      .returning();
     return updated;
   }
 
@@ -498,20 +769,25 @@ export class DbStorage implements IStorage {
     const rows = await db
       .select({
         count: sql<number>`cast(count(*) as int)`,
-        latestDate: sql<string | null>`max(coalesce(frame_sold_at, to_char(created_at, 'YYYY-MM-DD')))`,
+        latestDate: sql<
+          string | null
+        >`max(coalesce(frame_sold_at, to_char(created_at, 'YYYY-MM-DD')))`,
       })
       .from(labOrders)
-      .where(and(
-        eq(labOrders.frameId, frameId),
-        eq(labOrders.patientOwnFrame, false),
-        eq(labOrders.frameSold, true),
-      ));
+      .where(
+        and(
+          eq(labOrders.frameId, frameId),
+          eq(labOrders.patientOwnFrame, false),
+          eq(labOrders.frameSold, true),
+        ),
+      );
 
     const rawCount = rows[0]?.count ?? 0;
     const soldCount = rawCount > 0 ? 1 : 0;
     const latestDate = rows[0]?.latestDate ?? null;
 
-    await db.update(frames)
+    await db
+      .update(frames)
       .set({
         soldCount,
         dateSold: soldCount === 0 ? null : latestDate,
@@ -524,13 +800,17 @@ export class DbStorage implements IStorage {
       .select({
         frameId: labOrders.frameId,
         soldOrders: sql<number>`cast(count(*) filter (where ${labOrders.frameSold} = true) as int)`,
-        latestDate: sql<string | null>`max(case when ${labOrders.frameSold} = true then coalesce(${labOrders.frameSoldAt}, to_char(${labOrders.createdAt}, 'YYYY-MM-DD')) end)`,
+        latestDate: sql<
+          string | null
+        >`max(case when ${labOrders.frameSold} = true then coalesce(${labOrders.frameSoldAt}, to_char(${labOrders.createdAt}, 'YYYY-MM-DD')) end)`,
       })
       .from(labOrders)
-      .where(and(
-        sql`${labOrders.frameId} is not null`,
-        eq(labOrders.patientOwnFrame, false)
-      ))
+      .where(
+        and(
+          sql`${labOrders.frameId} is not null`,
+          eq(labOrders.patientOwnFrame, false),
+        ),
+      )
       .groupBy(labOrders.frameId);
 
     for (const row of rows) {
@@ -538,7 +818,8 @@ export class DbStorage implements IStorage {
 
       const soldCount = (row.soldOrders ?? 0) > 0 ? 1 : 0;
 
-      await db.update(frames)
+      await db
+        .update(frames)
         .set({
           soldCount,
           dateSold: soldCount === 0 ? null : row.latestDate,
@@ -551,63 +832,112 @@ export class DbStorage implements IStorage {
 
   async getFrameHolds(clinicId?: string | null): Promise<FrameHold[]> {
     if (clinicId) {
-      return db.select().from(frameHolds).where(eq(frameHolds.clinicId, clinicId)).orderBy(desc(frameHolds.createdAt));
+      return db
+        .select()
+        .from(frameHolds)
+        .where(eq(frameHolds.clinicId, clinicId))
+        .orderBy(desc(frameHolds.createdAt));
     }
     return db.select().from(frameHolds).orderBy(desc(frameHolds.createdAt));
   }
 
   async getFrameHold(id: string): Promise<FrameHold | undefined> {
-    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
+    const [hold] = await db
+      .select()
+      .from(frameHolds)
+      .where(eq(frameHolds.id, id));
     return hold;
   }
 
   async createFrameHold(data: InsertFrameHold): Promise<FrameHold> {
     const [hold] = await db.insert(frameHolds).values(data).returning();
     if (data.frameId) {
-      const [frame] = await db.select().from(frames).where(eq(frames.id, data.frameId));
+      const [frame] = await db
+        .select()
+        .from(frames)
+        .where(eq(frames.id, data.frameId));
       if (frame) {
-        await db.update(frames).set({ quantity: Math.max(0, (frame.quantity ?? 1) - 1) }).where(eq(frames.id, data.frameId));
+        await db
+          .update(frames)
+          .set({ quantity: Math.max(0, (frame.quantity ?? 1) - 1) })
+          .where(eq(frames.id, data.frameId));
       }
     }
     return hold;
   }
 
-  async updateFrameHold(id: string, data: Partial<InsertFrameHold>): Promise<FrameHold | undefined> {
-    const [updated] = await db.update(frameHolds).set(data).where(eq(frameHolds.id, id)).returning();
+  async updateFrameHold(
+    id: string,
+    data: Partial<InsertFrameHold>,
+  ): Promise<FrameHold | undefined> {
+    const [updated] = await db
+      .update(frameHolds)
+      .set(data)
+      .where(eq(frameHolds.id, id))
+      .returning();
     return updated;
   }
 
   async deleteFrameHold(id: string): Promise<boolean> {
-    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
+    const [hold] = await db
+      .select()
+      .from(frameHolds)
+      .where(eq(frameHolds.id, id));
     const result = await db.delete(frameHolds).where(eq(frameHolds.id, id));
     if ((result.rowCount ?? 0) === 0) return false;
 
     if (hold && hold.status === "active" && hold.frameId) {
-      const [frame] = await db.select({ quantity: frames.quantity }).from(frames).where(eq(frames.id, hold.frameId));
+      const [frame] = await db
+        .select({ quantity: frames.quantity })
+        .from(frames)
+        .where(eq(frames.id, hold.frameId));
       if (frame) {
-        await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, hold.frameId));
+        await db
+          .update(frames)
+          .set({ quantity: (frame.quantity ?? 0) + 1 })
+          .where(eq(frames.id, hold.frameId));
       }
     }
     return true;
   }
 
-  async releaseFrameHold(id: string): Promise<{ hold: FrameHold; frame: Frame | null }> {
-    const [hold] = await db.select().from(frameHolds).where(eq(frameHolds.id, id));
+  async releaseFrameHold(
+    id: string,
+  ): Promise<{ hold: FrameHold; frame: Frame | null }> {
+    const [hold] = await db
+      .select()
+      .from(frameHolds)
+      .where(eq(frameHolds.id, id));
     if (!hold) throw new Error("Hold not found");
-    const [updatedHold] = await db.update(frameHolds).set({ status: "released" }).where(eq(frameHolds.id, id)).returning();
+    const [updatedHold] = await db
+      .update(frameHolds)
+      .set({ status: "released" })
+      .where(eq(frameHolds.id, id))
+      .returning();
     let updatedFrame: Frame | null = null;
     if (hold.frameId) {
-      const [frame] = await db.select().from(frames).where(eq(frames.id, hold.frameId));
+      const [frame] = await db
+        .select()
+        .from(frames)
+        .where(eq(frames.id, hold.frameId));
       if (frame) {
-        const [f] = await db.update(frames).set({ quantity: (frame.quantity ?? 0) + 1 }).where(eq(frames.id, hold.frameId)).returning();
+        const [f] = await db
+          .update(frames)
+          .set({ quantity: (frame.quantity ?? 0) + 1 })
+          .where(eq(frames.id, hold.frameId))
+          .returning();
         updatedFrame = f ?? null;
       }
     }
     return { hold: updatedHold, frame: updatedFrame };
   }
 
-  async extendFrameHold(id: string, newExpirationDate: string): Promise<FrameHold | undefined> {
-    const [updated] = await db.update(frameHolds)
+  async extendFrameHold(
+    id: string,
+    newExpirationDate: string,
+  ): Promise<FrameHold | undefined> {
+    const [updated] = await db
+      .update(frameHolds)
       .set({ holdExpirationDate: newExpirationDate, status: "active" })
       .where(eq(frameHolds.id, id))
       .returning();
@@ -622,7 +952,10 @@ export class DbStorage implements IStorage {
     const activeHolds = await db.select().from(frameHolds).where(condition);
     for (const hold of activeHolds) {
       if (hold.holdExpirationDate < today) {
-        await db.update(frameHolds).set({ status: "expired" }).where(eq(frameHolds.id, hold.id));
+        await db
+          .update(frameHolds)
+          .set({ status: "expired" })
+          .where(eq(frameHolds.id, hold.id));
       }
     }
   }
@@ -632,9 +965,12 @@ export class DbStorage implements IStorage {
     if (alreadyRun === "true") return;
 
     const multiplierStr = await this.getSetting("defaultMultiplier");
-    const multiplier = multiplierStr && !isNaN(Number(multiplierStr)) && Number(multiplierStr) > 0
-      ? Number(multiplierStr)
-      : 3;
+    const multiplier =
+      multiplierStr &&
+      !isNaN(Number(multiplierStr)) &&
+      Number(multiplierStr) > 0
+        ? Number(multiplierStr)
+        : 3;
 
     await db.execute(sql`
       UPDATE frames
@@ -643,7 +979,9 @@ export class DbStorage implements IStorage {
     `);
 
     await this.setSetting("retailPricesMigratedV3", "true");
-    console.log(`[startup] Retail prices recalculated using multiplier ${multiplier}`);
+    console.log(
+      `[startup] Retail prices recalculated using multiplier ${multiplier}`,
+    );
   }
 
   async fixManufacturerData(): Promise<void> {

@@ -1,10 +1,21 @@
-import { pgTable, text, numeric, integer, varchar, timestamp, boolean, unique } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  numeric,
+  integer,
+  varchar,
+  timestamp,
+  boolean,
+  unique,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
 
 export const clinics = pgTable("clinics", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   clinicName: text("clinic_name").notNull(),
   address: text("address"),
   city: text("city"),
@@ -13,17 +24,25 @@ export const clinics = pgTable("clinics", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertClinicSchema = createInsertSchema(clinics).omit({ id: true, createdAt: true });
+export const insertClinicSchema = createInsertSchema(clinics).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertClinic = z.infer<typeof insertClinicSchema>;
 export type Clinic = typeof clinics.$inferSelect;
 
 export const frames = pgTable("frames", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, {
+    onDelete: "cascade",
+  }),
   manufacturer: text("manufacturer").notNull(),
   brand: text("brand").notNull(),
   model: text("model").notNull(),
   color: text("color").notNull(),
+  notes: text("notes"), //
   code: text("code"),
   eyeSize: integer("eye_size").notNull(),
   bridge: integer("bridge").notNull(),
@@ -31,7 +50,9 @@ export const frames = pgTable("frames", {
   cost: numeric("cost", { precision: 10, scale: 2 }).notNull(),
   multiplier: numeric("multiplier", { precision: 10, scale: 4 }),
   retailPrice: numeric("retail_price", { precision: 10, scale: 2 }).notNull(),
-  status: text("status", { enum: ["on_board", "off_board", "at_lab", "sold"] }).notNull().default("on_board"),
+  status: text("status", { enum: ["on_board", "off_board", "at_lab", "sold"] })
+    .notNull()
+    .default("on_board"),
   quantity: integer("quantity").notNull().default(1),
   offBoardQty: integer("off_board_qty").notNull().default(0),
   reorderedQty: integer("reordered_qty").notNull().default(0),
@@ -58,12 +79,18 @@ export type InsertFrame = z.infer<typeof insertFrameSchema>;
 export type Frame = typeof frames.$inferSelect;
 
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   email: text("email").unique(),
   password: text("password").notNull(),
-  role: text("role", { enum: ["admin", "optician", "staff"] }).notNull().default("staff"),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "set null" }),
+  role: text("role", { enum: ["admin", "optician", "staff"] })
+    .notNull()
+    .default("staff"),
+  clinicId: varchar("clinic_id").references(() => clinics.id, {
+    onDelete: "set null",
+  }),
   inviteToken: text("invite_token"),
   inviteExpiry: timestamp("invite_expiry"),
   isActive: boolean("is_active").notNull().default(true),
@@ -85,46 +112,73 @@ export const settings = pgTable("settings", {
 
 export type Setting = typeof settings.$inferSelect;
 
-export const labs = pgTable("labs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  account: text("account").notNull().default(""),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  unique().on(table.clinicId, table.name),
-]);
+export const labs = pgTable(
+  "labs",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    clinicId: varchar("clinic_id").references(() => clinics.id, {
+      onDelete: "cascade",
+    }),
+    name: text("name").notNull(),
+    account: text("account").notNull().default(""),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.clinicId, table.name)],
+);
 
-export const insertLabSchema = createInsertSchema(labs).omit({ id: true, createdAt: true });
+export const insertLabSchema = createInsertSchema(labs).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertLab = z.infer<typeof insertLabSchema>;
 export type Lab = typeof labs.$inferSelect;
 
 export const manufacturers = pgTable("manufacturers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertManufacturerSchema = createInsertSchema(manufacturers).omit({ id: true, createdAt: true });
+export const insertManufacturerSchema = createInsertSchema(manufacturers).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertManufacturer = z.infer<typeof insertManufacturerSchema>;
 export type Manufacturer = typeof manufacturers.$inferSelect;
 
-export const brands = pgTable("brands", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  manufacturerId: varchar("manufacturer_id").notNull().references(() => manufacturers.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  unique().on(table.manufacturerId, table.name),
-]);
+export const brands = pgTable(
+  "brands",
+  {
+    id: varchar("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    manufacturerId: varchar("manufacturer_id")
+      .notNull()
+      .references(() => manufacturers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [unique().on(table.manufacturerId, table.name)],
+);
 
-export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true });
+export const insertBrandSchema = createInsertSchema(brands).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertBrand = z.infer<typeof insertBrandSchema>;
 export type Brand = typeof brands.$inferSelect;
 
 export const weeklyMetrics = pgTable("weekly_metrics", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, {
+    onDelete: "cascade",
+  }),
   weekStarting: text("week_starting").notNull(),
   totalComprehensiveExams: integer("total_comprehensive_exams").notNull(),
   followUps: integer("follow_ups").notNull(),
@@ -133,14 +187,23 @@ export const weeklyMetrics = pgTable("weekly_metrics", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertWeeklyMetricSchema = createInsertSchema(weeklyMetrics).omit({ id: true, createdAt: true });
+export const insertWeeklyMetricSchema = createInsertSchema(weeklyMetrics).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertWeeklyMetric = z.infer<typeof insertWeeklyMetricSchema>;
 export type WeeklyMetric = typeof weeklyMetrics.$inferSelect;
 
 export const labOrders = pgTable("lab_orders", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
-  frameId: varchar("frame_id").references(() => frames.id, { onDelete: "set null" }),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, {
+    onDelete: "cascade",
+  }),
+  frameId: varchar("frame_id").references(() => frames.id, {
+    onDelete: "set null",
+  }),
   frameBrand: text("frame_brand").notNull(),
   frameModel: text("frame_model").notNull(),
   frameColor: text("frame_color").notNull(),
@@ -161,24 +224,38 @@ export const labOrders = pgTable("lab_orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertLabOrderSchema = createInsertSchema(labOrders).omit({ id: true, createdAt: true });
+export const insertLabOrderSchema = createInsertSchema(labOrders).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertLabOrder = z.infer<typeof insertLabOrderSchema>;
 export type LabOrder = typeof labOrders.$inferSelect;
 
 export const frameHolds = pgTable("frame_holds", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  clinicId: varchar("clinic_id").references(() => clinics.id, { onDelete: "cascade" }),
-  frameId: varchar("frame_id").references(() => frames.id, { onDelete: "set null" }),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  clinicId: varchar("clinic_id").references(() => clinics.id, {
+    onDelete: "cascade",
+  }),
+  frameId: varchar("frame_id").references(() => frames.id, {
+    onDelete: "set null",
+  }),
   frameName: text("frame_name").notNull(),
   brand: text("brand").notNull(),
   accountNumber: text("account_number").notNull(),
   holdStartDate: text("hold_start_date").notNull(),
   holdExpirationDate: text("hold_expiration_date").notNull(),
-  status: text("status", { enum: ["active", "expired", "released"] }).notNull().default("active"),
+  status: text("status", { enum: ["active", "expired", "released"] })
+    .notNull()
+    .default("active"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertFrameHoldSchema = createInsertSchema(frameHolds).omit({ id: true, createdAt: true });
+export const insertFrameHoldSchema = createInsertSchema(frameHolds).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertFrameHold = z.infer<typeof insertFrameHoldSchema>;
 export type FrameHold = typeof frameHolds.$inferSelect;
