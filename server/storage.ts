@@ -787,7 +787,7 @@ export class DbStorage implements IStorage {
         count: sql<number>`cast(count(*) as int)`,
         latestDate: sql<
           string | null
-        >`max(coalesce(frame_sold_at, to_char(created_at, 'YYYY-MM-DD')))`,
+        >`max(coalesce(frame_sold_at, to_char((created_at)::timestamp, 'YYYY-MM-DD')))`,
       })
       .from(labOrders)
       .where(
